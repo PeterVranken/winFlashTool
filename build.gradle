@@ -1,0 +1,46 @@
+// Working with expressions, providing feedback:
+plugins {
+    id 'java'
+    id 'application'
+}
+
+def name = "World"
+println "Hello ${name}!"
+println "Project directory: ${projectDir}"
+println "PEAK-DLLs are expected in: ${projectDir}\\lib\\PEAK\\x86_64"
+
+application {
+    mainClass = 'winFlashTool.MinimalisticProgram'
+}
+
+group = 'com.example'
+version = '1.0'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Beispiel: JUnit fuer Tests
+    testImplementation 'junit:junit:4.13.2'
+    implementation 'org.apache.logging.log4j:log4j-core:2.20.0'
+    implementation 'org.apache.logging.log4j:log4j-api:2.20.0'
+}
+
+
+run {
+    environment 'PATH', "${System.getenv('PATH')};${projectDir}\\lib\\PEAK\\x86_64"
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src']
+        }
+    }
+    test {
+        java {
+            srcDirs = ['test']
+        }
+    }
+}
