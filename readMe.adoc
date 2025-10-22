@@ -1,3 +1,17 @@
-Development enviroenment for a Windows flash tool, which can communicate
+Development environment for a Windows flash tool, which can communicate
 with the flash bootloader of an embedded target via the PEAK PCAN-USB-(FD)
 and a CAN bus connection.
+
+Next steps:
+
+- Find Java support for reading *.srec
+- Try CAN ID filtering for the few required messages.
+- Try CAN FD for speeding up
+- Check PEAK package for CCP: Java support? Usable for FBL?
+- Clone the application to implement the CCP communication entirely under
+  Windows?
+  - Would require a Windows variant in C. This looks much like duplicate
+    work. Particularly since we have a primitive CCP implementation on the
+    target. 
+- Consider using DEVKIT to make the entire thing public. Would require a
+  flash driver for MPC5748G.

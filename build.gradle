@@ -4,17 +4,17 @@ plugins {
     id 'application'
 }
 
-def name = "World"
-println "Hello ${name}!"
+//def name = "World"
+//println "Hello ${name}!"
 println "Project directory: ${projectDir}"
 println "PEAK-DLLs are expected in: ${projectDir}\\lib\\PEAK\\x86_64"
 
 application {
-    mainClass = 'winFlashTool.MinimalisticProgram'
+    mainClass = 'winFlashTool.WinFlashTool'
 }
 
-group = 'com.example'
-version = '1.0'
+group = 'FlashBootLoader'
+version = '0.1'
 
 repositories {
     mavenCentral()
