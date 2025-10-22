@@ -27,6 +27,23 @@ dependencies {
     implementation 'org.apache.logging.log4j:log4j-api:2.20.0'
 }
 
+// Let the Git tool GitWCRev generate a tool revision as Java source code.
+// The most minor field "build" is derived from the Git repository commit
+// count.
+task generateVersionInfo(type: Exec) {
+    environment 'PATH', "${System.getenv('PATH')};C:/Programme/TortoiseGit/bin/GitWCRev.exe"
+    def tool = "GitWCRev.exe"
+    def workingTreePath = projectDir
+    def srcVersionFile = "src/main/java/winFlashTool/GitRevision.java.template"
+    def dstVersionFile = "src/main/java/winFlashTool/GitRevision.java"
+
+    commandLine tool, workingTreePath, srcVersionFile, dstVersionFile, "-q"
+
+    // Optional: only run if the output file doesn't exist or is outdated
+    //def outputFile = file(dstVersionFile)
+    //outputs.file outputFile
+}
+compileJava.dependsOn generateVersionInfo
 
 run {
     environment 'PATH', "${System.getenv('PATH')};${projectDir}\\lib\\PEAK\\x86_64"
