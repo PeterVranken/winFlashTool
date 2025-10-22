@@ -34,7 +34,6 @@ import java.text.*;
 
 import org.apache.logging.log4j.*;
 import winFlashTool.applicationInterface.cmdLineParser.CmdLineParser;
-import winFlashTool.applicationInterface.ParameterSet;
 import winFlashTool.applicationInterface.loggerConfiguration.Log4j2Configurator;
 import winFlashTool.basics.ErrorCounter;
 
@@ -82,13 +81,6 @@ public class WinFlashTool
 
     /** The structure that holds all command line parameters. */
     private CmdLineParser cmdLineParser_ = null;
-
-    /** The global structure that holds all runtime parameters. Here, the field is
-        initialized to null. True initialization is done at run time to avoid early loading
-        of the log4j class (which may be in use by the field's class). Early loading of the
-        log4j class would shortcut the command line controlled initialization of the
-        logging. */
-    private ParameterSet parameterSet_ = null;
 
     /** The correct EOL in abbreviated form. */
     private static final String NL = System.lineSeparator();
@@ -158,26 +150,45 @@ public class WinFlashTool
     private void defineArguments()
     {
         assert cmdLineParser_ == null: "Don't parse the command line twice";
-        cmdLineParser_ = new CmdLineParser();
+        final CmdLineParser clp = new CmdLineParser();
 
         /* Define all expected arguments ... */
-        cmdLineParser_.defineArgument( "h"
-                                     , "help"
-                                     , /* cntMax */ 1
-                                     , "Demand this help."
-                                     );
+        clp.defineArgument( "h"
+                          , "help"
+                          , /* cntMax */ 1
+                          , "Demand this help."
+                          );
 
         /* Let the logger configurator define its command line arguments. */
-        Log4j2Configurator.defineArguments(cmdLineParser_);
+        Log4j2Configurator.defineArguments(clp);
 
-        /* Let the parameter module define its further command line arguments. */
-        ParameterSet.defineArguments(cmdLineParser_);
+        /* Define all command line arguments, which are not logging related. */
+        clp.defineArgument( "c", "cluster-name"
+                          , /* cntMin, cntMax */ 0, 1
+                          , /* defaultValue */ "cluster"
+                          , "The name of the complete data cluster. Optional, may be"
+                            + " given once in the global context. Default is"
+                            + " \"cluster\""
+                          );
+//        clp.defineArgument( "$(point)", ""
+//                          , /* cntMin, cntMax */ 0, -1
+//                          , /* defaultValue */ null
+//                          , ""
+//                            + " "
+//                            + " "
+//                            + " "
+//                            + ".\nOptional, default is"
+//                            + " "
+//                            + ".\nThis parameter is Mandatory"
+//                          );
 
         /* No unnamed arguments are expected. */
-        //cmdLineParser_.defineArgument( /* cntMin, cntMax */ 0, -1
-        //                            , /* defaultValue */ null
-        //                            , ""
-        //                            );
+        //clp.defineArgument( /* cntMin, cntMax */ 0, -1
+        //                  , /* defaultValue */ null
+        //                  , ""
+        //                  );
+
+        cmdLineParser_ = clp;
 
     } /* End of defineArguments */
 
@@ -237,44 +248,6 @@ public class WinFlashTool
      */
     public boolean run()
     {
-        /* Only now - after initialization of the log4j 2 class - we instantiate all
-           required objects. This has not been done before as their classes could depend on
-           log4j code already at class load time; and early loading of the log4j class
-           would shortcut the log4j initialization as implemented by the application main
-           function. */
-        parameterSet_ = new ParameterSet();
-
-        /* The logging related command line argument are not managed or parsed by the class
-           ParameterSet. However it permits to store them in order to include them in
-           reporting the current application parameter set. Here, we just copy the
-           arguments as parsed by the log4j configurator into the parameter object. */
-        parameterSet_.useStdLog4j2Config = log4j2Configurator_.getUseStdConfigSequence();
-        parameterSet_.logFileName = log4j2Configurator_.getLogFileName();
-        parameterSet_.logLevel = log4j2Configurator_.getLogLevel();
-        parameterSet_.log4j2Pattern = log4j2Configurator_.getLogPattern();
-
-        try
-        {
-            /* Parse the application specific command line arguments. */
-            parameterSet_.parseCmdLine(cmdLineParser_);
-
-            /* Echo the (complex structured) command line information in a structured way,
-               which reflects how it has been understood. */
-            _logger.info("Command line arguments:" + NL + parameterSet_);
-        }
-        catch(CmdLineParser.InvalidArgException e)
-        {
-            /* The log4j logger is not applied here in order to get the same look and feel
-               as in case of the more basic command line errors, which had been trapped and
-               reported in parseCmdLine. */
-            System.err.print(cmdLineParser_.getUsageInfo( _applicationName
-                                                        , /* argumentsTabularOnly */ true
-                                                        )
-                             + NL + "Invalid command line. " + e.getMessage() + NL
-                            );
-            return false;
-        }
-
         boolean success = true;
         int successfullyParsedFiles = 0;
 
@@ -428,7 +401,6 @@ public class WinFlashTool
                (and default configure) the logger before the programatic configuration
                could happen. */
             _logger = LogManager.getLogger(WinFlashTool.class);
-            ParameterSet.loadLog4jLogger();
 
             boolean success = This.run();
             _logger.debug( "{} terminating {}"
