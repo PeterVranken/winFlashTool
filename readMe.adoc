@@ -15,3 +15,33 @@ Next steps:
     target. 
 - Consider using DEVKIT to make the entire thing public. Would require a
   flash driver for MPC5748G.
+
+TODO CCP:
+
+- State machine needs to allow writing address ranges from..to and several
+  of those
+- Same with upload for verification. Or use free running data transfer
+  from ECU to host for speedup
+- Parameter PCAN_BUSOFF_AUTORESET in PCAN-USB setzen?
+  PCAN-Parameter_Documentation.pdf, S.45.
+- Support Tracing. PCANBasic can log all Rx and Tx messages.
+  PCAN-Parameter_Documentation.pdf, pp.79ff and pp.97ff.
+- Status ist ein Bitvektor und erfordert Binärauswertung
+
+Open Questions:
+
+- How to read a CAN message in a blocking way but still with timeout?
+- Or, how to use Windows events in Java with PCANBasic for non-blocking
+  implementation of CAN reception?
+- SafeRTOS: Is it possible to use CAN Rx event triggered? Can we post an
+  event on CAN Rx, which awakes a follower task? Is it possible to use
+  this with a counting event in order to know how many mesages to pull
+  from the queue? And does the count matter?
+  - If not then we are limited to one download/upload message per
+    Millisecond, which means about 50% busload at 500 kBd or 25% at 1 MBd.
+- Flashing: Every few bytes or collecting in a RAM buffer and writing at
+  once?
+- How long does writing last? Will this anyway slow down the CAN transfer
+  so that the CAN Rx event processing is anyway irrelevant? Flashing as
+  data flow control?
+  - Existing code to be inspected.

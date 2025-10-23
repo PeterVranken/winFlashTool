@@ -249,7 +249,9 @@ public class WinFlashTool
     public boolean run()
     {
         boolean success = true;
-        int successfullyParsedFiles = 0;
+
+        _logger.info("Starting endless Rx/Tx loop. Use Ctrl-C to stop application");        
+        MinimalisticProgram.main(/*args*/ null);
 
 // Application code goes here.
 //            String generatedCode = null;

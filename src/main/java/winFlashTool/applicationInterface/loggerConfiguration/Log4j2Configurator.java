@@ -91,7 +91,7 @@ public class Log4j2Configurator
         the XML configuration code. */
     public String logLevel_ = null;
 
-    /** The default log level in case of unspecified or wrong specified value. */
+    /** The log level in case of a wrongly specified value. */
     private static final Level _logLevelDefault = Level.INFO;
 
     /** The log4j2 message pattern used for the file appender. Used from the StringTemplate
@@ -319,7 +319,7 @@ public class Log4j2Configurator
         clp.defineArgument( "v"
                           , "log-level"
                           , /* cntMin, cntMax */ 0, 1
-                          , /* defaultValue */ null
+                          , /* defaultValue */ "INFO"
                           , "Verbosity of all logging. Specify one out of OFF,"
                             + " FATAL, ERROR, WARN, or INFO"
                             + ".\nOptional, default is INFO"
