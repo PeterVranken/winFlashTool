@@ -58,10 +58,7 @@ public class MinimalisticProgram
 
                 status = can.Write(TPCANHandle.PCAN_USBBUS1, msg);
                 if(status != TPCANStatus.PCAN_ERROR_OK)
-                {
                     System.out.println("Unable to write the CAN message");
-                    System.exit(0);
-                }
             }
             //if(noMsgsInQ > 1)
             //    System.out.printf("noMsgsInQ: %d\n", noMsgsInQ);
