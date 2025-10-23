@@ -1,0 +1,10 @@
+This folder contains some relevant extracts from the NXP flash boot loader
+for MPC5777C and MPC5775B/E. An inspection of these files tells, which CCP
+commands are used, and in which way, for programming the MCU. The Flash
+Tool under development will use the same commands in order to be
+compatible with the existing NXP flash boot loaders.
+
+All aspects, which are relevant to the development of the Flash Tool will
+be same for most or all other NXP MCUs, which can be flashed with their
+tool RAppID_BL plus the *.rbf or *.rba files. So the Flash Tool should not
+be restricted to the MCUs mentioned above.

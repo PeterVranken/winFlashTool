@@ -4,44 +4,76 @@ and a CAN bus connection.
 
 Next steps:
 
-- Find Java support for reading *.srec
-- Try CAN ID filtering for the few required messages.
-- Try CAN FD for speeding up
-- Check PEAK package for CCP: Java support? Usable for FBL?
-- Clone the application to implement the CCP communication entirely under
+* Find Java support for reading *.srec
+* Try CAN ID filtering for the few required messages.
+* Try CAN FD for speeding up
+* Check PEAK package for CCP: Java support? Usable for FBL?
+* Clone the application to implement the CCP communication entirely under
   Windows?
-  - Would require a Windows variant in C. This looks much like duplicate
+ ** Would require a Windows variant in C. This looks much like duplicate
     work. Particularly since we have a primitive CCP implementation on the
     target. 
-- Consider using DEVKIT to make the entire thing public. Would require a
+* Consider using DEVKIT to make the entire thing public. Would require a
   flash driver for MPC5748G.
 
 TODO CCP:
 
-- State machine needs to allow writing address ranges from..to and several
+* State machine needs to allow writing address ranges from..to and several
   of those
-- Same with upload for verification. Or use free running data transfer
+* Same with upload for verification. Or use free running data transfer
   from ECU to host for speedup
-- Parameter PCAN_BUSOFF_AUTORESET in PCAN-USB setzen?
+* Parameter PCAN_BUSOFF_AUTORESET in PCAN-USB setzen?
   PCAN-Parameter_Documentation.pdf, S.45.
-- Support Tracing. PCANBasic can log all Rx and Tx messages.
+* Support Tracing. PCANBasic can log all Rx and Tx messages.
   PCAN-Parameter_Documentation.pdf, pp.79ff and pp.97ff.
-- Status ist ein Bitvektor und erfordert Binärauswertung
+* Status ist ein Bitvektor und erfordert Binärauswertung
+
+* CCP commands understood by the NXP ECU code:
+ ** CCP_DIAG_SERVICE: Service 0x08, used to start the application after
+    programming. No response on this message is received any more.
+ ** CCP_SET_MTA: Set adress for subsequent CCP_CLEAR_MEMORY, PROGRAM_6 and
+    CCP_UPLOAD commands.
+ ** CCP_UPLOAD: Read memory for verify. Restricted to the configured ROM
+    blocks. 
+ ** CCP_PROGRAM6: Download 6 bytes to flash. They are collected in a
+    buffer and programmed synchronously when the buffer is full or a flash
+    sector boundary is reached. ccp_process() is blocking during
+    programming.
+ ** CCP_CLEAR_MEMORY: Erasure of an area beginning at MTA. The length is
+    element of the command. It is unclear yet, whether the host needs to
+    use correct flash sector boundaries (and thus use this cmmand
+    repeatedly) or if all sectors are erased, which overlap with the
+    demanded area.
 
 Open Questions:
 
-- How to read a CAN message in a blocking way but still with timeout?
-- Or, how to use Windows events in Java with PCANBasic for non-blocking
+* How to read a CAN message in a blocking way but still with timeout?
+ ** Method Read seems to be synchronous but not with busy-wait. We can
+    permanently ask it for input without generating significant CPU load.
+      With other words, Read seems to behave as if it were waiting for a
+    CAN Rx message with an implicit timeout of 3us.
+      So the Java application may cycle at full speed, without timer
+    control for limiting speed (and CPU load). The operation mode of
+    PCANBasic using Windows events seems to be not necessary.
+* Or, how to use Windows events in Java with PCANBasic for non-blocking
   implementation of CAN reception?
-- SafeRTOS: Is it possible to use CAN Rx event triggered? Can we post an
+* SafeRTOS: Is it possible to use CAN Rx event triggered? Can we post an
   event on CAN Rx, which awakes a follower task? Is it possible to use
   this with a counting event in order to know how many mesages to pull
   from the queue? And does the count matter?
-  - If not then we are limited to one download/upload message per
+ ** If not then we are limited to one download/upload message per
     Millisecond, which means about 50% busload at 500 kBd or 25% at 1 MBd.
-- Flashing: Every few bytes or collecting in a RAM buffer and writing at
+ ** Yes, this is possible. The CanIf ISR for Rx QM would get a postEvent
+    like th ISR for Tx XCP currently does. If we use the countable event
+    then there is no risk of getting stuck at high load.
+* Flashing: Every few bytes or collecting in a RAM buffer and writing at
   once?
-- How long does writing last? Will this anyway slow down the CAN transfer
+* How long does writing last? Will this anyway slow down the CAN transfer
   so that the CAN Rx event processing is anyway irrelevant? Flashing as
   data flow control?
-  - Existing code to be inspected.
+ ** Existing code to be inspected.
+ ** NXP flash driver uses busy wait for some flash operations. The timing
+    is calculated for a system clock of 128 MHz and won't work in our
+    setup. Rescaling required.
+  *** Likely needed only for suspend APIs, which are anyway not used by
+      our NXP CCP driver. (To be checked still in detail.)
