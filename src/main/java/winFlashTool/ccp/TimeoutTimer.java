@@ -22,10 +22,10 @@
  *   TimeoutTimer
  */
 
-package winFlashTool;
+package winFlashTool.ccp;
 
 public class TimeoutTimer {
-    private final long timeoutNs;
+    private long timeoutNs;
     private long startTime;
 
     public TimeoutTimer(long timeoutMillis) {
@@ -34,6 +34,11 @@ public class TimeoutTimer {
     }
 
     public void restart() {
+        this.startTime = System.nanoTime();
+    }
+
+    public void restart(long timeoutMillis) {
+        this.timeoutNs = timeoutMillis * 1_000_000;
         this.startTime = System.nanoTime();
     }
 

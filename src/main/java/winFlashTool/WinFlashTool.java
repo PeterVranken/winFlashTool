@@ -35,6 +35,8 @@ import java.text.*;
 import org.apache.logging.log4j.*;
 import winFlashTool.applicationInterface.cmdLineParser.CmdLineParser;
 import winFlashTool.applicationInterface.loggerConfiguration.Log4j2Configurator;
+import winFlashTool.ccp.PCANBasicEx;
+import winFlashTool.ccp.CCP;
 import winFlashTool.basics.ErrorCounter;
 
 
@@ -250,9 +252,35 @@ public class WinFlashTool
     {
         boolean success = true;
 
-        _logger.info("Starting endless Rx/Tx loop. Use Ctrl-C to stop application");        
-        MinimalisticProgram.main(/*args*/ null);
+        _logger.info("Starting endless Rx/Tx loop. Use Ctrl-C to stop application.");
+        
+        /* Test of basic CAN Tx/Rx. */
+        //MinimalisticProgram.main(/*args*/ null);
 
+        /* Test of CCP implementation: Open device and repeatedly do a CONNECT/DISCONNECT. */
+        final int noTestCycles = 5;
+        for(int cycle=0; cycle<noTestCycles; ++cycle)
+        {
+            _logger.info("Start connection test {}/{}.", cycle+1, noTestCycles);
+            success = true;
+
+            CCP ccp = new CCP(errCnt_);
+            assert ccp.getProcessState() == CCP.StateFlashProcess.DISCONNECTED;
+            boolean deviceOpened = false;
+            if(success)
+                deviceOpened = success = ccp.openCanDevice();
+            if(success)
+                assert ccp.getProcessState() == CCP.StateFlashProcess.CONNECTING;
+            while(success && !ccp.step())
+                assert ccp.getProcessState() != CCP.StateFlashProcess.DISCONNECTED;
+
+            assert ccp.getProcessState() == CCP.StateFlashProcess.DISCONNECTED;
+            if(deviceOpened)
+                success = ccp.closeCanDevice();
+
+            _logger.info("Result of test of CCP process: {}.", success? "Ok": "failed");
+        }        
+            
 // Application code goes here.
 //            String generatedCode = null;
 //            if(errCnt.getNoErrors() == 0)
@@ -330,7 +358,8 @@ public class WinFlashTool
 //                    }
 
 
-        final String logMsg = _applicationName + " terminating with {} errors and {} warnings";
+        final String logMsg = _applicationName + " terminating with {} errors and {}"
+                              + " warnings.";
         final Level level;
         if(errCnt_.getNoErrors() > 0)
             level = Level.ERROR;
@@ -340,7 +369,7 @@ public class WinFlashTool
             level = Level.INFO;
         _logger.log(level, logMsg, errCnt_.getNoErrors(), errCnt_.getNoWarnings());
 
-        return success;
+        return success &&  errCnt_.getNoErrors() == 0;
 
     } /* End of WinFlashTool.run. */
 

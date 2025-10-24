@@ -94,7 +94,13 @@ package peak.can.basic;
  *}
  * </pre>
  */
+ 
+import org.apache.logging.log4j.*;
+
 public class PCANBasic {
+
+    /** The global logger object for all progress and error reporting. */
+    private static final Logger _logger = LogManager.getLogger(PCANBasic.class);
 
     /**
      * Initializes a PCAN Channel
@@ -326,9 +332,9 @@ public class PCANBasic {
     static {
         try {
             System.loadLibrary("pcanbasic_jni");
-            System.out.println("pcanbasic_jni successfully loaded");
+            _logger.debug("pcanbasic_jni successfully loaded");
         } catch (UnsatisfiedLinkError e) {
-            System.out.println(e.getMessage());
+            _logger.fatal("Error loading pcanbasic_jni. {}", e.getMessage());
             System.loadLibrary("PCANBasic_JNI");
         }
     }

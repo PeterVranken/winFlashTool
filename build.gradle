@@ -45,6 +45,11 @@ task generateVersionInfo(type: Exec) {
 }
 compileJava.dependsOn generateVersionInfo
 
+
+compileJava {
+    options.compilerArgs << "-Xdiags:verbose"
+}
+
 run {
     environment 'PATH', "${System.getenv('PATH')};${projectDir}\\lib\\PEAK\\x86_64"
 }

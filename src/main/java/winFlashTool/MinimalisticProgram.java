@@ -3,6 +3,7 @@ package winFlashTool;
 import java.lang.StringBuffer;
 import peak.can.basic.*;
 import org.apache.logging.log4j.*;
+import winFlashTool.ccp.TimeoutTimer;
 
 public class MinimalisticProgram
 {
