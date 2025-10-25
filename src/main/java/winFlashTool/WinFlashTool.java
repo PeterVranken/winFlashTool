@@ -37,6 +37,7 @@ import winFlashTool.applicationInterface.cmdLineParser.CmdLineParser;
 import winFlashTool.applicationInterface.loggerConfiguration.Log4j2Configurator;
 import winFlashTool.ccp.PCANBasicEx;
 import winFlashTool.ccp.CCP;
+import winFlashTool.ccp.CcpCroTransmitter;
 import winFlashTool.basics.ErrorCounter;
 
 
@@ -258,13 +259,15 @@ public class WinFlashTool
         //MinimalisticProgram.main(/*args*/ null);
 
         /* Test of CCP implementation: Open device and repeatedly do a CONNECT/DISCONNECT. */
-        final int noTestCycles = 5;
+        long tiTest = System.nanoTime();
+        final int noTestCycles = 1;
+        final int noDownloads = 10000;
         for(int cycle=0; cycle<noTestCycles; ++cycle)
         {
-            _logger.info("Start connection test {}/{}.", cycle+1, noTestCycles);
+            _logger.debug("Start connection test {}/{}.", cycle+1, noTestCycles);
             success = true;
 
-            CCP ccp = new CCP(errCnt_);
+            CCP ccp = new CCP(errCnt_, noDownloads);
             assert ccp.getProcessState() == CCP.StateFlashProcess.DISCONNECTED;
             boolean deviceOpened = false;
             if(success)
@@ -278,9 +281,26 @@ public class WinFlashTool
             if(deviceOpened)
                 success = ccp.closeCanDevice();
 
-            _logger.info("Result of test of CCP process: {}.", success? "Ok": "failed");
-        }        
-            
+            _logger.debug("Result of test of CCP process: {}.", success? "Ok": "failed");
+        }
+        tiTest = System.nanoTime() - tiTest;
+        if(noTestCycles > 0)
+        {
+            _logger.warn( "Test duration: {}ns for {} cycles. {}ns per cycle."
+                        , tiTest
+                        , noTestCycles
+                        , (tiTest + noTestCycles/2) / noTestCycles
+                        );
+        }
+        
+for(int i=0; i<CcpCroTransmitter.noLoggedTimes; ++i)
+{
+    _logger.warn( "tiSend/read: {}/{} ns"
+                , CcpCroTransmitter.tiSendAry[i]
+                , CcpCroTransmitter.tiCheckQAry[i]
+                );
+}
+
 // Application code goes here.
 //            String generatedCode = null;
 //            if(errCnt.getNoErrors() == 0)

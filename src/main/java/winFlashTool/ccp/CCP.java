@@ -33,6 +33,7 @@ import java.util.*;
 import org.apache.logging.log4j.*;
 import winFlashTool.basics.ErrorCounter;
 import peak.can.basic.*;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * State machine for the subset of CCP, whichis require for the flash tool.
@@ -77,6 +78,8 @@ public class CCP
     {
         CONNECT((byte)0x01),
         SET_MTA((byte)0x02),
+        DOWNLOAD((byte)0x03),
+        DOWNLOAD_6((byte)0x23),
         DISCONNECT((byte)0x07);
 
         private final byte cmdId_;
@@ -112,16 +115,24 @@ public class CCP
     /** A general purpose timer, which is measures timeout conditions in temporary states. */
     private final TimeoutTimer timerTO_;
 
+    /** Testing only: Number of DOWNLOAD commands to be used for emulation of flashing. */
+    private int noDownloads_;
+    
+    /** Testing only: Sub-state of DOWNLOADING: Do we need to send the next CRO or are we
+        waiting for the DTO of the previous one? */
+    private boolean dwnLdg_sendCro_ = true;
+    
     /**
      * A new instance of CCP is created. It represents a CCP connection with a ECU.
      *   @param errCnt
      * The error counter to be used for problem reporting.
      */
-    public CCP(ErrorCounter errCnt)
+    public CCP(ErrorCounter errCnt, int noDownloads)
     {
         errCnt_ = errCnt;
         state_ = StateFlashProcess.DISCONNECTED;
         timerTO_ = new TimeoutTimer(0);
+        noDownloads_ = noDownloads;
         
         /* Initialize the API opject, which connects us to the PEAK DLLs. */
         assert canApi_ == null;
@@ -168,7 +179,7 @@ public class CCP
             /* Arguments 3..5 are not used for the Plug&Play device PEAK-USB and
                PEAK-USB-FD. We set them to "don't care". */
             final TPCANStatus errCode = canApi_.Initialize( canDev_
-                                                          , TPCANBaudrate.PCAN_BAUD_1M
+                                                          , TPCANBaudrate.PCAN_BAUD_500K
                                                           , /*HwType*/ TPCANType.PCAN_TYPE_NONE
                                                           , /*IOPort*/ 0
                                                           , /*Interrupt*/ (short)0
@@ -297,7 +308,6 @@ public class CCP
                 _logger.info("ECU is connected.");
                 // setStateDownloading();
                 state_ = StateFlashProcess.DOWNLOADING;
-                timerTO_.restart(/*timeoutMillis*/ 1000*3);
             }
             else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)
             {
@@ -315,12 +325,58 @@ public class CCP
             }
             break;
         }
+        
         case DOWNLOADING:
-            // TODO This is a dummy. We just wait for a while before we disconnect.
-            if(timerTO_.hasTimedOut())
+            // TODO This is a dummy. We just send a number of DOWNLOAD commands before we disconnect.
+//            if(timerTO_.hasTimedOut()) {setStateDisconnecting();}
+            if(noDownloads_ > 0)
+            {
+                if(dwnLdg_sendCro_)
+                {
+                    final byte[] payloadAry = new byte[8];
+                    payloadAry[0] = CroCommandId.DOWNLOAD_6.getCode();
+                    payloadAry[2] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
+                    payloadAry[3] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
+                    payloadAry[4] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
+                    payloadAry[5] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
+                    payloadAry[6] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
+                    payloadAry[7] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
+                    croTransmitter_.sendCro(payloadAry, /*noContentBytes*/ 8);
+                    _logger.trace("CRO message DOWNLOAD_6 sent to ECU");
+                    dwnLdg_sendCro_ = false;
+                }
+                else
+                {
+                    final TPCANMsg msgDto = new TPCANMsg();
+                    final CcpCroTransmitter.ResultTransmission resultTxRx =
+                                                                croTransmitter_.getDto(msgDto);
+                    if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
+                    {
+                        _logger.trace("ECU acknowledged download.");
+                        -- noDownloads_;
+                        dwnLdg_sendCro_ = true;
+                    }
+                    else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)
+                    {
+                        /* The CRO/DTO exchange failed. The reason has been logged. Nothing
+                           else to do. We return to DISCONNECTED. */
+                        errCnt_.error();
+                        _logger.error("Can't download data to the ECU. See previous"
+                                      + " error messages for details."
+                                     );
+                        dwnLdg_sendCro_ = true;
+                        state_ = StateFlashProcess.DISCONNECTED;
+                    }
+                    else
+                    {
+                        /* DTO has not been received yet. We remain in this sub-state. */
+                    }
+                }
+            }
+            else
                 setStateDisconnecting();
             break;
-
+        
         case DISCONNECTING:
         {
             final TPCANMsg msgDto = new TPCANMsg();
