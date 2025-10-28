@@ -357,7 +357,7 @@ if(idxTiLogRx < noLoggedTimes)
                         {
                             /* We received a proper DTO. It is returned to the caller. */
                             _logger.trace( "DTO for CRO no {} received after {}ns."
-                                         , cmdCntrExpected
+                                         , PCANBasicEx.b2i(cmdCntrExpected)
                                          , tiResponseEcuInNs
                                          );
                             result = ResultTransmission.SUCCESS;

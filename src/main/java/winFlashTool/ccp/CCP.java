@@ -52,6 +52,7 @@ public class CCP
         UNDEFINED,
         DISCONNECTED,
         CONNECTING,
+        SET_MTA,
         DOWNLOADING,
         DISCONNECTING;
 
@@ -79,6 +80,7 @@ public class CCP
         CONNECT((byte)0x01),
         SET_MTA((byte)0x02),
         DOWNLOAD((byte)0x03),
+        PROGRAM_6((byte)0x22),
         DOWNLOAD_6((byte)0x23),
         DISCONNECT((byte)0x07);
 
@@ -110,7 +112,7 @@ public class CCP
 
     /** The station address of the connected ECU. */
     // TODO Needs to become an application parameter
-    private final short stationAddr = 0x1234;
+    private final short stationAddr = 0x1200;
 
     /** A general purpose timer, which is measures timeout conditions in temporary states. */
     private final TimeoutTimer timerTO_;
@@ -307,7 +309,7 @@ public class CCP
             {
                 _logger.info("ECU is connected.");
                 // setStateDownloading();
-                state_ = StateFlashProcess.DOWNLOADING;
+                state_ = StateFlashProcess.SET_MTA;
             }
             else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)
             {
@@ -326,15 +328,62 @@ public class CCP
             break;
         }
         
+        case SET_MTA:
+            if(dwnLdg_sendCro_)
+            {
+                final byte[] payloadAry = new byte[8];
+                payloadAry[0] = CroCommandId.SET_MTA.getCode();
+                payloadAry[2] = (byte)0; /* The x in MTA_x, x=0..1 */
+                payloadAry[3] = (byte)0; /* Address extension not used in PowerPC. */
+                
+                /* Memory address in MSB endianess. */ 
+                payloadAry[4] = (byte)0x00;
+                payloadAry[5] = (byte)0x84;
+                payloadAry[6] = (byte)0x00;
+                payloadAry[7] = (byte)0x00;
+                
+                croTransmitter_.sendCro(payloadAry, /*noContentBytes*/ 8);
+                _logger.trace("CRO message PROGRAM_6 sent to ECU");
+                dwnLdg_sendCro_ = false;
+            }
+            else
+            {
+                final TPCANMsg msgDto = new TPCANMsg();
+                final CcpCroTransmitter.ResultTransmission resultTxRx =
+                                                                croTransmitter_.getDto(msgDto);
+                if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
+                {
+                    _logger.trace("ECU acknowledged SET_MTA.");
+                    dwnLdg_sendCro_ = true;
+                    state_ = StateFlashProcess.DOWNLOADING;
+                }
+                else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)
+                {
+                    /* The CRO/DTO exchange failed. The reason has been logged. Nothing
+                       else to do. We return to DISCONNECTED. */
+                    errCnt_.error();
+                    _logger.error("Can't set MTA in the ECU. See previous error messages"
+                                  + " for details."
+                                 );
+                    dwnLdg_sendCro_ = true;
+                    state_ = StateFlashProcess.DISCONNECTED;
+                }
+                else
+                {
+                    /* DTO has not been received yet. We remain in this sub-state. */
+                }
+            }
+            break;
+        
         case DOWNLOADING:
-            // TODO This is a dummy. We just send a number of DOWNLOAD commands before we disconnect.
+            // TODO This is a dummy. We just send a number of PROGRAM_6 commands before we disconnect.
 //            if(timerTO_.hasTimedOut()) {setStateDisconnecting();}
             if(noDownloads_ > 0)
             {
                 if(dwnLdg_sendCro_)
                 {
                     final byte[] payloadAry = new byte[8];
-                    payloadAry[0] = CroCommandId.DOWNLOAD_6.getCode();
+                    payloadAry[0] = CroCommandId.PROGRAM_6.getCode();
                     payloadAry[2] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
                     payloadAry[3] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
                     payloadAry[4] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
@@ -342,7 +391,7 @@ public class CCP
                     payloadAry[6] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
                     payloadAry[7] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
                     croTransmitter_.sendCro(payloadAry, /*noContentBytes*/ 8);
-                    _logger.trace("CRO message DOWNLOAD_6 sent to ECU");
+                    _logger.trace("CRO message PROGRAM_6 sent to ECU");
                     dwnLdg_sendCro_ = false;
                 }
                 else

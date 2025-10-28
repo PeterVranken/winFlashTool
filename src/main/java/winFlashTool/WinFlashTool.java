@@ -261,7 +261,7 @@ public class WinFlashTool
         /* Test of CCP implementation: Open device and repeatedly do a CONNECT/DISCONNECT. */
         long tiTest = System.nanoTime();
         final int noTestCycles = 1;
-        final int noDownloads = 10000;
+        final int noDownloads = 100;
         for(int cycle=0; cycle<noTestCycles; ++cycle)
         {
             _logger.debug("Start connection test {}/{}.", cycle+1, noTestCycles);
