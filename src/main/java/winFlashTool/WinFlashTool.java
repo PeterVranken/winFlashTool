@@ -261,13 +261,12 @@ public class WinFlashTool
         /* Test of CCP implementation: Open device and repeatedly do a CONNECT/DISCONNECT. */
         long tiTest = System.nanoTime();
         final int noTestCycles = 1;
-        final int noDownloads = 100;
         for(int cycle=0; cycle<noTestCycles; ++cycle)
         {
             _logger.debug("Start connection test {}/{}.", cycle+1, noTestCycles);
             success = true;
 
-            CCP ccp = new CCP(errCnt_, noDownloads);
+            CCP ccp = new CCP(errCnt_);
             assert ccp.getProcessState() == CCP.StateFlashProcess.DISCONNECTED;
             boolean deviceOpened = false;
             if(success)

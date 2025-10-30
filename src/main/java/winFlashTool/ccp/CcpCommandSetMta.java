@@ -86,15 +86,15 @@ public class CcpCommandSetMta extends CcpCommandBase
         final byte idxMta = ((Integer)argAry[1]).byteValue();
 
         /* Send CAN CRO message with command SET_MTA. */
-        payloadCroAry_[0] = CroCommandId.SET_MTA.getCode();
-        payloadCroAry_[2] = idxMta; /* The x in MTAx, x=0..1 */
-        payloadCroAry_[3] = (byte)0; /* Address extension not used in PowerPC. */
+        _payloadCroAry[0] = CroCommandId.SET_MTA.getCode();
+        _payloadCroAry[2] = idxMta; /* The x in MTAx, x=0..1 */
+        _payloadCroAry[3] = (byte)0; /* Address extension not used in PowerPC. */
         
         /* Memory address in MSB endianess. */ 
-        payloadCroAry_[4] = (byte)((memoryAddr_ >> 24) & 0xFF);
-        payloadCroAry_[5] = (byte)((memoryAddr_ >> 16) & 0xFF);
-        payloadCroAry_[6] = (byte)((memoryAddr_ >>  8) & 0xFF);
-        payloadCroAry_[7] = (byte)((memoryAddr_ >>  0) & 0xFF);
+        _payloadCroAry[4] = (byte)((memoryAddr_ >> 24) & 0xFF);
+        _payloadCroAry[5] = (byte)((memoryAddr_ >> 16) & 0xFF);
+        _payloadCroAry[6] = (byte)((memoryAddr_ >>  8) & 0xFF);
+        _payloadCroAry[7] = (byte)((memoryAddr_ >>  0) & 0xFF);
         sendCro(/*noContentBytes*/ 8);
         _logger.printf(Level.DEBUG, "CRO message SET_MTA(0x%06X) sent to ECU.", memoryAddr_);
     }

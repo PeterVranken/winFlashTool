@@ -98,11 +98,11 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
             else
                 ccpCmdId = CroCommandId.PROGRAM.getCode();
         }
-        payloadCroAry_[0] = ccpCmdId;
+        _payloadCroAry[0] = ccpCmdId;
         final int idxByteWithData;
         if(noBytesThisTime_ < 6)
         {
-            payloadCroAry_[2] = (byte)noBytesThisTime_;
+            _payloadCroAry[2] = (byte)noBytesThisTime_;
             idxByteWithData = 3;
         }
         else
@@ -111,12 +111,12 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
         /* Copy next block of bytes into the CRO message. */
         System.arraycopy( dataToDownload_
                         , readPos_
-                        , payloadCroAry_
+                        , _payloadCroAry
                         , idxByteWithData
                         , noBytesThisTime_
                         );
         _logger.trace( "CRO message {} sent with {} Byte data. {} Byte remaining."
-                     , CroCommandId.fromCode(payloadCroAry_[0]).getCmdName()
+                     , CroCommandId.fromCode(_payloadCroAry[0]).getCmdName()
                      , noBytesThisTime_
                      , noBytesToDownload_ - noBytesThisTime_
                      );
@@ -192,10 +192,10 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
         if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
         {
             /* The new MTA is returned as 4 bytes with MSB endianess. */
-            final int newMta = (PCANBasicEx.b2i(payloadDtoAry_[4]) << 24)
-                               + (PCANBasicEx.b2i(payloadDtoAry_[5]) << 16)
-                               + (PCANBasicEx.b2i(payloadDtoAry_[6]) <<  8)
-                               + (PCANBasicEx.b2i(payloadDtoAry_[7]) <<  0);
+            final int newMta = (PCANBasicEx.b2i(_payloadDtoAry[4]) << 24)
+                               + (PCANBasicEx.b2i(_payloadDtoAry[5]) << 16)
+                               + (PCANBasicEx.b2i(_payloadDtoAry[6]) <<  8)
+                               + (PCANBasicEx.b2i(_payloadDtoAry[7]) <<  0);
 
             _logger.printf( Level.TRACE
                           , "ECU acknowledges data transfer. New MTA is 0x%06X."

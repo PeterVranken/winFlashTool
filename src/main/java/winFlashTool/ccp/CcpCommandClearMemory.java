@@ -76,13 +76,13 @@ public class CcpCommandClearMemory extends CcpCommandBase
         final int memorySize = ((Integer)argAry[0]).intValue();
         
         /* Send CAN CRO message with command CLEAR_MEMORY. */
-        payloadCroAry_[0] = CroCommandId.CLEAR_MEMORY.getCode();
+        _payloadCroAry[0] = CroCommandId.CLEAR_MEMORY.getCode();
         
         /* Memory block size in MSB endianess. */ 
-        payloadCroAry_[2] = (byte)((memorySize >> 24) & 0xFF);
-        payloadCroAry_[3] = (byte)((memorySize >> 16) & 0xFF);
-        payloadCroAry_[4] = (byte)((memorySize >>  8) & 0xFF);
-        payloadCroAry_[5] = (byte)((memorySize >>  0) & 0xFF);
+        _payloadCroAry[2] = (byte)((memorySize >> 24) & 0xFF);
+        _payloadCroAry[3] = (byte)((memorySize >> 16) & 0xFF);
+        _payloadCroAry[4] = (byte)((memorySize >>  8) & 0xFF);
+        _payloadCroAry[5] = (byte)((memorySize >>  0) & 0xFF);
         
         sendCro(/*noContentBytes*/ 6);
         _logger.printf( Level.DEBUG

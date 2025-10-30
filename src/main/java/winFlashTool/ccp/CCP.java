@@ -85,9 +85,6 @@ public class CCP
     // TODO Could become an application parameter
     private final TPCANHandle canDev_ = TPCANHandle.PCAN_USBBUS1;
 
-    /** Sub-state machine for transmitting a CRO and waiting for the responding DTO. */
-    private final CcpCroTransmitter croTransmitter_;
-
     /** The station address of the connected ECU. */
     // TODO Needs to become an application parameter
     private final short stationAddr_ = 0x1200;
@@ -95,27 +92,15 @@ public class CCP
     /** The currently processed CCP command. */
     CcpCommandBase currentCcpCmd_ = null;
 
-    /** A general purpose timer, which is measures timeout conditions in temporary states. */
-    private final TimeoutTimer timerTO_;
-
-    /** Testing only: Number of DOWNLOAD commands to be used for emulation of flashing. */
-    private int noDownloads_;
-    
-    /** Testing only: Sub-state of DOWNLOADING: Do we need to send the next CRO or are we
-        waiting for the DTO of the previous one? */
-    private boolean dwnLdg_sendCro_ = true;
-
     /**
      * A new instance of CCP is created. It represents a CCP connection with a ECU.
      *   @param errCnt
      * The error counter to be used for problem reporting.
      */
-    public CCP(ErrorCounter errCnt, int noDownloads)
+    public CCP(ErrorCounter errCnt)
     {
         errCnt_ = errCnt;
         state_ = StateFlashProcess.DISCONNECTED;
-        timerTO_ = new TimeoutTimer(0);
-        noDownloads_ = noDownloads;
         
         /* In this project, we just have a single, global error counter, which is shared
            with all modules. */
@@ -136,14 +121,12 @@ public class CCP
                                                      , /*isExtDtoId*/ false
                                                      , errCnt
                                                      );
-            croTransmitter_ = CcpCroTransmitter.getCroTransmitter();
             PCANBasicEx.setCanApi(canApi_);
         }
         else
         {
             errCnt_.error();
             canApi_ = null;
-            croTransmitter_ = null;
             _logger.fatal("Unable to initialize the PEAK PCAN Basic API. Most probable"
                           + " reason is the application installation; the PEAK DLLs might"
                           + " be not localized. Check application configuration and"
@@ -369,53 +352,6 @@ public class CCP
                 /* DTO has not been received yet. We remain in this state. */
             }
         
-//            // TODO This is a dummy. We just send a number of PROGRAM_6 commands before we disconnect.
-////            if(timerTO_.hasTimedOut()) {setStateDisconnecting();}
-//            if(noDownloads_ > 0)
-//            {
-//                if(dwnLdg_sendCro_)
-//                {
-//                    final byte[] payloadAry = new byte[8];
-//                    payloadAry[0] = CroCommandId.PROGRAM_6.getCode();
-//                    payloadAry[2] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
-//                    payloadAry[3] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
-//                    payloadAry[4] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
-//                    payloadAry[5] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
-//                    payloadAry[6] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
-//                    payloadAry[7] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
-//                    croTransmitter_.sendCro(payloadAry, /*noContentBytes*/ 8);
-//                    _logger.trace("CRO message PROGRAM_6 sent to ECU");
-//                    dwnLdg_sendCro_ = false;
-//                }
-//                else
-//                {
-//                    final TPCANMsg msgDto = new TPCANMsg();
-//                    resultTxRx = croTransmitter_.getDto(msgDto);
-//                    if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
-//                    {
-//                        _logger.trace("ECU acknowledged download.");
-//                        -- noDownloads_;
-//                        dwnLdg_sendCro_ = true;
-//                    }
-//                    else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)
-//                    {
-//                        /* The CRO/DTO exchange failed. The reason has been logged. Nothing
-//                           else to do. We return to DISCONNECTED. */
-//                        errCnt_.error();
-//                        _logger.error("Can't download data to the ECU. See previous"
-//                                      + " error messages for details."
-//                                     );
-//                        dwnLdg_sendCro_ = true;
-//                        state_ = StateFlashProcess.DISCONNECTED;
-//                    }
-//                    else
-//                    {
-//                        /* DTO has not been received yet. We remain in this sub-state. */
-//                    }
-//                }
-//            }
-//            else
-//                setStateDisconnecting();
             break;
         
         case DISCONNECTING:

@@ -75,9 +75,9 @@ public class CcpCommandConnect extends CcpCommandBase
         final int stationAddr = ((Integer)argAry[0]).intValue();
         
         /* Send CAN CRO message with command CONNECT. */
-        payloadCroAry_[0] = CroCommandId.CONNECT.getCode();
-        payloadCroAry_[2] = (byte)(stationAddr & 0x00FF);
-        payloadCroAry_[3] = (byte)((stationAddr & 0xFF00) >> 8);
+        _payloadCroAry[0] = CroCommandId.CONNECT.getCode();
+        _payloadCroAry[2] = (byte)(stationAddr & 0x00FF);
+        _payloadCroAry[3] = (byte)((stationAddr & 0xFF00) >> 8);
         sendCro(/*noContentBytes*/ 4);
         _logger.debug("CRO message CONNECT sent to station {}.", stationAddr);
     }

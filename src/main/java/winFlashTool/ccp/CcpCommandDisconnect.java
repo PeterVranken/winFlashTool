@@ -80,12 +80,12 @@ public class CcpCommandDisconnect extends CcpCommandBase
         final boolean isEndOfSession = ((Boolean)argAry[1]).booleanValue();
 
         /* Send CAN CRO message with command DISCONNECT. */
-        payloadCroAry_[0] = CroCommandId.DISCONNECT.getCode();
+        _payloadCroAry[0] = CroCommandId.DISCONNECT.getCode();
         /* 0: temporary, 1: end of session. */
-        payloadCroAry_[2] = (byte)(isEndOfSession? 0x01: 0x00);
-        payloadCroAry_[3] = 0;
-        payloadCroAry_[4] = (byte)(stationAddr & 0x00FF);
-        payloadCroAry_[5] = (byte)((stationAddr & 0xFF00) >> 8);
+        _payloadCroAry[2] = (byte)(isEndOfSession? 0x01: 0x00);
+        _payloadCroAry[3] = 0;
+        _payloadCroAry[4] = (byte)(stationAddr & 0x00FF);
+        _payloadCroAry[5] = (byte)((stationAddr & 0xFF00) >> 8);
         sendCro(/*noContentBytes*/ 6);
         _logger.debug("CRO message DISCONNECT sent to station {}.", stationAddr);
     }

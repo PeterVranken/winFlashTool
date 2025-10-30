@@ -49,127 +49,32 @@ abstract class CcpCommandBase
     /** The global logger object for all progress and error reporting. */
     private static final Logger _logger = LogManager.getLogger(CcpCommandBase.class);
 
-//    /** The IDs of the CCP commands in the CRO messages. */
-//    protected enum CroCommandId
-//    {
-//        CONNECT((byte)0x01),
-//        SET_MTA((byte)0x02),
-//        CLEAR_MEMORY((byte)0x10),
-//        DOWNLOAD((byte)0x03),
-//        DOWNLOAD_6((byte)0x23),
-//        PROGRAM((byte)0x18),
-//        PROGRAM_6((byte)0x22),
-//        DISCONNECT((byte)0x07);
-//        
-//        private final byte cmdId_;
-//        private static final Map<Byte, CroCommandId> lookupMap_ = new HashMap<>();
-//public CcpCommandBase ccpCmdProcessor_;
-//
-//        /**
-//         * An enumeration in Java is a number of static singleton objects, that represent
-//         * the enumerated values and which are automatically created once and forever.
-//         * After creation of all of these objects, we can create a hash map of all of these
-//         * values in order to later find them back by value.
-//         */
-//        static
-//        {
-//            /* Iterate all enumerated values and put them in a hash map. */
-//            for(CroCommandId cmd: values())
-//            {
-//                lookupMap_.put(cmd.cmdId_, cmd);
-////                cmd.ccpCmdProcessor_ = new CcpCommandTest(null, null);
-//            }
-//        }
-//        
-//        /**
-//         * An enumeration in Java is a number of static singleton objects, that represent
-//         * the enumerated values and which are automatically created once and forever. If
-//         * we don't rely on the default constructor but place our own here, then we can
-//         * extend these objects with additional functionality, e.g, setting a particular
-//         * value for enumerated values.
-//         *   @param cmdId
-//         * The byte value associated with a particular enumerated value from the
-//         * enumeration.
-//         */
-//        CroCommandId(byte cmdId)
-//        {
-//            cmdId_ = cmdId;
-//
-//            /* Note, from the constructor, it is not allowed to access static fields of the
-//               enum class. The constructor is called for all enumerated values before the
-//               static fields of the class are initialized and accessing a static field
-//               would mean dealing with potentially uninitialized data. We need to place the
-//               operation into a static block, which is executed after all constructor calls
-//               and after all initialization of the class' static data. */
-//            //lookupMap_.put(cmdId, this);
-//        }
-//
-//        /**
-//         * Get the CCP command code from the enumerated value object.
-//         *   @return
-//         * CCP command code.
-//         */
-//        public byte getCode()
-//        {
-//            return cmdId_;
-//        }
-//
-//        /**
-//         * Get the CCP command from the enumerated value object.
-//         *   @return
-//         * CCP command by human readable name.
-//         */
-//        public String getCmdName()
-//        {
-//            return toString();
-//        }
-//
-//        /**
-//         * Get the very object, which represents the enumerated value, which has the given
-//         * CCP command code.
-//         *   @param ccpCmdCode
-//         * The CCP command code.
-//         *   @return
-//         * Get the enumerated value object.
-//         *   @throws IllegalArgumentException
-//         * This runtime exception is thrown if ccpCmdCode is not the byte code of any
-//         * enumerated value.
-//         */
-//        public static CroCommandId fromCode(byte ccpCmdCode)
-//        {
-//            CroCommandId cmd = lookupMap_.get(ccpCmdCode);
-//            if(cmd == null) 
-//            {
-//                throw new IllegalArgumentException("Unknown command ID: " + ccpCmdCode);
-//            }
-//            return cmd;
-//        }
-//    }
-
     /* The error counter to be used for error reporting. */
     static ErrorCounter _errCnt;
     
     /** An always available buffer to prepare the payload of a CRO, which is then sent out
         using sendCro(). */
-    protected final byte[] payloadCroAry_ = new byte[8];
+    static protected final byte[] _payloadCroAry = new byte[8];
     
     /** An always available buffer, which contains the payload of the last recently
         received DTO message. */
-    protected final byte[] payloadDtoAry_;
+    static protected final byte[] _payloadDtoAry;
 
     /** The CAN message representation from the PCAN Basic API of the last recently
-        received DTO message. Note, it is payloadDtoAry_ = msgDto_.getData(). */
-    final TPCANMsg msgDto_;
-    
-    /** All CCP commands are based on sending CRO and receiving responding DTO messages.
-        Here is the object, which controls this message exchange. */
-    private final CcpCroTransmitter croTransmitter_;
-    
+        received DTO message. Note, it is _payloadDtoAry = _msgDto.getData(). */
+    static final TPCANMsg _msgDto;
+
     /** Current memory address, initially set with SET_MTA and modified with the DOWNLOAD
        and PROGRAMM commands. */
-    // TODO Develop concept for data shared between different CCP commands and apply to other fileds, too
-    protected static int _Mta0;
+    static protected int _Mta0;
     
+    static        
+    {
+        /* Create a forever reused PCAN Basic message object for DTO reception and make its
+           data buffer accessible via a field. */
+        _msgDto = new TPCANMsg();
+        _payloadDtoAry = _msgDto.getData();
+    }
 
     /**
      * A new instance of CcpCommandBase is created.
@@ -179,16 +84,9 @@ abstract class CcpCommandBase
      */
     protected CcpCommandBase()
     {
-        croTransmitter_ = CcpCroTransmitter.getCroTransmitter();
-
         for(CroCommandId ccpCmd: myCcpCmdIds())
             ccpCmd.setCmd(this);
-        
-        /* Create a forever reused PCAN Basic message object for DTO reception and make its
-           data buffer accessible via a field. */
-        msgDto_ = new TPCANMsg();
-        payloadDtoAry_ = msgDto_.getData();
-
+            
     } /* CcpCommandBase.CcpCommandBase */
 
 
@@ -198,35 +96,35 @@ abstract class CcpCommandBase
      *   @param errCnt
      * The error counter to be used for problem reporting.
      */
-    public static void setErrorCounter(ErrorCounter errCnt)
+    static public void setErrorCounter(ErrorCounter errCnt)
     {
         _errCnt = errCnt;
     }
 
     
     /**
-     * Send a CRO message. The payload of the CAN message is taken from payloadCroAry_
+     * Send a CRO message. The payload of the CAN message is taken from _payloadCroAry
      *   @param noContentBytes
-     * The number of meaningful payload bytes in payloadCroAry_. The remaining bytes will
+     * The number of meaningful payload bytes in _payloadCroAry. The remaining bytes will
      * be set to a don't care value.
      */
-    protected void sendCro(int noContentBytes)
+    static protected void sendCro(int noContentBytes)
     {
-        croTransmitter_.sendCro(payloadCroAry_, noContentBytes);
+        CcpCroTransmitter.getCroTransmitter().sendCro(_payloadCroAry, noContentBytes);
     }
 
     
     /**
      * Check for reception of the DTO, which belongs to the previously sent CRO. The
      * function result tells, whether or not the DTO has been received yet. If it has been
-     * received, then the payload data is available in payloadDtoAry_.
+     * received, then the payload data is available in _payloadDtoAry.
      *   @return
      * Get the reception status for the DTO. This can be either succes or "still waiting"
      * or an error code.
      */
-    protected CcpCroTransmitter.ResultTransmission checkRxDto()
+    static protected CcpCroTransmitter.ResultTransmission checkRxDto()
     {
-        return croTransmitter_.getDto(msgDto_);
+        return CcpCroTransmitter.getCroTransmitter().getDto(_msgDto);
     }
 
     /**
