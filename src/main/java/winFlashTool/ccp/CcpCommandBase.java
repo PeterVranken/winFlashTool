@@ -24,114 +24,130 @@
 package winFlashTool.ccp;
 
 import java.util.*;
+import java.util.Set;
+import java.util.HashSet;
 import org.apache.logging.log4j.*;
 import winFlashTool.basics.ErrorCounter;
 import peak.can.basic.TPCANMsg;
-
+import java.util.HashSet;
 
 /**
- * Base class of all CCP command implementations.
+ * Base class of all CCP command implementations.<p>
+ *   Concept of the class is a static implementation of CCP command objects, which can
+ * share state information and data through their common base class. The concept is static,
+ * because:<p>
+ *   - The problem is static. We have a single CAN channel and can process only a single
+ * CCP command at a time. There is no need to have several instances of a CCP command at a
+ * time.<p>
+ *   - Static data is the simplest way to share data beween different objects.<p>
+ *   Since there is no need to ever have more than one instance of a CCP command, the class
+ * implement the singleton pattern. CCP commands are created once and buffered. The client
+ * code just fetches the command from the buffer prior to use.
  */
 abstract class CcpCommandBase
 {
     /** The global logger object for all progress and error reporting. */
     private static final Logger _logger = LogManager.getLogger(CcpCommandBase.class);
 
-    /** The IDs of the CCP commands in the CRO messages. */
-    protected enum CroCommandId
-    {
-        CONNECT((byte)0x01),
-        SET_MTA((byte)0x02),
-        CLEAR_MEMORY((byte)0x10),
-        DOWNLOAD((byte)0x03),
-        DOWNLOAD_6((byte)0x23),
-        PROGRAM((byte)0x18),
-        PROGRAM_6((byte)0x22),
-        DISCONNECT((byte)0x07);
-        
-        private final byte cmdId_;
-        private static final Map<Byte, CroCommandId> lookupMap_ = new HashMap<>();
-
-        /**
-         * An enumeration in Java is a number of static singleton objects, that represent
-         * the enumerated values and which are automatically created once and forever.
-         * After creation of all of these objects, we can create a hash map of all of these
-         * values in order to later find them back by value.
-         */
-        static
-        {
-            /* Iterate all enumerated values and put them in a hash map. */
-            for(CroCommandId cmd: values())
-                lookupMap_.put(cmd.cmdId_, cmd);
-        }
-        
-        /**
-         * An enumeration in Java is a number of static singleton objects, that represent
-         * the enumerated values and which are automatically created once and forever. If
-         * we don't rely on the default constructor but place our own here, then we can
-         * extend these objects with additional functionality, e.g, setting a particular
-         * value for enumerated values.
-         *   @param cmdId
-         * The byte value associated with a particular enumerated value from the
-         * enumeration.
-         */
-        CroCommandId(byte cmdId)
-        {
-            cmdId_ = cmdId;
-
-            /* Note, from the constructor, it is not allowed to access static fields of the
-               enum class. The constructor is called for all enumerated values before the
-               static fields of the class are initialized and accessing a static field
-               would mean dealing with potentially uninitialized data. We need to place the
-               operation into a static block, which is executed after all constructor calls
-               and after all initialization of the class' static data. */
-            //lookupMap_.put(cmdId, this);
-        }
-
-        /**
-         * Get the CCP command code from the enumerated value object.
-         *   @return
-         * CCP command code.
-         */
-        public byte getCode()
-        {
-            return cmdId_;
-        }
-
-        /**
-         * Get the CCP command from the enumerated value object.
-         *   @return
-         * CCP command by human readable name.
-         */
-        public String getCmdName()
-        {
-            return toString();
-        }
-
-        /**
-         * Get the very object, which represents the enumerated value, which has the given
-         * CCP command code.
-         *   @param ccpCmdCode
-         * The CCP command code.
-         *   @return
-         * Get the enumerated value object.
-         *   @throws IllegalArgumentException
-         * This runtime exception is thrown if ccpCmdCode is not the byte code of any
-         * enumerated value.
-         */
-        public static CroCommandId fromCode(byte ccpCmdCode)
-        {
-            CroCommandId cmd = lookupMap_.get(ccpCmdCode);
-            if(cmd == null) 
-            {
-                throw new IllegalArgumentException("Unknown command ID: " + ccpCmdCode);
-            }
-            return cmd;
-        }
-    }
+//    /** The IDs of the CCP commands in the CRO messages. */
+//    protected enum CroCommandId
+//    {
+//        CONNECT((byte)0x01),
+//        SET_MTA((byte)0x02),
+//        CLEAR_MEMORY((byte)0x10),
+//        DOWNLOAD((byte)0x03),
+//        DOWNLOAD_6((byte)0x23),
+//        PROGRAM((byte)0x18),
+//        PROGRAM_6((byte)0x22),
+//        DISCONNECT((byte)0x07);
+//        
+//        private final byte cmdId_;
+//        private static final Map<Byte, CroCommandId> lookupMap_ = new HashMap<>();
+//public CcpCommandBase ccpCmdProcessor_;
+//
+//        /**
+//         * An enumeration in Java is a number of static singleton objects, that represent
+//         * the enumerated values and which are automatically created once and forever.
+//         * After creation of all of these objects, we can create a hash map of all of these
+//         * values in order to later find them back by value.
+//         */
+//        static
+//        {
+//            /* Iterate all enumerated values and put them in a hash map. */
+//            for(CroCommandId cmd: values())
+//            {
+//                lookupMap_.put(cmd.cmdId_, cmd);
+////                cmd.ccpCmdProcessor_ = new CcpCommandTest(null, null);
+//            }
+//        }
+//        
+//        /**
+//         * An enumeration in Java is a number of static singleton objects, that represent
+//         * the enumerated values and which are automatically created once and forever. If
+//         * we don't rely on the default constructor but place our own here, then we can
+//         * extend these objects with additional functionality, e.g, setting a particular
+//         * value for enumerated values.
+//         *   @param cmdId
+//         * The byte value associated with a particular enumerated value from the
+//         * enumeration.
+//         */
+//        CroCommandId(byte cmdId)
+//        {
+//            cmdId_ = cmdId;
+//
+//            /* Note, from the constructor, it is not allowed to access static fields of the
+//               enum class. The constructor is called for all enumerated values before the
+//               static fields of the class are initialized and accessing a static field
+//               would mean dealing with potentially uninitialized data. We need to place the
+//               operation into a static block, which is executed after all constructor calls
+//               and after all initialization of the class' static data. */
+//            //lookupMap_.put(cmdId, this);
+//        }
+//
+//        /**
+//         * Get the CCP command code from the enumerated value object.
+//         *   @return
+//         * CCP command code.
+//         */
+//        public byte getCode()
+//        {
+//            return cmdId_;
+//        }
+//
+//        /**
+//         * Get the CCP command from the enumerated value object.
+//         *   @return
+//         * CCP command by human readable name.
+//         */
+//        public String getCmdName()
+//        {
+//            return toString();
+//        }
+//
+//        /**
+//         * Get the very object, which represents the enumerated value, which has the given
+//         * CCP command code.
+//         *   @param ccpCmdCode
+//         * The CCP command code.
+//         *   @return
+//         * Get the enumerated value object.
+//         *   @throws IllegalArgumentException
+//         * This runtime exception is thrown if ccpCmdCode is not the byte code of any
+//         * enumerated value.
+//         */
+//        public static CroCommandId fromCode(byte ccpCmdCode)
+//        {
+//            CroCommandId cmd = lookupMap_.get(ccpCmdCode);
+//            if(cmd == null) 
+//            {
+//                throw new IllegalArgumentException("Unknown command ID: " + ccpCmdCode);
+//            }
+//            return cmd;
+//        }
+//    }
 
     /* The error counter to be used for error reporting. */
-    final ErrorCounter errCnt_;
+    static ErrorCounter _errCnt;
     
     /** An always available buffer to prepare the payload of a CRO, which is then sent out
         using sendCro(). */
@@ -160,14 +176,13 @@ abstract class CcpCommandBase
      *   @param croTransmitter
      * The fully initialized CRO transmitter, which will be used for exchanging all CRO/DTO
      * messages of all CCP commands.
-     *   @param errCnt
-     * The error counter to be used for problem reporting.
      */
-    protected CcpCommandBase(CcpCroTransmitter croTransmitter, ErrorCounter errCnt)
+    protected CcpCommandBase()
     {
-        errCnt_ = errCnt;
-        croTransmitter_ = croTransmitter;
-//        _Mta0 = 0;
+        croTransmitter_ = CcpCroTransmitter.getCroTransmitter();
+
+        for(CroCommandId ccpCmd: myCcpCmdIds())
+            ccpCmd.setCmd(this);
         
         /* Create a forever reused PCAN Basic message object for DTO reception and make its
            data buffer accessible via a field. */
@@ -177,6 +192,18 @@ abstract class CcpCommandBase
     } /* CcpCommandBase.CcpCommandBase */
 
 
+    /**
+     * Set the error counter, which is globally used by all failure reporting in this base
+     * class and the derived classes.
+     *   @param errCnt
+     * The error counter to be used for problem reporting.
+     */
+    public static void setErrorCounter(ErrorCounter errCnt)
+    {
+        _errCnt = errCnt;
+    }
+
+    
     /**
      * Send a CRO message. The payload of the CAN message is taken from payloadCroAry_
      *   @param noContentBytes
@@ -201,6 +228,14 @@ abstract class CcpCommandBase
     {
         return croTransmitter_.getDto(msgDto_);
     }
+
+    /**
+     * Inform the base class, which particular CCP commands are implemented by this class.
+     *   @return
+     * Get the set of enumerated values, which represent CCP commands that are implemented
+     * by the derived class.
+     */
+    protected abstract Set<CroCommandId> myCcpCmdIds();
 
     /**
      * The CCP command is started. After return from start(), the caller will repeatedly

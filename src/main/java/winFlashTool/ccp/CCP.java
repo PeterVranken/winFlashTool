@@ -117,21 +117,26 @@ public class CCP
         timerTO_ = new TimeoutTimer(0);
         noDownloads_ = noDownloads;
         
+        /* In this project, we just have a single, global error counter, which is shared
+           with all modules. */
+        CcpCommandBase.setErrorCounter(errCnt);
+
         /* Initialize the API opject, which connects us to the PEAK DLLs. */
         assert canApi_ == null;
         canApi_ = new PCANBasic();
         if(canApi_.initializeAPI())
         {
             _logger.debug("PCANBasic API successfully initialized.");
-            croTransmitter_ = new CcpCroTransmitter( canApi_
-                                                   , canDev_
-                                                   , /*timeoutTillRxDtoInMs*/ 1000 * 20
-                                                   , /*canIdCro*/ 100
-                                                   , /*isExtCroId*/ false
-                                                   , /*canIdDto*/ 101
-                                                   , /*isExtDtoId*/ false
-                                                   , errCnt
-                                                   );
+            CcpCroTransmitter.CreateCcpCroTransmitter( canApi_
+                                                     , canDev_
+                                                     , /*timeoutTillRxDtoInMs*/ 1000 * 20
+                                                     , /*canIdCro*/ 100
+                                                     , /*isExtCroId*/ false
+                                                     , /*canIdDto*/ 101
+                                                     , /*isExtDtoId*/ false
+                                                     , errCnt
+                                                     );
+            croTransmitter_ = CcpCroTransmitter.getCroTransmitter();
             PCANBasicEx.setCanApi(canApi_);
         }
         else
@@ -239,7 +244,7 @@ public class CCP
     private void setStateConnecting()
     {
         /* On entry: Send CAN CRO message with command CONNECT. */
-        currentCcpCmd_ = new CcpCommandConnect(croTransmitter_, errCnt_);
+        currentCcpCmd_ = CroCommandId.CONNECT.getCmd();
         currentCcpCmd_.start(Integer.valueOf(stationAddr_));
         state_ = StateFlashProcess.CONNECTING;
     }
@@ -251,7 +256,7 @@ public class CCP
     private void setStateDisconnecting()
     {
         /* On entry: Send CAN CRO message with command DISCONNECT. */
-        currentCcpCmd_ = new CcpCommandDisconnect(croTransmitter_, errCnt_);
+        currentCcpCmd_ = CroCommandId.DISCONNECT.getCmd();
         final Integer stationAddr = Integer.valueOf(stationAddr_);
         final Boolean isEndOfSession = Boolean.valueOf(true);
         currentCcpCmd_.start(stationAddr, isEndOfSession);
@@ -279,7 +284,7 @@ public class CCP
             if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
             {
                 state_ = StateFlashProcess.SETTING_MTA;
-                currentCcpCmd_ = new CcpCommandSetMta(croTransmitter_, errCnt_);
+                currentCcpCmd_ = CroCommandId.SET_MTA.getCmd();
                 final Integer memoryAddr = Integer.valueOf(0x840000);
                 final Integer idxMta = Integer.valueOf(0);
                 currentCcpCmd_.start(memoryAddr, idxMta);
@@ -300,7 +305,7 @@ public class CCP
             resultTxRx = currentCcpCmd_.step();
             if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
             {
-                currentCcpCmd_ = new CcpCommandClearMemory(croTransmitter_, errCnt_);
+                currentCcpCmd_ = CroCommandId.CLEAR_MEMORY.getCmd();
                 final Integer noBytesToEraseAtMta = Integer.valueOf(0x060000);
                 currentCcpCmd_.start(noBytesToEraseAtMta);
 
@@ -322,10 +327,7 @@ public class CCP
             resultTxRx = currentCcpCmd_.step();
             if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
             {
-                currentCcpCmd_ = new CcpCommandsDownloadProgram( croTransmitter_
-                                                               , /*isDownload*/ false
-                                                               , errCnt_
-                                                               );
+                currentCcpCmd_ = CroCommandId.PROGRAM.getCmd();
                 final int noBytesToProgram = ThreadLocalRandom.current().nextInt(12, 66);
                 final byte[] progData = new byte[noBytesToProgram];
                 for(int i=0; i<noBytesToProgram; ++i)
@@ -350,7 +352,7 @@ public class CCP
             resultTxRx = currentCcpCmd_.step();
             if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
             {
-//                currentCcpCmd_ = new CcpCommandClearMemory(croTransmitter_, errCnt_);
+//                currentCcpCmd_ = CroCommandId.CLEAR_MEMORY.getCmd();
 //                final Integer noBytesToEraseAtMta = Integer.valueOf(0x060000);
 //                currentCcpCmd_.start(noBytesToEraseAtMta);
 //                state_ = StateFlashProcess.ERASING;

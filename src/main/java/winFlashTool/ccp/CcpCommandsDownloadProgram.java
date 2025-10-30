@@ -25,6 +25,8 @@
 package winFlashTool.ccp;
 
 import java.util.*;
+import java.util.Set;
+import java.util.HashSet;
 import org.apache.logging.log4j.*;
 import winFlashTool.basics.ErrorCounter;
 
@@ -56,21 +58,12 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
     
     /**
      * A new instance of CcpCommandsDownloadProgram is created.
-     *   @param croTransmitter
-     * The fully initialized CRO transmitter, which will be used for exchanging all CRO/DTO
-     * messages of all CCP commands.
      *   @param isDownload
      * Pass true if CCP DOWNLOAD or DOWNLOAD_6 commands are required and false for PROGRAM
      * or PROGRAM_6 commands.
-     *   @param errCnt
-     * The error counter to be used for problem reporting.
      */
-    protected CcpCommandsDownloadProgram( CcpCroTransmitter croTransmitter
-                                        , boolean isDownload
-                                        , ErrorCounter errCnt
-                                        )
+    protected CcpCommandsDownloadProgram(boolean isDownload)
     {
-        super(croTransmitter, errCnt);
         isDownload_ = isDownload;
         dataToDownload_ = null;
         noBytesToDownload_ = 0;
@@ -129,6 +122,29 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
                      );
     } /* fillPayloadCro */
 
+
+    /**
+     * Inform the base class, which particular CCP commands are implemented by this class.
+     *   @return
+     * Get the set of enumerated values, which represent CCP commands that are implemented
+     * by this derived class.
+     */
+    protected Set<CroCommandId> myCcpCmdIds()
+    {
+        final Set<CroCommandId> setOfCmdIds = new HashSet<CroCommandId>(4);
+        if(isDownload_)
+        {
+            setOfCmdIds.add(CroCommandId.DOWNLOAD);
+            setOfCmdIds.add(CroCommandId.DOWNLOAD_6);
+        }
+        else
+        {
+            setOfCmdIds.add(CroCommandId.PROGRAM);
+            setOfCmdIds.add(CroCommandId.PROGRAM_6);
+        }
+        return setOfCmdIds;
+    }
+    
 
     /**
      * The CCP command is started. After return from start(), the caller will repeatedly
@@ -205,7 +221,7 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
             else
             {
                 /* There is a communication problem. We abort the download. */
-                errCnt_.error();
+                _errCnt.error();
                 _logger.printf( Level.ERROR
                               , "MTA update error during download/program to/in the ECU."
                                 + " Expected MTA 0x%06X but received 0x%06X."
@@ -219,7 +235,7 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
         {
             /* The connect CRO/DTO exchange failed. The reason has been logged. Nothing
                else to do. */
-            errCnt_.error();
+            _errCnt.error();
             _logger.printf( Level.ERROR
                           , "Can't %s data %s the ECU. Failing memory address is 0x%06X. See"
                             + " previous error messages for details." 

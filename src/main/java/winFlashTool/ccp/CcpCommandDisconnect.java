@@ -24,6 +24,8 @@
 package winFlashTool.ccp;
 
 import java.util.*;
+import java.util.Set;
+import java.util.HashSet;
 import org.apache.logging.log4j.*;
 import winFlashTool.basics.ErrorCounter;
 
@@ -38,19 +40,25 @@ public class CcpCommandDisconnect extends CcpCommandBase
 
     /**
      * A new instance of CcpCommandDisconnect is created.
-     *   @param croTransmitter
-     * The fully initialized CRO transmitter, which will be used for exchanging all CRO/DTO
-     * messages of all CCP commands.
-     *   @param errCnt
-     * The error counter to be used for problem reporting.
      */
-    protected CcpCommandDisconnect(CcpCroTransmitter croTransmitter, ErrorCounter errCnt)
+    protected CcpCommandDisconnect()
     {
-        super(croTransmitter, errCnt);
-
     } /* CcpCommandDisconnect.CcpCommandDisconnect */
 
 
+    /**
+     * Inform the base class, which particular CCP commands are implemented by this class.
+     *   @return
+     * Get the set of enumerated values, which represent CCP commands that are implemented
+     * by this derived class.
+     */
+    protected Set<CroCommandId> myCcpCmdIds()
+    {
+        final Set<CroCommandId> setOfCmdIds = new HashSet<CroCommandId>(1);
+        setOfCmdIds.add(CroCommandId.DISCONNECT);
+        return setOfCmdIds;
+    }
+    
     /**
      * The CCP command is started. After return from start(), the caller will repeatedly
      * call step() - until step() indicates completion of the command.
@@ -102,7 +110,7 @@ public class CcpCommandDisconnect extends CcpCommandBase
         {
             /* The connect CRO/DTO exchange failed. The reason has been logged. Nothing
                else to do. */
-            errCnt_.error();
+            _errCnt.error();
             _logger.error("Can't disconnect from the ECU. See previous error messages"
                           + " for details."
                          );

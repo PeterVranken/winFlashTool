@@ -46,7 +46,7 @@ import winFlashTool.basics.ErrorCounter;
  *   Derived classes can implement specific CRO messages and add command related response
  * evaluation.
  */
-public class CcpCroTransmitter
+class CcpCroTransmitter
 {
     /** The global logger object for all progress and error reporting. */
     private static final Logger _logger = LogManager.getLogger(CcpCroTransmitter.class);
@@ -148,6 +148,77 @@ public class CcpCroTransmitter
     /** The length of all CRO and DTO messages. */
     private final int MSG_LEN = 8;
     
+    /** The one and only CRO transmitter object. */
+    static private CcpCroTransmitter _croTransmitter = null;
+
+    /**
+     * The one and only instance of CcpCroTransmitter is created. This needs to be
+     * accomplished before getCroTransmitter() is called the very first time.<p>
+     *   The singleton concept implies that only a single CCP channel can be supported at a
+     * time. However, it is possible to have different CCP sessions subsequently, with
+     * different settings. This constructor can be re-invoked at any time. Then, the
+     * transmitter object so far is replaced by the newly created one. Caution, all
+     * coordination of re-creating the transmitter object with the state of the CCP
+     * communication so far is out of scope of this module. The client code needs to take
+     * care.
+     *   @param pcanBasicAPI
+     * The PEAK CAN API; the connection of Java to the external DLL. Needs to be already
+     * initialized.
+     *   @param canDev
+     * All CAN communication will be done with this CAN device. Pass an already initialized
+     * device from the PCANBasic API.
+     *   @param timeoutTillRxDtoInMs
+     * The maximum time, which may elapse after sending the CRO until the DTO arrives. Unit
+     * is Milliseconds.
+     *   @param canIdCro
+     * The CAN ID of all CRO messages.
+     *   @param isExtCroId
+     * Pass true if an extended 29 Bit ID is used for the CRO messages and false if a 11
+     * Bit ID is used.
+     *   @param canIdDto
+     * The CAN ID of all DTO messages. This CAN ID is required because the CAN recepion
+     * filtering is accordingly configured in the CAN device by this method.
+     *   @param isExtDtoId
+     * Pass true if an extended 29 Bit ID is used for the DTO messages and false if a 11
+     * Bit ID is used.
+     *   @param errCnt
+     * The error counter to be used for problem reporting.
+     */
+    static public void CreateCcpCroTransmitter( PCANBasic pcanBasicAPI
+                                              , TPCANHandle canDev
+                                              , int timeoutTillRxDtoInMs
+                                              , int canIdCro
+                                              , boolean isExtCroId
+                                              , int canIdDto
+                                              , boolean isExtDtoId
+                                              , ErrorCounter errCnt
+                                              )
+    {
+        _croTransmitter = new CcpCroTransmitter( pcanBasicAPI
+                                               , canDev
+                                               , timeoutTillRxDtoInMs
+                                               , canIdCro
+                                               , isExtCroId
+                                               , canIdDto
+                                               , isExtDtoId
+                                               , errCnt
+                                               );
+    } /* CreateCcpCroTransmitter */
+    
+    
+    /**
+     * Get the one and only initialized CRO transmitter object for temporary use.
+     *   @return
+     * Get the instance of a CRO transmitter, which had been cretaed last recently using
+     * CreateCcpCroTransmitter(). Get null if CreateCcpCroTransmitter() had not been called
+     * before.
+     */
+    static protected CcpCroTransmitter getCroTransmitter()
+    {
+        return _croTransmitter;
+    }
+
+     
     /**
      * A new instance of CcpCroTransmitter is created.
      *   @param pcanBasicAPI
@@ -173,15 +244,15 @@ public class CcpCroTransmitter
      *   @param errCnt
      * The error counter to be used for problem reporting.
      */
-    public CcpCroTransmitter( PCANBasic pcanBasicAPI
-                            , TPCANHandle canDev
-                            , int timeoutTillRxDtoInMs
-                            , int canIdCro
-                            , boolean isExtCroId
-                            , int canIdDto
-                            , boolean isExtDtoId
-                            , ErrorCounter errCnt
-                            )
+    private CcpCroTransmitter( PCANBasic pcanBasicAPI
+                             , TPCANHandle canDev
+                             , int timeoutTillRxDtoInMs
+                             , int canIdCro
+                             , boolean isExtCroId
+                             , int canIdDto
+                             , boolean isExtDtoId
+                             , ErrorCounter errCnt
+                             )
     {
         errCnt_ = errCnt;
         canApi_ = pcanBasicAPI;

@@ -37,7 +37,7 @@ import winFlashTool.applicationInterface.cmdLineParser.CmdLineParser;
 import winFlashTool.applicationInterface.loggerConfiguration.Log4j2Configurator;
 import winFlashTool.ccp.PCANBasicEx;
 import winFlashTool.ccp.CCP;
-import winFlashTool.ccp.CcpCroTransmitter;
+//import winFlashTool.ccp.CcpCroTransmitter;
 import winFlashTool.basics.ErrorCounter;
 
 

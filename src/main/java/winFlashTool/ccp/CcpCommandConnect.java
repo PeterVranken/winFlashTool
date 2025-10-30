@@ -26,6 +26,8 @@ package winFlashTool.ccp;
 import java.util.*;
 import org.apache.logging.log4j.*;
 import winFlashTool.basics.ErrorCounter;
+import java.util.Set;
+import java.util.HashSet;
 
 
 /**
@@ -38,19 +40,25 @@ public class CcpCommandConnect extends CcpCommandBase
 
     /**
      * A new instance of CcpCommandConnect is created.
-     *   @param croTransmitter
-     * The fully initialized CRO transmitter, which will be used for exchanging all CRO/DTO
-     * messages of all CCP commands.
-     *   @param errCnt
-     * The error counter to be used for problem reporting.
      */
-    protected CcpCommandConnect(CcpCroTransmitter croTransmitter, ErrorCounter errCnt)
+    protected CcpCommandConnect()
     {
-        super(croTransmitter, errCnt);
-
     } /* CcpCommandConnect.CcpCommandConnect */
 
 
+    /**
+     * Inform the base class, which particular CCP commands are implemented by this class.
+     *   @return
+     * Get the set of enumerated values, which represent CCP commands that are implemented
+     * by this derived class.
+     */
+    protected Set<CroCommandId> myCcpCmdIds()
+    {
+        final Set<CroCommandId> setOfCmdIds = new HashSet<CroCommandId>(1);
+        setOfCmdIds.add(CroCommandId.CONNECT);
+        return setOfCmdIds;
+    }
+    
     /**
      * The CCP command is started. After return from start(), the caller will repeatedly
      * call step() - until step() indicates completion of the command.
@@ -93,7 +101,7 @@ public class CcpCommandConnect extends CcpCommandBase
         {
             /* The connect CRO/DTO exchange failed. The reason has been logged. Nothing
                else to do. */
-            errCnt_.error();
+            _errCnt.error();
             _logger.error("Can't connect to the ECU. See previous error messages for"
                           + " details."
                          );
