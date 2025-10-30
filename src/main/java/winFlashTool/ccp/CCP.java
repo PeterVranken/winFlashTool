@@ -3,6 +3,70 @@
  * CAN Calibration Protocol for download of binary and flashing. This module implements the
  * needed subset of CCP.
  *
+ * Redesign concept:<p>
+ *   CCP statically initializes the PCANBasic API.<p>
+ *   A CCP object creates a CroTransmitter object and owns thus a CAN channel. Maybe, the
+ * tranmitter object should have the open/close device logic, as it is the only instance,
+ * which uses the CAN channel. (Downside could be that the error context and the logged
+ * feedback is poor.)<p>
+ *   A CCP object has a command sequence. It opens the CAN device, or uses the
+ * CroTransmitter object to do so, processes all commands and closes the CAN device.<p>
+ *   Processing a command, means fetching the command implementation object, initialize it
+ * with the arguments of the command taken from the command sequence and run the command
+ * implementation object's step function until it signals completion.<p>
+ *   The CroTransmitter is the major element of the context, all the command implementation
+ * object use to communicate via the right channel.<p>
+ *   Fetching the command implementation object can mean a constructor call every time or
+ * some pooling can be applied; one and the same object can (as it is now) be
+ * re-initialized and used repeatedly if the same command appears more than once in the
+ * sequence. The sequences don't have many entries, so optimization by pooling has no
+ * particular advantage.<p>
+ *   Elegant processing of the sequence requires simple decision, which command
+ * implementation object is required. The reference to the constructor could become element
+ * of the command in the sequence. Or a map is applied, which relates a command to the
+ * right constructor.<p>
+ *   The current association of CRO command IDs to command implementation object is
+ * improper, as a single implementation object can handle more than one CRO command ID.
+ * Moreover, the implementation object doesn't necessarily processes a single CRO/DTO.
+ * "Program" for example will send many CRO commands PROGRAM in order to program a byte
+ * sequence of any length. Consequently, we need to have two enumerations: CRO command ID
+ * just for the CroTransmitter and something new like CcpCommandId for the use in the
+ * command sequence.
+ *
+ * Copilot proposes this code for mapping a command implementation object constructor with
+ * a byte encoded command ID:<p>
+ *   public class CcpCommandRegistry {
+ *       private final Map<Byte, Function<CcpContext, CcpCommandProcessor>> registry = new HashMap<>();
+ *   
+ *       public CcpCommandRegistry() {
+ *           register((byte) 0x01, ConnectCommand::new);
+ *           // Add more registrations here
+ *       }
+ *   
+ *       public void register(byte commandId, Function<CcpContext, CcpCommandProcessor> constructor) {
+ *           registry.put(commandId, constructor);
+ *       }
+ *   
+ *       public CcpCommandProcessor createProcessor(byte commandId, CcpContext context) {
+ *           Function<CcpContext, CcpCommandProcessor> constructor = registry.get(commandId);
+ *           if (constructor == null) {
+ *               throw new IllegalArgumentException("Unknown command ID: " + commandId);
+ *           }
+ *           return constructor.apply(context);
+ *       }
+ *   }
+ * where "ConnectCommand::new" is equivalent to "(context) -> new ConnectCommand(context)".
+ * Particularly the latter notation makes apparent that the constructor of any of the
+ * command implementation object takes the "context" as any argument. The context would be
+ * our CAN channel, represented by the CroTransmitter in use, among more.<p>
+ *   If we don't use the lambda expression then we will likely end up with a switch case
+ * along all command IDs - which has the advantage of allowing individual argument lists
+ * for the constructors. (At the moment, the shared implementation of DOWNLOAD and PROGRAM
+ * still has the additional argument isDownload.) This traditional way is easy to combine
+ * with pooling (call constructor only if field with command implementation object is still
+ * null). The objects would be owned by the CCP object, because it needs them to process
+ * the command sequence.
+ *
  * Copyright (C) 2025 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
  *
  * This program is free software: you can redistribute it and/or modify it
