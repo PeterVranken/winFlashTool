@@ -1,0 +1,114 @@
+/**
+ * @file CcpCommandConnect.java
+ * CCP command CONNECT.
+ *
+ * Copyright (C) 2025 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
+ *
+ * This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or any later
+ * version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License
+ * for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+/* Interface of class CcpCommandConnect
+ *   CcpCommandConnect
+ */
+
+package winFlashTool.ccp;
+
+import java.util.*;
+import org.apache.logging.log4j.*;
+import winFlashTool.basics.ErrorCounter;
+
+
+/**
+ * CCP command CONNECT.
+ */
+public class CcpCommandConnect extends CcpCommandBase
+{
+    /** The global logger object for all progress and error reporting. */
+    private static final Logger _logger = LogManager.getLogger(CcpCommandConnect.class);
+
+    /**
+     * A new instance of CcpCommandConnect is created.
+     *   @param croTransmitter
+     * The fully initialized CRO transmitter, which will be used for exchanging all CRO/DTO
+     * messages of all CCP commands.
+     *   @param errCnt
+     * The error counter to be used for problem reporting.
+     */
+    protected CcpCommandConnect(CcpCroTransmitter croTransmitter, ErrorCounter errCnt)
+    {
+        super(croTransmitter, errCnt);
+
+    } /* CcpCommandConnect.CcpCommandConnect */
+
+
+    /**
+     * The CCP command is started. After return from start(), the caller will repeatedly
+     * call step() - until step() indicates completion of the command.
+     *   @param argAry
+     * The argument list consists of a single argument: The station address of the ECU to
+     * connect to. It is a 16 Bit value, expected as an Integer.
+     */
+    public void start(Object... argAry)
+    {
+        /* Parse argument list. */
+        assert argAry.length == 1
+               &&  argAry[0] instanceof Integer
+             : "Bad argument list. Expect a single Integer object";
+        final int stationAddr = ((Integer)argAry[0]).intValue();
+        
+        /* Send CAN CRO message with command CONNECT. */
+        payloadCroAry_[0] = CroCommandId.CONNECT.getCode();
+        payloadCroAry_[2] = (byte)(stationAddr & 0x00FF);
+        payloadCroAry_[3] = (byte)((stationAddr & 0xFF00) >> 8);
+        sendCro(/*noContentBytes*/ 4);
+        _logger.debug("CRO message CONNECT sent to station {}.", stationAddr);
+    }
+
+    /**
+     * All CCP commands are implemented as state machines. This method implements a single
+     * calculation step of the FSM. It needs to be called regularly.
+     *   @return
+     * The method returns "pending" until the command has completed. The first time this
+     * method returns anything other than "pending" needs to be the last time this method
+     * is called -- until the command is re-started and executed again.
+     */
+    public CcpCroTransmitter.ResultTransmission step()
+    {
+        final CcpCroTransmitter.ResultTransmission resultTxRx = checkRxDto();
+        if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
+        {
+            _logger.info("ECU is connected.");
+        }
+        else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)
+        {
+            /* The connect CRO/DTO exchange failed. The reason has been logged. Nothing
+               else to do. */
+            errCnt_.error();
+            _logger.error("Can't connect to the ECU. See previous error messages for"
+                          + " details."
+                         );
+        }
+        else
+        {
+            /* DTO has not been received yet. We continue polling. */
+        }
+        
+        return resultTxRx;
+        
+    } /* step */
+
+} /* End of class CcpCommandConnect definition. */
+
+
+
+

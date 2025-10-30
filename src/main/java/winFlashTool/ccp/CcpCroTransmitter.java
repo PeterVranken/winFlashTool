@@ -48,12 +48,6 @@ import winFlashTool.basics.ErrorCounter;
  */
 public class CcpCroTransmitter
 {
-public static final int noLoggedTimes = 128;
-public static final long[] tiSendAry = new long[noLoggedTimes];
-public static final long[] tiCheckQAry = new long[noLoggedTimes];
-private static int idxTiLogRx = 0;
-private static int idxTiLogTx = 0;
-
     /** The global logger object for all progress and error reporting. */
     private static final Logger _logger = LogManager.getLogger(CcpCroTransmitter.class);
 
@@ -97,6 +91,7 @@ private static int idxTiLogTx = 0;
         ERROR_CAN_RX_TRANSMISSION_FAILED,
         ERROR_WRONG_CAN_MSG,
         ERROR_NEGATIVE_RESPONSE,
+        ERROR_BAD_MTA_UPDATE,
         ERROR_BAD_DTO_HDR;
 
         /** String to enum conversion. Illegal strings are translated into enumeration
@@ -134,7 +129,7 @@ private static int idxTiLogTx = 0;
     
     /** Debugging: A time variable to measure the response time of the ECU. It is the time
         from sending the CRO until reception of DTO. */
-    public long tiResponseEcuInNs;
+    public long tiResponseEcuInNs_;
     
     /** The CAN ID of all CRO messages. */
     private final int canIdCro_;
@@ -236,12 +231,8 @@ private static int idxTiLogTx = 0;
                                             , (byte)MSG_LEN
                                             , payloadAry
                                             );
-long tiSend = System.nanoTime();
         final TPCANStatus errCode = canApi_.Write(canDev_, canMsg);
-tiSend = System.nanoTime() - tiSend;
-        tiResponseEcuInNs = System.nanoTime();
-if(idxTiLogTx < noLoggedTimes)
-    tiSendAry[idxTiLogTx++] = tiSend;
+        tiResponseEcuInNs_ = System.nanoTime();
         if(PCANBasicEx.checkReturnCode(errCode))
         {
             /* Start timeout measurement till Rx of DTO. */
@@ -306,14 +297,10 @@ if(idxTiLogTx < noLoggedTimes)
             assert state_ == StateTransmission.WAITING_FOR_DTO: "Bad use of class interface";
              
             /* Check PCANBasic API for Rx event. */
-long tiRead = System.nanoTime();
             final TPCANStatus errCode = canApi_.Read(canDev_, canMsg, /*TimestampBuffer*/null);
             if(errCode != TPCANStatus.PCAN_ERROR_QRCVEMPTY)
             {
-tiRead = System.nanoTime() - tiRead;
-                tiResponseEcuInNs = System.nanoTime() - tiResponseEcuInNs;
-if(idxTiLogRx < noLoggedTimes)
-    tiCheckQAry[idxTiLogRx++] = tiRead;
+                tiResponseEcuInNs_ = System.nanoTime() - tiResponseEcuInNs_;
                 if(PCANBasicEx.checkReturnCode(errCode))
                 {
                     /* Checking the CAN ID is actually useless as the reception filter
@@ -358,7 +345,7 @@ if(idxTiLogRx < noLoggedTimes)
                             /* We received a proper DTO. It is returned to the caller. */
                             _logger.trace( "DTO for CRO no {} received after {}ns."
                                          , PCANBasicEx.b2i(cmdCntrExpected)
-                                         , tiResponseEcuInNs
+                                         , tiResponseEcuInNs_
                                          );
                             result = ResultTransmission.SUCCESS;
                             state_ = StateTransmission.IDLE;

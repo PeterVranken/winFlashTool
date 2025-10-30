@@ -293,14 +293,6 @@ public class WinFlashTool
                         );
         }
         
-for(int i=0; i<CcpCroTransmitter.noLoggedTimes; ++i)
-{
-    _logger.warn( "tiSend/read: {}/{} ns"
-                , CcpCroTransmitter.tiSendAry[i]
-                , CcpCroTransmitter.tiCheckQAry[i]
-                );
-}
-
 // Application code goes here.
 //            String generatedCode = null;
 //            if(errCnt.getNoErrors() == 0)

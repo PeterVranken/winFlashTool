@@ -52,7 +52,8 @@ public class CCP
         UNDEFINED,
         DISCONNECTED,
         CONNECTING,
-        SET_MTA,
+        SETTING_MTA,
+        ERASING,
         DOWNLOADING,
         DISCONNECTING;
 
@@ -74,29 +75,6 @@ public class CCP
         }
     }
 
-    /** The IDs of the CCP commands in the CRO messages. */
-    public enum CroCommandId
-    {
-        CONNECT((byte)0x01),
-        SET_MTA((byte)0x02),
-        DOWNLOAD((byte)0x03),
-        PROGRAM_6((byte)0x22),
-        DOWNLOAD_6((byte)0x23),
-        DISCONNECT((byte)0x07);
-
-        private final byte cmdId_;
-
-        CroCommandId(byte cmdId)
-        {
-            this.cmdId_ = cmdId;
-        }
-
-        public byte getCode()
-        {
-            return cmdId_;
-        }
-    }
-
     /** The current state of the communication process. */
     private StateFlashProcess state_ = StateFlashProcess.UNDEFINED;
 
@@ -112,7 +90,10 @@ public class CCP
 
     /** The station address of the connected ECU. */
     // TODO Needs to become an application parameter
-    private final short stationAddr = 0x1200;
+    private final short stationAddr_ = 0x1200;
+
+    /** The currently processed CCP command. */
+    CcpCommandBase currentCcpCmd_ = null;
 
     /** A general purpose timer, which is measures timeout conditions in temporary states. */
     private final TimeoutTimer timerTO_;
@@ -123,7 +104,7 @@ public class CCP
     /** Testing only: Sub-state of DOWNLOADING: Do we need to send the next CRO or are we
         waiting for the DTO of the previous one? */
     private boolean dwnLdg_sendCro_ = true;
-    
+
     /**
      * A new instance of CCP is created. It represents a CCP connection with a ECU.
      *   @param errCnt
@@ -258,12 +239,8 @@ public class CCP
     private void setStateConnecting()
     {
         /* On entry: Send CAN CRO message with command CONNECT. */
-        final byte[] payloadAry = new byte[8];
-        payloadAry[0] = CroCommandId.CONNECT.getCode();
-        payloadAry[2] = (byte)(stationAddr & 0x00FF);
-        payloadAry[3] = (byte)((stationAddr & 0xFF00) >> 8);
-        croTransmitter_.sendCro(payloadAry, /*noContentBytes*/ 4);
-        _logger.debug("CRO message CONNECT sent to station {}.", stationAddr);
+        currentCcpCmd_ = new CcpCommandConnect(croTransmitter_, errCnt_);
+        currentCcpCmd_.start(Integer.valueOf(stationAddr_));
         state_ = StateFlashProcess.CONNECTING;
     }
 
@@ -274,14 +251,10 @@ public class CCP
     private void setStateDisconnecting()
     {
         /* On entry: Send CAN CRO message with command DISCONNECT. */
-        final byte[] payloadAry = new byte[8];
-        payloadAry[0] = CroCommandId.DISCONNECT.getCode();
-        payloadAry[2] = (byte)0x01; /* 0: temporary, 1: end of session. */
-        payloadAry[3] = 0;
-        payloadAry[4] = (byte)(stationAddr & 0x00FF);
-        payloadAry[5] = (byte)((stationAddr & 0xFF00) >> 8);
-        croTransmitter_.sendCro(payloadAry, /*noContentBytes*/ 6);
-        _logger.debug("CRO message DISCONNECT sent to station {}.", stationAddr);
+        currentCcpCmd_ = new CcpCommandDisconnect(croTransmitter_, errCnt_);
+        final Integer stationAddr = Integer.valueOf(stationAddr_);
+        final Boolean isEndOfSession = Boolean.valueOf(true);
+        currentCcpCmd_.start(stationAddr, isEndOfSession);
         state_ = StateFlashProcess.DISCONNECTING;
     }
 
@@ -298,27 +271,23 @@ public class CCP
      */
     public boolean step()
     {
+        CcpCroTransmitter.ResultTransmission resultTxRx;
         switch(state_)
         {
         case CONNECTING:
-        {
-            final TPCANMsg msgDto = new TPCANMsg();
-            final CcpCroTransmitter.ResultTransmission resultTxRx =
-                                                            croTransmitter_.getDto(msgDto);
+            resultTxRx = currentCcpCmd_.step();
             if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
             {
-                _logger.info("ECU is connected.");
-                // setStateDownloading();
-                state_ = StateFlashProcess.SET_MTA;
+                state_ = StateFlashProcess.SETTING_MTA;
+                currentCcpCmd_ = new CcpCommandSetMta(croTransmitter_, errCnt_);
+                final Integer memoryAddr = Integer.valueOf(0x840000);
+                final Integer idxMta = Integer.valueOf(0);
+                currentCcpCmd_.start(memoryAddr, idxMta);
             }
             else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)
             {
                 /* The connect CRO/DTO exchange failed. The reason has been logged. Nothing
                    else to do. We return to DISCONNECTED. */
-                errCnt_.error();
-                _logger.error("Can't connect to the ECU. See previous error messages for"
-                              + " details."
-                             );
                 state_ = StateFlashProcess.DISCONNECTED;
             }
             else
@@ -326,124 +295,138 @@ public class CCP
                 /* DTO has not been received yet. We remain in this state. */
             }
             break;
-        }
         
-        case SET_MTA:
-            if(dwnLdg_sendCro_)
+        case SETTING_MTA:
+            resultTxRx = currentCcpCmd_.step();
+            if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
             {
-                final byte[] payloadAry = new byte[8];
-                payloadAry[0] = CroCommandId.SET_MTA.getCode();
-                payloadAry[2] = (byte)0; /* The x in MTA_x, x=0..1 */
-                payloadAry[3] = (byte)0; /* Address extension not used in PowerPC. */
-                
-                /* Memory address in MSB endianess. */ 
-                payloadAry[4] = (byte)0x00;
-                payloadAry[5] = (byte)0x84;
-                payloadAry[6] = (byte)0x00;
-                payloadAry[7] = (byte)0x00;
-                
-                croTransmitter_.sendCro(payloadAry, /*noContentBytes*/ 8);
-                _logger.trace("CRO message PROGRAM_6 sent to ECU");
-                dwnLdg_sendCro_ = false;
+                currentCcpCmd_ = new CcpCommandClearMemory(croTransmitter_, errCnt_);
+                final Integer noBytesToEraseAtMta = Integer.valueOf(0x060000);
+                currentCcpCmd_.start(noBytesToEraseAtMta);
+
+                state_ = StateFlashProcess.ERASING;
+            }
+            else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)
+            {
+                /* The connect CRO/DTO exchange failed. The reason has been logged. Nothing
+                   else to do. We return to DISCONNECTED. */
+                state_ = StateFlashProcess.DISCONNECTED;
             }
             else
             {
-                final TPCANMsg msgDto = new TPCANMsg();
-                final CcpCroTransmitter.ResultTransmission resultTxRx =
-                                                                croTransmitter_.getDto(msgDto);
-                if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
-                {
-                    _logger.trace("ECU acknowledged SET_MTA.");
-                    dwnLdg_sendCro_ = true;
-                    state_ = StateFlashProcess.DOWNLOADING;
-                }
-                else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)
-                {
-                    /* The CRO/DTO exchange failed. The reason has been logged. Nothing
-                       else to do. We return to DISCONNECTED. */
-                    errCnt_.error();
-                    _logger.error("Can't set MTA in the ECU. See previous error messages"
-                                  + " for details."
-                                 );
-                    dwnLdg_sendCro_ = true;
-                    state_ = StateFlashProcess.DISCONNECTED;
-                }
-                else
-                {
-                    /* DTO has not been received yet. We remain in this sub-state. */
-                }
+                /* DTO has not been received yet. We remain in this state. */
+            }
+            break;
+        
+        case ERASING:
+            resultTxRx = currentCcpCmd_.step();
+            if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
+            {
+                currentCcpCmd_ = new CcpCommandsDownloadProgram( croTransmitter_
+                                                               , /*isDownload*/ false
+                                                               , errCnt_
+                                                               );
+                final int noBytesToProgram = ThreadLocalRandom.current().nextInt(12, 66);
+                final byte[] progData = new byte[noBytesToProgram];
+                for(int i=0; i<noBytesToProgram; ++i)
+                    progData[i] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
+                currentCcpCmd_.start(progData);
+
+                state_ = StateFlashProcess.DOWNLOADING;
+            }
+            else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)
+            {
+                /* The connect CRO/DTO exchange failed. The reason has been logged. Nothing
+                   else to do. We return to DISCONNECTED. */
+                state_ = StateFlashProcess.DISCONNECTED;
+            }
+            else
+            {
+                /* DTO has not been received yet. We remain in this state. */
             }
             break;
         
         case DOWNLOADING:
-            // TODO This is a dummy. We just send a number of PROGRAM_6 commands before we disconnect.
-//            if(timerTO_.hasTimedOut()) {setStateDisconnecting();}
-            if(noDownloads_ > 0)
+            resultTxRx = currentCcpCmd_.step();
+            if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
             {
-                if(dwnLdg_sendCro_)
-                {
-                    final byte[] payloadAry = new byte[8];
-                    payloadAry[0] = CroCommandId.PROGRAM_6.getCode();
-                    payloadAry[2] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
-                    payloadAry[3] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
-                    payloadAry[4] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
-                    payloadAry[5] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
-                    payloadAry[6] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
-                    payloadAry[7] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
-                    croTransmitter_.sendCro(payloadAry, /*noContentBytes*/ 8);
-                    _logger.trace("CRO message PROGRAM_6 sent to ECU");
-                    dwnLdg_sendCro_ = false;
-                }
-                else
-                {
-                    final TPCANMsg msgDto = new TPCANMsg();
-                    final CcpCroTransmitter.ResultTransmission resultTxRx =
-                                                                croTransmitter_.getDto(msgDto);
-                    if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
-                    {
-                        _logger.trace("ECU acknowledged download.");
-                        -- noDownloads_;
-                        dwnLdg_sendCro_ = true;
-                    }
-                    else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)
-                    {
-                        /* The CRO/DTO exchange failed. The reason has been logged. Nothing
-                           else to do. We return to DISCONNECTED. */
-                        errCnt_.error();
-                        _logger.error("Can't download data to the ECU. See previous"
-                                      + " error messages for details."
-                                     );
-                        dwnLdg_sendCro_ = true;
-                        state_ = StateFlashProcess.DISCONNECTED;
-                    }
-                    else
-                    {
-                        /* DTO has not been received yet. We remain in this sub-state. */
-                    }
-                }
+//                currentCcpCmd_ = new CcpCommandClearMemory(croTransmitter_, errCnt_);
+//                final Integer noBytesToEraseAtMta = Integer.valueOf(0x060000);
+//                currentCcpCmd_.start(noBytesToEraseAtMta);
+//                state_ = StateFlashProcess.ERASING;
+                setStateDisconnecting();
+            }
+            else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)
+            {
+                /* The connect CRO/DTO exchange failed. The reason has been logged. Nothing
+                   else to do. We return to DISCONNECTED. */
+                state_ = StateFlashProcess.DISCONNECTED;
             }
             else
-                setStateDisconnecting();
+            {
+                /* DTO has not been received yet. We remain in this state. */
+            }
+        
+//            // TODO This is a dummy. We just send a number of PROGRAM_6 commands before we disconnect.
+////            if(timerTO_.hasTimedOut()) {setStateDisconnecting();}
+//            if(noDownloads_ > 0)
+//            {
+//                if(dwnLdg_sendCro_)
+//                {
+//                    final byte[] payloadAry = new byte[8];
+//                    payloadAry[0] = CroCommandId.PROGRAM_6.getCode();
+//                    payloadAry[2] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
+//                    payloadAry[3] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
+//                    payloadAry[4] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
+//                    payloadAry[5] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
+//                    payloadAry[6] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
+//                    payloadAry[7] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
+//                    croTransmitter_.sendCro(payloadAry, /*noContentBytes*/ 8);
+//                    _logger.trace("CRO message PROGRAM_6 sent to ECU");
+//                    dwnLdg_sendCro_ = false;
+//                }
+//                else
+//                {
+//                    final TPCANMsg msgDto = new TPCANMsg();
+//                    resultTxRx = croTransmitter_.getDto(msgDto);
+//                    if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
+//                    {
+//                        _logger.trace("ECU acknowledged download.");
+//                        -- noDownloads_;
+//                        dwnLdg_sendCro_ = true;
+//                    }
+//                    else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)
+//                    {
+//                        /* The CRO/DTO exchange failed. The reason has been logged. Nothing
+//                           else to do. We return to DISCONNECTED. */
+//                        errCnt_.error();
+//                        _logger.error("Can't download data to the ECU. See previous"
+//                                      + " error messages for details."
+//                                     );
+//                        dwnLdg_sendCro_ = true;
+//                        state_ = StateFlashProcess.DISCONNECTED;
+//                    }
+//                    else
+//                    {
+//                        /* DTO has not been received yet. We remain in this sub-state. */
+//                    }
+//                }
+//            }
+//            else
+//                setStateDisconnecting();
             break;
         
         case DISCONNECTING:
         {
-            final TPCANMsg msgDto = new TPCANMsg();
-            final CcpCroTransmitter.ResultTransmission resultTxRx =
-                                                            croTransmitter_.getDto(msgDto);
+            resultTxRx = currentCcpCmd_.step();
             if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
             {
-                _logger.info("ECU is disconnected.");
                 state_ = StateFlashProcess.DISCONNECTED;
             }
             else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)
             {
                 /* The connect CRO/DTO exchange failed. The reason has been logged. Nothing
                    else to do. We return to DISCONNECTED. */
-                errCnt_.error();
-                _logger.error("Can't disconnect from the ECU. See previous error messages"
-                              + " for details."
-                             );
                 state_ = StateFlashProcess.DISCONNECTED;
             }
             else

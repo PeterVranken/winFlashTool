@@ -43,6 +43,9 @@
 *.slx.r*
 *.mdl.r*
 
+# Binary build artifacts
+build/**
+
 # Global/gtags
 GPATH
 GRTAGS
@@ -51,6 +54,10 @@ GTAGS
 # Common log files
 **/log/**
 *.log
+
+# Version designation files, which are generated with GitWCRev.exe
+**/rev_softwareRevision.c
+**/GitRevision.java
 
 # Compiled MEX files
 *.mex*
