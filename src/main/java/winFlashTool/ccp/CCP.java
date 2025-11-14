@@ -149,13 +149,16 @@ public class CCP
     // TODO Could become an application parameter
     private final TPCANHandle canDev_ = TPCANHandle.PCAN_USBBUS1;
 
-    /** The station address of the connected ECU. */
+    /** The 16 Bit station address of the connected ECU. */
     // TODO Needs to become an application parameter
-    private final short stationAddr_ = 0x1200;
+    private final short stationAddr_ = 0x0000;
 
     /** The currently processed CCP command. */
     CcpCommandBase currentCcpCmd_ = null;
 
+    /* Temporary test code: We generate some random code for flashing. */
+    final byte[] progData_;
+    
     /**
      * A new instance of CCP is created. It represents a CCP connection with a ECU.
      *   @param errCnt
@@ -178,7 +181,7 @@ public class CCP
             _logger.debug("PCANBasic API successfully initialized.");
             CcpCroTransmitter.CreateCcpCroTransmitter( canApi_
                                                      , canDev_
-                                                     , /*timeoutTillRxDtoInMs*/ 1000 * 20
+                                                     , /*timeoutTillRxDtoInMs*/ 1000 * 2
                                                      , /*canIdCro*/ 100
                                                      , /*isExtCroId*/ false
                                                      , /*canIdDto*/ 101
@@ -198,6 +201,12 @@ public class CCP
                           + " PCANBasic_JNI.dll need to be found."
                          );
         }
+
+        /* Temporary test code: We generate some random code for flashing. */
+        final int noBytesToProgram = (ThreadLocalRandom.current().nextInt(12, 66) + 7) & ~0x7;
+        progData_ = new byte[noBytesToProgram];
+        for(int i=0; i<noBytesToProgram; ++i)
+            progData_[i] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
 
     } /* CCP.CCP */
 
@@ -332,7 +341,7 @@ public class CCP
             {
                 state_ = StateFlashProcess.SETTING_MTA;
                 currentCcpCmd_ = CroCommandId.SET_MTA.getCmd();
-                final Integer memoryAddr = Integer.valueOf(0x840000);
+                final Integer memoryAddr = Integer.valueOf(0xA00000);
                 final Integer idxMta = Integer.valueOf(0);
                 currentCcpCmd_.start(memoryAddr, idxMta);
             }
@@ -353,7 +362,7 @@ public class CCP
             if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
             {
                 currentCcpCmd_ = CroCommandId.CLEAR_MEMORY.getCmd();
-                final Integer noBytesToEraseAtMta = Integer.valueOf(0x060000);
+                final Integer noBytesToEraseAtMta = Integer.valueOf(progData_.length);
                 currentCcpCmd_.start(noBytesToEraseAtMta);
 
                 state_ = StateFlashProcess.ERASING;
@@ -375,11 +384,7 @@ public class CCP
             if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
             {
                 currentCcpCmd_ = CroCommandId.PROGRAM.getCmd();
-                final int noBytesToProgram = ThreadLocalRandom.current().nextInt(12, 66);
-                final byte[] progData = new byte[noBytesToProgram];
-                for(int i=0; i<noBytesToProgram; ++i)
-                    progData[i] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
-                currentCcpCmd_.start(progData);
+                currentCcpCmd_.start(progData_);
 
                 state_ = StateFlashProcess.DOWNLOADING;
             }
@@ -399,10 +404,6 @@ public class CCP
             resultTxRx = currentCcpCmd_.step();
             if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
             {
-//                currentCcpCmd_ = CroCommandId.CLEAR_MEMORY.getCmd();
-//                final Integer noBytesToEraseAtMta = Integer.valueOf(0x060000);
-//                currentCcpCmd_.start(noBytesToEraseAtMta);
-//                state_ = StateFlashProcess.ERASING;
                 setStateDisconnecting();
             }
             else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)

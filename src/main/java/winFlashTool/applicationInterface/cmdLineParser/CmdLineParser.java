@@ -536,7 +536,7 @@ public class CmdLineParser implements Iterable<String>
 
     
     /**
-     * Define an expected and allowed boolean argument before parsing.
+     * Define an expected and allowed boolean argument before parsing.<p>
      *   Only those arguments which have been defined using these methods will later be
      * accepted, when actual parsing is performed.<p>
      *   The default value of boolean arguments is always false (i.e. not present on the

@@ -166,24 +166,47 @@ public class WinFlashTool
         Log4j2Configurator.defineArguments(clp);
 
         /* Define all command line arguments, which are not logging related. */
-        clp.defineArgument( "c", "cluster-name"
-                          , /* cntMin, cntMax */ 0, 1
-                          , /* defaultValue */ "cluster"
-                          , "The name of the complete data cluster. Optional, may be"
-                            + " given once in the global context. Default is"
-                            + " \"cluster\""
-                          );
-//        clp.defineArgument( "$(point)", ""
-//                          , /* cntMin, cntMax */ 0, -1
-//                          , /* defaultValue */ null
-//                          , ""
-//                            + " "
-//                            + " "
-//                            + " "
-//                            + ".\nOptional, default is"
-//                            + " "
-//                            + ".\nThis parameter is Mandatory"
-//                          );
+        clp.defineArgument
+            ( "e", "enumerate-CAN-devices"
+            , /* cntMax */ 1
+            , "If given, then the application will only search for connected, available"
+              + " CAN devices. It stops after listing available devices."
+              + "\nUseful for a check of the setup."
+              + "\nOptional, default is false."
+            );
+// Show all device and try to open them. Print the success as "available" in the list and
+// free them again.
+//   TBC: Could be combined with identification mode, if argument for device choice is also
+// given.
+//   This argument makes many others optional, which are actually mandatory. Help of
+// mandatory options will say: "Mandatory unless --enumerate-CAN-devices is given." The
+// implicit "mandatory support of cmdLineParser is broken.
+        clp.defineArgument
+            ( "n", "dry-run"
+            , /* cntMax */ 1
+            , "If given, then the application won't flash. It will still read the srec"
+              + " input and connect to the ECU device. However, it'll immediately"
+              + " disconnect again, without sending or programming any binary data."
+              + " Moreover, the \"identification\" of the selected PCAN device is applied;"
+              + " the LED in the device will be flashed in another color."
+              + "\nUseful for a check of the setup."
+              + "\nOptional, default is false."
+            );
+// For the ECU connection, reduce the CCP timeout to the minimum reasonable in order to not
+// prolong the dry-run more than necessary.
+
+//        clp.defineArgument
+//            ( "$(point)", ""
+//            , /* cntMin, cntMax */ 0, -1
+//            , /* defaultValue */ null
+//            , ""
+//              + " "
+//              + " "
+//              + " "
+//              + ".\nOptional, default is"
+//              + " "
+//              + ".\nThis parameter is mandatory unless --enumerate-CAN-devices is given."
+//            );
 
         /* No unnamed arguments are expected. */
         //clp.defineArgument( /* cntMin, cntMax */ 0, -1
@@ -292,6 +315,35 @@ public class WinFlashTool
                         );
         }
         
+// Lesen SREC:
+// - Nur aufsteigende Adressen zulassen. Das ist die einfachste und
+//   speichersparendste Lösung zum Vermeiden von Doppelprogrammierungen und
+//   Suche nach Überlappungen bei den Segmenten und macht wahrscheinlich kein
+//   praktisches Problem mit real existiereden srec Dateien. Kann später
+//   außerdem ohne Doppelaufwände fallengelassen werden.
+// - Zustandsautomat: Bei 0xFF Byte wird angefangen, diese zu zählen. Bei
+//   Erreichen der nächsten Alignmentgrenze endet ein Segment und ein neues
+//   beginnt. Dieses enthält nur 0xFF und hat die Eigenschaft Erase-only.
+//   Seine Länge ist ein Vielfaches des Alignments. Sind zu wenige 0xFF da,
+//   um einen Alignment-Block zu ergeben, wird das Segment wieder
+//   fallengelassen und das zuvor beendete Programmiersegment geht weiter,
+//   enthält alle aufgefundenen 0xFF. Beim ersten Nicht-0xFF fängt dann, ab
+//   der letzten zurückliegenden Alignmentgrenze, das nächste
+//   Programmiersegment an.
+// - Das erste und das letzte Programmiersegment werden vorn und hinten mit
+//   0xFF auf Alignment ergänzt.
+// - Alignment ist Applikationsparameter? Oder gibt es eine feststehende HW
+//   Vorgabe? 
+// - Brauchen wir Alignment, bzw. wenn ja, macht der Flashtreiber das selbst?
+// - Nach Ende der Segmentsuche, werden die Segmentgrenzen mit den
+//   (bekannten) Erase-Blöcken des C55 verglichen und die Liste der
+//   Erasekommandos erstellt.
+// - Aus Flashtreiber-Implementierung geht hervor, ob die gefundenen
+//   Clear-Blöcke bei hintereinanderliegenden Blöcken gemergt werden können.
+//   Bzw. ob sich das überhaupt lohnt, weil sie durch Sammeln im Flashtreiber
+//   implizit gemergt werden. Oder löscht der Treiber unmittelbar nach jedem
+//   CCP Clear?
+  
 // Application code goes here.
 //            String generatedCode = null;
 //            if(errCnt.getNoErrors() == 0)
