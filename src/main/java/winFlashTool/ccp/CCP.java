@@ -179,9 +179,12 @@ public class CCP
         if(canApi_.initializeAPI())
         {
             _logger.debug("PCANBasic API successfully initialized.");
+            // TODO CLEAR_MEMORY requires a timeout of at least 10s. All other commands
+            // don't. We can add an API to CroTransmitter to temorarily select another
+            // timeout.
             CcpCroTransmitter.CreateCcpCroTransmitter( canApi_
                                                      , canDev_
-                                                     , /*timeoutTillRxDtoInMs*/ 1000 * 2
+                                                     , /*timeoutTillRxDtoInMs*/ 1000 * 20
                                                      , /*canIdCro*/ 100
                                                      , /*isExtCroId*/ false
                                                      , /*canIdDto*/ 101
