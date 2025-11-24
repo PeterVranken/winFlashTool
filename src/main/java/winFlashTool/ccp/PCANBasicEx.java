@@ -26,6 +26,7 @@ package winFlashTool.ccp;
 import java.util.*;
 import org.apache.logging.log4j.*;
 import peak.can.basic.*;
+import peak.can.MutableInteger;
 
 /**
  * A collection of static support functions for using the PCANBasic API.
@@ -106,6 +107,66 @@ public class PCANBasicEx
     {
         return (int)b & 0xFF;
     }
+
+
+    /**
+     *   @param[in]
+     * Pass the initialized PCAN API to use.
+     */
+    public static void printAttachedChannels(PCANBasic canApi)
+    {
+        /* Step 1: Get number of attached channels. */
+        MutableInteger countBuffer = new MutableInteger(0);
+        TPCANStatus status = canApi.GetValue( TPCANHandle.PCAN_NONEBUS
+                                            , TPCANParameter.PCAN_ATTACHED_CHANNELS_COUNT
+                                            , countBuffer
+                                            , 4 /* Size of int in underlaying PCAN C lib. */
+                                            );
+
+        if(status != TPCANStatus.PCAN_ERROR_OK)
+        {
+            _logger.error("Error getting channel count: {}", status);
+            return;
+        }
+
+        int channelCount = countBuffer.getValue();
+        _logger.info("Found {} attached channels.", channelCount);
+
+        if(channelCount == 0)
+            return;
+
+        /* Step 2: Allocate array for channel info. */
+        TPCANChannelInformation[] channels = new TPCANChannelInformation[channelCount];
+        for(int i=0; i<channelCount; ++i)
+        {
+            channels[i] = new TPCANChannelInformation(); // must initialize each element
+        }
+
+        /* Step 3: Get channel details. */
+        status = canApi.GetValue( TPCANHandle.PCAN_NONEBUS
+                                , TPCANParameter.PCAN_ATTACHED_CHANNELS
+                                , channels
+                                , channels.length/* Byte size is computed by PEAK JNI layer. */
+                                );
+
+        if(status != TPCANStatus.PCAN_ERROR_OK)
+        {
+            _logger.error("Error getting channel info: {}", status);
+            return;
+        }
+
+        /* Print channel info. */
+        for(int i=0; i<channelCount; ++i)
+        {
+            TPCANChannelInformation info = channels[i];
+            _logger.info( "{}) Name: {}, Handle: 0x{}, Condition: {}"
+                        , i+1
+                        , info.getDeviceName()
+                        , Integer.toHexString(info.getChannelHandle().getValue())
+                        , info.getChannelCondition()
+                        );
+        }
+    } /* printAttachedChannels */
 
 } /* End of class PCANBasicEx definition. */
 

@@ -173,7 +173,7 @@ public class PCANBasic {
             TPCANHandle Channel);
     
     /**
-     * Transmits a CAN message
+     * Reads a CAN message from the receive queue of a PCAN Channel
      *
      * @param Channel The handle of a PCAN Channel
      * @param MessageBuffer A TPCANMsg buffer with the message to be read
@@ -252,6 +252,19 @@ public class PCANBasic {
      * @param Buffer Buffer for the parameter value
      * @param BufferLength Size in bytes of the buffer
      * @return A TPCANStatus error code
+     *
+     * @remark
+     * The combination of any Java Object and a buffer size is not self-explaining.
+     * Depending on which parameter you query or set, buffer must be one of three Java
+     * types (matching the native value kind): 
+     * - Text (C char*): StringBuffer
+     *   Use buffer.capacity() for bufferLength (bytes). [forum.peak...system.com]
+     * - 32-bit number (C int/DWORD): A mutable integer holder
+     *   The PEAK example uses a custom MutableInteger class. Pass any object that the JNI
+     *   layer can write an int into (PEAK's sample includes MutableInteger). Set
+     *   bufferLength = 4. [forum.peak...system.com] 
+     * - 64-bit number (C uint64_t/ULONGLONG): A mutable long holder
+     *   The PEAK example uses MutableLong. Set bufferLength = 8.
      */
     public native TPCANStatus GetValue(
             TPCANHandle Channel,
