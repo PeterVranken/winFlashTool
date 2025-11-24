@@ -66,3 +66,16 @@ sourceSets {
         }
     }
 }
+
+distributions {
+    main {
+        contents {
+            // Any number of from blocks can be used to collect needed files.
+            from('lib/PEAK/x86_64') {
+                include 'PCANBasic_JNI.dll'
+                include 'PCANBasic.dll'
+                into 'bin'   // place DLLs next to the launch script
+            }
+        }
+    }
+}
