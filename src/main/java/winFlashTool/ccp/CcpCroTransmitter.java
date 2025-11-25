@@ -131,19 +131,8 @@ class CcpCroTransmitter
         from sending the CRO until reception of DTO. */
     public long tiResponseEcuInNs_;
     
-    /** The CAN ID of all CRO messages. */
-    private final int canIdCro_;
-    
-    /** PCAN_MESSAGE_EXTENDED if canIdCro_ is an extended 29 Bit ID, PCAN_MESSAGE_STANDARD
-        otherwise. */
-    private final byte kindOfCroId_;
-    
-    /** The CAN ID of all DTO messages. */
-    private final int canIdDto_;
-    
-    /** PCAN_MESSAGE_EXTENDED if canIdDto_ is an extended 29 Bit ID, PCAN_MESSAGE_STANDARD
-        otherwise. */
-    private final byte kindOfDtoId_;
+    /** The CAN IDs of all CRO and DTO messages. */
+    private final CcpCanIds ccpCanIds_;
     
     /** The length of all CRO and DTO messages. */
     private final int MSG_LEN = 8;
@@ -170,37 +159,22 @@ class CcpCroTransmitter
      *   @param timeoutTillRxDtoInMs
      * The maximum time, which may elapse after sending the CRO until the DTO arrives. Unit
      * is Milliseconds.
-     *   @param canIdCro
-     * The CAN ID of all CRO messages.
-     *   @param isExtCroId
-     * Pass true if an extended 29 Bit ID is used for the CRO messages and false if a 11
-     * Bit ID is used.
-     *   @param canIdDto
-     * The CAN ID of all DTO messages. This CAN ID is required because the CAN recepion
-     * filtering is accordingly configured in the CAN device by this method.
-     *   @param isExtDtoId
-     * Pass true if an extended 29 Bit ID is used for the DTO messages and false if a 11
-     * Bit ID is used.
+     *   @param ccpCanIds
+     * The CAN IDs of all CRO and DTO messages.
      *   @param errCnt
      * The error counter to be used for problem reporting.
      */
     static public void CreateCcpCroTransmitter( PCANBasic pcanBasicAPI
                                               , TPCANHandle canDev
                                               , int timeoutTillRxDtoInMs
-                                              , int canIdCro
-                                              , boolean isExtCroId
-                                              , int canIdDto
-                                              , boolean isExtDtoId
+                                              , CcpCanIds ccpCanIds
                                               , ErrorCounter errCnt
                                               )
     {
         _croTransmitter = new CcpCroTransmitter( pcanBasicAPI
                                                , canDev
                                                , timeoutTillRxDtoInMs
-                                               , canIdCro
-                                               , isExtCroId
-                                               , canIdDto
-                                               , isExtDtoId
+                                               , ccpCanIds
                                                , errCnt
                                                );
     } /* CreateCcpCroTransmitter */
@@ -230,27 +204,15 @@ class CcpCroTransmitter
      *   @param timeoutTillRxDtoInMs
      * The maximum time, which may elapse after sending the CRO until the DTO arrives. Unit
      * is Milliseconds.
-     *   @param canIdCro
-     * The CAN ID of all CRO messages.
-     *   @param isExtCroId
-     * Pass true if an extended 29 Bit ID is used for the CRO messages and false if a 11
-     * Bit ID is used.
-     *   @param canIdDto
-     * The CAN ID of all DTO messages. This CAN ID is required because the CAN recepion
-     * filtering is accordingly configured in the CAN device by this method.
-     *   @param isExtDtoId
-     * Pass true if an extended 29 Bit ID is used for the DTO messages and false if a 11
-     * Bit ID is used.
+     *   @param ccpCanIds
+     * The CAN IDs of all CRO and DTO messages.
      *   @param errCnt
      * The error counter to be used for problem reporting.
      */
     private CcpCroTransmitter( PCANBasic pcanBasicAPI
                              , TPCANHandle canDev
                              , int timeoutTillRxDtoInMs
-                             , int canIdCro
-                             , boolean isExtCroId
-                             , int canIdDto
-                             , boolean isExtDtoId
+                             , CcpCanIds ccpCanIds
                              , ErrorCounter errCnt
                              )
     {
@@ -260,15 +222,7 @@ class CcpCroTransmitter
 
         timerRxDtoTO_ = new TimeoutTimer((long)timeoutTillRxDtoInMs);
 
-        canIdCro_    = canIdCro;
-        kindOfCroId_ = (isExtCroId? TPCANMessageType.PCAN_MESSAGE_EXTENDED    
-                                  : TPCANMessageType.PCAN_MESSAGE_STANDARD).getValue();
-        canIdDto_    = canIdDto;
-        kindOfDtoId_ = (isExtDtoId? TPCANMessageType.PCAN_MESSAGE_EXTENDED    
-                                  : TPCANMessageType.PCAN_MESSAGE_STANDARD).getValue();
-                       
-
-        // TODO Set the CAN reception filter.
+        ccpCanIds_ = ccpCanIds;
 
         state_ = StateTransmission.IDLE;
 
@@ -297,8 +251,8 @@ class CcpCroTransmitter
         for(int idxByte=noContentBytes; idxByte<MSG_LEN; ++idxByte)
             payloadAry[idxByte] = (byte)0xFF;
 
-        final TPCANMsg canMsg = new TPCANMsg( canIdCro_
-                                            , kindOfCroId_
+        final TPCANMsg canMsg = new TPCANMsg( ccpCanIds_.getCroCanId()
+                                            , ccpCanIds_.getCroMsgType().getValue()
                                             , (byte)MSG_LEN
                                             , payloadAry
                                             );
@@ -378,8 +332,8 @@ class CcpCroTransmitter
                        should hinder that we ever see a wrong one, but this is external
                        code and we don't have a guarantee how it behaves. Better to
                        double-check it. */
-                    if(canMsg.getID() == canIdDto_
-                       &&  canMsg.getType() == kindOfDtoId_
+                    if(canMsg.getID() == ccpCanIds_.getDtoCanId()
+                       &&  canMsg.getType() == ccpCanIds_.getCroMsgType().getValue()
                        &&  (int)canMsg.getLength() == MSG_LEN
                       )
                     {
@@ -427,18 +381,14 @@ class CcpCroTransmitter
                     {
                         /* Report error and return to IDLE for a repeated attempt. */
                         errCnt_.error();
-                        _logger.error( "Invalid DTO message received. Expected{} CAN"
+                        _logger.error( "Invalid DTO message received. Expected CAN"
                                        + " ID {} and length {}, but received{}"
                                        + " ID {} and length {}."
-                                     , kindOfDtoId_
-                                       == TPCANMessageType.PCAN_MESSAGE_EXTENDED.getValue()
-                                       ? "extended "
-                                       : ""
-                                     , canIdDto_
+                                     , ccpCanIds_.dtoIdToString()
                                      , MSG_LEN
                                      , canMsg.getType() 
                                        == TPCANMessageType.PCAN_MESSAGE_EXTENDED.getValue()
-                                       ? "extended "
+                                       ? " extended"
                                        : ""
                                      , canMsg.getID()
                                      , (int)canMsg.getLength()

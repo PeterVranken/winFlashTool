@@ -113,7 +113,7 @@ public class PCANBasicEx
      *   @param[in]
      * Pass the initialized PCAN API to use.
      */
-    public static void printAttachedChannels(PCANBasic canApi)
+    public static boolean printAttachedChannels(PCANBasic canApi)
     {
         /* Step 1: Get number of attached channels. */
         MutableInteger countBuffer = new MutableInteger(0);
@@ -126,14 +126,18 @@ public class PCANBasicEx
         if(status != TPCANStatus.PCAN_ERROR_OK)
         {
             _logger.error("Error getting channel count: {}", status);
-            return;
+            return false;
         }
 
         int channelCount = countBuffer.getValue();
-        _logger.info("Found {} attached channels.", channelCount);
 
-        if(channelCount == 0)
-            return;
+        if(channelCount > 0)
+            _logger.info("Found {} attached channels:", channelCount);
+        else
+        {
+            _logger.error("No PEAK CAN device is connected.");
+            return false;
+        }
 
         /* Step 2: Allocate array for channel info. */
         TPCANChannelInformation[] channels = new TPCANChannelInformation[channelCount];
@@ -152,20 +156,50 @@ public class PCANBasicEx
         if(status != TPCANStatus.PCAN_ERROR_OK)
         {
             _logger.error("Error getting channel info: {}", status);
-            return;
+            return false;
         }
 
         /* Print channel info. */
+        boolean success = true;
         for(int i=0; i<channelCount; ++i)
         {
+            final boolean successThisDevice;
             TPCANChannelInformation info = channels[i];
-            _logger.info( "{}) Name: {}, Handle: 0x{}, Condition: {}"
-                        , i+1
-                        , info.getDeviceName()
-                        , Integer.toHexString(info.getChannelHandle().getValue())
-                        , info.getChannelCondition()
-                        );
+            final String availability;
+            switch(info.getChannelCondition())
+            {
+            case 0:
+                successThisDevice = false;
+                availability = "Invalid handle, device is not available";
+                break;
+            case 1:
+                successThisDevice = true;
+                availability = "Device is available to this application";
+                break;
+            case 2:
+                successThisDevice = false;
+                availability = "Device is occupied by another application";
+                break;
+            default:
+                successThisDevice = false;
+                availability = "Invalid state, got unknown availabilty value "
+                               + info.getChannelCondition();
+            }
+            if(!successThisDevice)
+                success = false;
+
+            final Level logLevel = successThisDevice? Level.INFO: Level.ERROR;
+            _logger.log( logLevel
+                       , "{} (0x{}, type: {}): {}"
+                       , info.getChannelHandle().toString()
+                       , Integer.toHexString(info.getChannelHandle().getValue())
+                       , info.getDeviceName()
+                       , availability
+                       );
         }
+        
+        return success;
+        
     } /* printAttachedChannels */
 
 } /* End of class PCANBasicEx definition. */

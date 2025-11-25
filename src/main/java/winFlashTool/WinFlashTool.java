@@ -276,8 +276,6 @@ public class WinFlashTool
     {
         boolean success = true;
 
-        _logger.info("Starting endless Rx/Tx loop. Use Ctrl-C to stop application.");
-        
         /* Test of basic CAN Tx/Rx. */
         //MinimalisticProgram.main(/*args*/ null);
 
@@ -317,31 +315,31 @@ public class WinFlashTool
         
 // Lesen SREC:
 // - Nur aufsteigende Adressen zulassen. Das ist die einfachste und
-//   speichersparendste Lösung zum Vermeiden von Doppelprogrammierungen und
-//   Suche nach Überlappungen bei den Segmenten und macht wahrscheinlich kein
-//   praktisches Problem mit real existiereden srec Dateien. Kann später
-//   außerdem ohne Doppelaufwände fallengelassen werden.
-// - Zustandsautomat: Bei 0xFF Byte wird angefangen, diese zu zählen. Bei
-//   Erreichen der nächsten Alignmentgrenze endet ein Segment und ein neues
-//   beginnt. Dieses enthält nur 0xFF und hat die Eigenschaft Erase-only.
-//   Seine Länge ist ein Vielfaches des Alignments. Sind zu wenige 0xFF da,
+//   speichersparendste Loesung zum Vermeiden von Doppelprogrammierungen und
+//   Suche nach Ueberlappungen bei den Segmenten und macht wahrscheinlich kein
+//   praktisches Problem mit real existiereden srec Dateien. Kann spaeter
+//   au�erdem ohne Doppelaufwaende fallengelassen werden.
+// - Zustandsautomat: Bei 0xFF Byte wird angefangen, diese zu zaehlen. Bei
+//   Erreichen der naechsten Alignmentgrenze endet ein Segment und ein neues
+//   beginnt. Dieses enth�lt nur 0xFF und hat die Eigenschaft Erase-only.
+//   Seine Laenge ist ein Vielfaches des Alignments. Sind zu wenige 0xFF da,
 //   um einen Alignment-Block zu ergeben, wird das Segment wieder
 //   fallengelassen und das zuvor beendete Programmiersegment geht weiter,
-//   enthält alle aufgefundenen 0xFF. Beim ersten Nicht-0xFF fängt dann, ab
-//   der letzten zurückliegenden Alignmentgrenze, das nächste
+//   enthaelt alle aufgefundenen 0xFF. Beim ersten Nicht-0xFF faengt dann, ab
+//   der letzten zurueckliegenden Alignmentgrenze, das naechste
 //   Programmiersegment an.
 // - Das erste und das letzte Programmiersegment werden vorn und hinten mit
-//   0xFF auf Alignment ergänzt.
+//   0xFF auf Alignment ergaenzt.
 // - Alignment ist Applikationsparameter? Oder gibt es eine feststehende HW
 //   Vorgabe? 
 // - Brauchen wir Alignment, bzw. wenn ja, macht der Flashtreiber das selbst?
 // - Nach Ende der Segmentsuche, werden die Segmentgrenzen mit den
-//   (bekannten) Erase-Blöcken des C55 verglichen und die Liste der
+//   (bekannten) Erase-Bloecken des C55 verglichen und die Liste der
 //   Erasekommandos erstellt.
 // - Aus Flashtreiber-Implementierung geht hervor, ob die gefundenen
-//   Clear-Blöcke bei hintereinanderliegenden Blöcken gemergt werden können.
-//   Bzw. ob sich das überhaupt lohnt, weil sie durch Sammeln im Flashtreiber
-//   implizit gemergt werden. Oder löscht der Treiber unmittelbar nach jedem
+//   Clear-Bloecke bei hintereinanderliegenden Bloecken gemergt werden koennen.
+//   Bzw. ob sich das ueberhaupt lohnt, weil sie durch Sammeln im Flashtreiber
+//   implizit gemergt werden. Oder loescht der Treiber unmittelbar nach jedem
 //   CCP Clear?
   
 // Application code goes here.

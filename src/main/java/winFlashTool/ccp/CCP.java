@@ -199,14 +199,10 @@ public class CCP
             // TODO CLEAR_MEMORY requires a timeout of at least 10s. All other commands
             // don't. We can add an API to CroTransmitter to temporarily select another
             // timeout.
-// TODO Use new ccpCanIds_
             CcpCroTransmitter.CreateCcpCroTransmitter( canApi_
                                                      , canDev_
                                                      , /*timeoutTillRxDtoInMs*/ 1000 * 20
-                                                     , /*canIdCro*/ 100
-                                                     , /*isExtCroId*/ false
-                                                     , /*canIdDto*/ 101
-                                                     , /*isExtDtoId*/ false
+                                                     , ccpCanIds_
                                                      , errCnt
                                                      );
             PCANBasicEx.setCanApi(canApi_);
@@ -281,18 +277,13 @@ public class CCP
                                                         ( canDev_
                                                         , /*FromID*/ ccpCanIds_.canIdDto_
                                                         , /*ToID*/ ccpCanIds_.canIdDto_
-// TODO Sort out confusion of two types, message and mode
-//                                                        , /*Mode*/ ccpCanIds_.kindOfDtoId_
-, TPCANMode.PCAN_MODE_STANDARD
+                                                        , /*Mode*/ ccpCanIds_.getDtoMsgMode()
                                                         );
             if(PCANBasicEx.checkReturnCode(errCode))
             {
-                _logger.debug( "CAN ID {}{} configured for Rx DTO messages."
-                             , ccpCanIds_.canIdDto_
-                             , ccpCanIds_.kindOfDtoId_ 
-                               == TPCANMessageType.PCAN_MESSAGE_EXTENDED
-                               ? "x"
-                               : ""
+                _logger.debug( "CAN acceptance filter for ID {} configured for Rx DTO"
+                               + " messages."
+                             , ccpCanIds_.dtoIdToString()
                              );
             }
             else
@@ -333,7 +324,7 @@ public class CCP
             state_ = StateFlashProcess.DISCONNECTED;
         }
         else
-            {
+        {
             errCnt_.error();
             _logger.fatal("Can't close PEAK PCAN-USB CAN device.");
 
@@ -414,11 +405,13 @@ public class CCP
             resultTxRx = currentCcpCmd_.step();
             if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
             {
-                currentCcpCmd_ = CroCommandId.CLEAR_MEMORY.getCmd();
-                final Integer noBytesToEraseAtMta = Integer.valueOf(progData_.length);
-                currentCcpCmd_.start(noBytesToEraseAtMta);
-
-                state_ = StateFlashProcess.ERASING;
+_logger.warn("Test: Disconnect immediately after connect");
+setStateDisconnecting();
+//                currentCcpCmd_ = CroCommandId.CLEAR_MEMORY.getCmd();
+//                final Integer noBytesToEraseAtMta = Integer.valueOf(progData_.length);
+//                currentCcpCmd_.start(noBytesToEraseAtMta);
+//
+//                state_ = StateFlashProcess.ERASING;
             }
             else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)
             {
