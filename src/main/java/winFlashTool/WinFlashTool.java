@@ -318,10 +318,10 @@ public class WinFlashTool
 //   speichersparendste Loesung zum Vermeiden von Doppelprogrammierungen und
 //   Suche nach Ueberlappungen bei den Segmenten und macht wahrscheinlich kein
 //   praktisches Problem mit real existiereden srec Dateien. Kann spaeter
-//   auﬂerdem ohne Doppelaufwaende fallengelassen werden.
+//   ausserdem ohne Doppelaufwaende fallengelassen werden.
 // - Zustandsautomat: Bei 0xFF Byte wird angefangen, diese zu zaehlen. Bei
 //   Erreichen der naechsten Alignmentgrenze endet ein Segment und ein neues
-//   beginnt. Dieses enth‰lt nur 0xFF und hat die Eigenschaft Erase-only.
+//   beginnt. Dieses enthaelt nur 0xFF und hat die Eigenschaft Erase-only.
 //   Seine Laenge ist ein Vielfaches des Alignments. Sind zu wenige 0xFF da,
 //   um einen Alignment-Block zu ergeben, wird das Segment wieder
 //   fallengelassen und das zuvor beendete Programmiersegment geht weiter,

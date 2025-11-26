@@ -1,0 +1,34 @@
+
+import org.junit.Test;
+import java.io.*;
+import java.util.*;
+import static org.junit.Assert.*;
+
+public class SrecParserEnhancedTest {
+
+    @Test
+    public void testOddHexDigits() throws Exception {
+        File testFile = new File("odd_hex.srec");
+        try (PrintWriter pw = new PrintWriter(testFile)) {
+            pw.println("S1130000285F245F2212226A000424290008237C2"); // Missing one digit
+        }
+        SrecParser parser = new SrecParser();
+        List<Integer> codes = new ArrayList<>();
+        parser.registerListener((err, ln, rt, addr, data) -> codes.add(err));
+        parser.parse(testFile);
+        assertTrue(codes.contains(SrecParser.ERR_WRONG_DATA_LENGTH));
+    }
+
+    @Test
+    public void testMismatchedByteCount() throws Exception {
+        File testFile = new File("mismatch_count.srec");
+        try (PrintWriter pw = new PrintWriter(testFile)) {
+            pw.println("S1130000285F245F2212226A000424290008237C2A11"); // Extra byte beyond declared count
+        }
+        SrecParser parser = new SrecParser();
+        List<Integer> codes = new ArrayList<>();
+        parser.registerListener((err, ln, rt, addr, data) -> codes.add(err));
+        parser.parse(testFile);
+        assertTrue(codes.contains(SrecParser.ERR_WRONG_DATA_LENGTH));
+    }
+}

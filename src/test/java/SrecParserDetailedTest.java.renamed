@@ -1,0 +1,131 @@
+
+import org.junit.Test;
+import java.io.*;
+import java.util.*;
+import static org.junit.Assert.*;
+import static org.mockito.Mockito.*;
+import org.mockito.ArgumentCaptor;
+
+public class SrecParserDetailedTest {
+
+    @Test
+    public void testValidRecordParsing() throws Exception {
+        File testFile = new File("sample_valid.srec");
+        try (PrintWriter pw = new PrintWriter(testFile)) {
+            pw.println("S00600004844521B"); // S0 header
+            pw.println("S1130000285F245F2212226A000424290008237C2A"); // S1 data
+            pw.println("S9030000FC"); // S9 termination
+        }
+
+        SrecParser parser = new SrecParser();
+        List<String> parsed = new ArrayList<>();
+        parser.registerListener((errorCode, lineNumber, recordType, address, dataBytes) -> {
+            if (errorCode == SrecParser.SUCCESS) {
+                parsed.add(recordType + ":" + address + ":" + (dataBytes == null ? 0 : dataBytes.size()));
+            }
+        });
+        parser.parse(testFile);
+
+        assertEquals(3, parsed.size());
+        assertTrue(parsed.get(1).startsWith("1:")); // S1
+    }
+
+    @Test
+    public void testInvalidChecksum() throws Exception {
+        File testFile = new File("sample_invalid_checksum.srec");
+        try (PrintWriter pw = new PrintWriter(testFile)) {
+            pw.println("S1130000285F245F2212226A000424290008237C2B"); // Wrong checksum
+        }
+        SrecParser parser = new SrecParser();
+        List<Integer> errorCodes = new ArrayList<>();
+        parser.registerListener((errorCode, lineNumber, recordType, address, dataBytes) -> errorCodes.add(errorCode));
+        parser.parse(testFile);
+        assertTrue(errorCodes.contains(SrecParser.ERR_INVALID_CHECKSUM));
+    }
+
+    @Test
+    public void testUnknownRecordType() throws Exception {
+        File testFile = new File("sample_unknown_type.srec");
+        try (PrintWriter pw = new PrintWriter(testFile)) {
+            pw.println("S4130000285F245F2212226A000424290008237C2A"); // Type 4 unsupported in our parser
+        }
+        SrecParser parser = new SrecParser();
+        List<Integer> errorCodes = new ArrayList<>();
+        parser.registerListener((errorCode, lineNumber, recordType, address, dataBytes) -> errorCodes.add(errorCode));
+        parser.parse(testFile);
+        assertTrue(errorCodes.contains(SrecParser.ERR_UNKNOWN_TYPE));
+    }
+
+    @Test
+    public void testRegexMismatch() throws Exception {
+        File testFile = new File("sample_regex_mismatch.srec");
+        try (PrintWriter pw = new PrintWriter(testFile)) {
+            pw.println("INVALID_LINE");
+        }
+        SrecParser parser = new SrecParser();
+        List<Integer> errorCodes = new ArrayList<>();
+        parser.registerListener((errorCode, lineNumber, recordType, address, dataBytes) -> errorCodes.add(errorCode));
+        parser.parse(testFile);
+        assertTrue(errorCodes.contains(SrecParser.ERR_REGEX_MISMATCH));
+    }
+
+    @Test
+    public void testWrongDataLength() throws Exception {
+        File testFile = new File("sample_wrong_length.srec");
+        try (PrintWriter pw = new PrintWriter(testFile)) {
+            pw.println("S11300"); // Too short
+        }
+        SrecParser parser = new SrecParser();
+        List<Integer> errorCodes = new ArrayList<>();
+        parser.registerListener((errorCode, lineNumber, recordType, address, dataBytes) -> errorCodes.add(errorCode));
+        parser.parse(testFile);
+        assertTrue(errorCodes.contains(SrecParser.ERR_WRONG_DATA_LENGTH));
+    }
+
+    @Test
+    public void testListenerMocking() throws Exception {
+        File testFile = new File("sample_mock.srec");
+        try (PrintWriter pw = new PrintWriter(testFile)) {
+            pw.println("S1130000285F245F2212226A000424290008237C2A"); // valid S1
+        }
+        SrecParser parser = new SrecParser();
+        SrecParser.SrecListener mockListener = mock(SrecParser.SrecListener.class);
+        parser.registerListener(mockListener);
+        parser.parse(testFile);
+
+        ArgumentCaptor<Integer> errCap = ArgumentCaptor.forClass(Integer.class);
+        ArgumentCaptor<Integer> lineCap = ArgumentCaptor.forClass(Integer.class);
+        ArgumentCaptor<Integer> typeCap = ArgumentCaptor.forClass(Integer.class);
+        ArgumentCaptor<Long> addrCap = ArgumentCaptor.forClass(Long.class);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List> dataCap = ArgumentCaptor.forClass(List.class);
+
+        verify(mockListener, atLeastOnce()).onRecordParsed(errCap.capture(), lineCap.capture(), typeCap.capture(), addrCap.capture(), dataCap.capture());
+
+        // At least one SUCCESS call
+        assertTrue(errCap.getAllValues().contains(SrecParser.SUCCESS));
+        // Check that we parsed an S1 with address 0
+        int idx = errCap.getAllValues().indexOf(SrecParser.SUCCESS);
+        assertEquals(Integer.valueOf(1), typeCap.getAllValues().get(idx));
+        assertEquals(Long.valueOf(0L), addrCap.getAllValues().get(idx));
+        List<?> dataList = dataCap.getAllValues().get(idx);
+        assertNotNull(dataList);
+        assertTrue(dataList.size() > 0);
+    }
+
+    @Test
+    public void testLargeFile() throws Exception {
+        File testFile = new File("large.srec");
+        try (PrintWriter pw = new PrintWriter(testFile)) {
+            for (int i = 0; i < 2000; i++) {
+                pw.println("S1130000285F245F2212226A000424290008237C2A");
+            }
+        }
+        SrecParser parser = new SrecParser();
+        List<Integer> codes = new ArrayList<>();
+        parser.registerListener((errorCode, lineNumber, recordType, address, dataBytes) -> codes.add(errorCode));
+        parser.parse(testFile);
+        assertEquals(2000, codes.size());
+        assertTrue(codes.stream().allMatch(c -> c == SrecParser.SUCCESS));
+    }
+}
