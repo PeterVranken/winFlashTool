@@ -60,13 +60,13 @@ import java.util.regex.*;
  */
 public class SrecParser
 {
-    public interface SrecListener {
-        void onRecordParsed( int errorCode
-                           , int lineNumber
-                           , Integer recordType
-                           , Long address
-                           , List<Integer> dataBytes
-                           );
+    public interface ISrecListener {
+        boolean onRecordParsed( int errorCode
+                              , int lineNumber
+                              , int recordType
+                              , long address
+                              , byte[] dataBytes
+                              );
     }
     
     // Error codes
@@ -77,13 +77,15 @@ public class SrecParser
     public static final int ERR_WRONG_DATA_LENGTH = 4;
     public static final int ERR_REGEX_MISMATCH = 5;
 
-    private SrecListener listener;
+    private ISrecListener listener;
 
-    public void registerListener(SrecListener listener) {
+    public void registerListener(ISrecListener listener) {
         this.listener = listener;
     }
 
-    public void parse(File srecFile) {
+    public void parse(File srecFile) 
+        throws IOException {
+
         if (listener == null) {
             throw new IllegalStateException("Listener not registered.");
         }
@@ -110,14 +112,20 @@ public class SrecParser
                 lineNumber++;
                 line = line.trim();
                 if (line.isEmpty()) {
-                    listener.onRecordParsed(WARN_EMPTY_LINE, lineNumber, null, null, null);
-                    continue;
+                    if (listener.onRecordParsed(WARN_EMPTY_LINE, lineNumber, -1, -1, null)) {
+                        continue;
+                    } else {
+                        break;
+                    }
                 }
 
                 Matcher matcher = pattern.matcher(line);
                 if (!matcher.matches()) {
-                    listener.onRecordParsed(ERR_REGEX_MISMATCH, lineNumber, null, null, null);
-                    continue;
+                    if (listener.onRecordParsed(ERR_REGEX_MISMATCH, lineNumber, -1, -1,null)) {
+                        continue;
+                    } else {
+                        break;
+                    }
                 }
 
                 int recordType = Integer.parseInt(matcher.group(1));
@@ -131,55 +139,101 @@ public class SrecParser
                     case 2: case 6: case 8: addressLength = 6; break; // 3 bytes
                     case 3: case 7: addressLength = 8; break; // 4 bytes
                     default:
-                        listener.onRecordParsed(ERR_UNKNOWN_TYPE, lineNumber, null, null,null);
-                        continue;
+                        addressLength = 0;
+                        if(listener.onRecordParsed( ERR_UNKNOWN_TYPE
+                                                  , lineNumber
+                                                  , -1
+                                                  , -1
+                                                  , null
+                                                  )
+                          ) {
+                            continue;
+                        } else {
+                            break;
+                        }
                 }
 
                 // Strict validation: expected hex chars after 'SxCC' should match
-                // byteCount-1 data bytes and the checksum byte
+                // addressLength/2 address bytes, byteCount-addressLength/2-1 data bytes and
+                // the checksum byte
                 int expectedHexChars = byteCount * 2;
                 if (remaining.length() != expectedHexChars) {
-                    listener.onRecordParsed(ERR_WRONG_DATA_LENGTH, lineNumber, null,null,null);
-                    continue;
+                    if(listener.onRecordParsed( ERR_WRONG_DATA_LENGTH
+                                              , lineNumber
+                                              , -1
+                                              , -1
+                                              , null
+                                              )
+                      ) {
+                        continue;
+                    } else {
+                        break;
+                    }
                 }
 
                 if (remaining.length() < addressLength + 2) { // +2 for checksum
-                    listener.onRecordParsed(ERR_WRONG_DATA_LENGTH, lineNumber, null,null,null);
-                    continue;
+                    if(listener.onRecordParsed( ERR_WRONG_DATA_LENGTH
+                                              , lineNumber
+                                              , -1
+                                              , -1
+                                              , null
+                                              )
+                      ) {
+                        continue;
+                    } else {
+                        break;
+                    }
                 }
 
                 String addressStr = remaining.substring(0, addressLength);
-                Long address = Long.parseLong(addressStr, 16);
+                long address = Long.parseLong(addressStr, 16);
 
                 String dataAndChecksum = remaining.substring(addressLength);
                 String dataStr = dataAndChecksum.substring(0, dataAndChecksum.length() - 2);
                 String checksumStr = dataAndChecksum.substring(dataAndChecksum.length() - 2);
-
-                List<Integer> dataBytes = new ArrayList<>();
-                for (int i = 0; i < dataStr.length(); i += 2) {
-                    dataBytes.add(Integer.parseInt(dataStr.substring(i, i + 2), 16));
+                int sum = 0;
+                byte[] dataBytes = new byte[byteCount-addressLength/2-1];
+                for (int i = 0; i < dataBytes.length; ++i) {
+                    final short b = Short.parseShort(dataStr.substring(2*i, 2*(i+1)), 16);
+                    dataBytes[i] = Byte.valueOf((byte)b);
+                    sum += b;
                 }
 
                 int checksum = Integer.parseInt(checksumStr, 16);
 
                 // Validate checksum
-                int sum = byteCount;
-                for (int i = 0; i < addressStr.length(); i += 2) {
-                    sum += Integer.parseInt(addressStr.substring(i, i + 2), 16);
-                }
-                for (int b : dataBytes) sum += b;
+                sum += byteCount;
+//                for (int i = 0; i < addressStr.length(); i += 2) {
+//                    sum += Integer.parseInt(addressStr.substring(i, i + 2), 16);
+//                }
+                sum += ((int)address & 0x000000FF) >>  0;
+                sum += ((int)address & 0x0000FF00) >>  8;
+                sum += ((int)address & 0x00FF0000) >> 16;
+                sum += ((int)address & 0xFF000000) >> 24;
                 sum += checksum;
 
                 if ((sum & 0xFF) != 0xFF) {
-                    listener.onRecordParsed(ERR_INVALID_CHECKSUM, lineNumber, null, null, null);
-                    continue;
+                    if(listener.onRecordParsed(ERR_INVALID_CHECKSUM, lineNumber,-1,-1, null)) {
+                        continue;
+                    } else {
+                        break;
+                    }
                 }
 
-                listener.onRecordParsed(SUCCESS, lineNumber, recordType, address, dataBytes);
+                if(!listener.onRecordParsed( SUCCESS
+                                           , lineNumber
+                                           , recordType
+                                           , address
+                                           , dataBytes
+                                           )
+                  ) {
+                    break;
+                }
             }
         } catch (IOException e) {
-            System.out.println("SrecParser failed to parse " + srecFile.getAbsolutePath());
-            e.printStackTrace();
+            /* We catch the error locally in order to benefit from implicit resource
+               cleanup, but actually we want to see it externally as file error message. */
+            throw e;
         }
     }
 
@@ -194,12 +248,28 @@ public class SrecParser
         parser.registerListener((errorCode, lineNumber, recordType, address, dataBytes) -> {
             System.out.println("Line " + lineNumber + ": ErrorCode=" + errorCode);
             if (errorCode == SUCCESS) {
-                System.out.println("  Type=" + recordType + ", Address=0x"
-                                   + Long.toHexString(address)
-                                   + ", Data=" + dataBytes
-                                  );
+                if (recordType == 0) {
+                    System.out.println("  Type=" + recordType + ", Address=0x"
+                                       + Long.toHexString(address)
+                                       + ", Data=\"" + new String(dataBytes) +"\""
+                                      );
+                } else {
+                    System.out.println("  Type=" + recordType + ", Address=0x"
+                                       + Long.toHexString(address)
+                                       + ", Data=" + Arrays.toString(dataBytes)
+                                      );
+                }
             }            
+            return true;
         });
-        parser.parse(srecFile);
+        
+        try {
+            parser.parse(srecFile);
+        } catch (IOException e) {
+            System.out.println("SrecParser failed to parse " + srecFile.getAbsolutePath()
+                               + ". " + e.getMessage()
+                              );
+            e.printStackTrace();
+        }
     }
 } /* End of class SrecParser definition. */

@@ -44,13 +44,30 @@ public class ErrorCounter
     /** Counter of reported warnings. */
     private int noWarnings_ = 0;
     
+    /** There is one particular, global error counter, which can be used by everybody and
+        at any time. */
+    private static ErrorCounter _errCntGlobal = null;
+    
+    /**
+     * Get access to the global error counter. This particular counter object can be used
+     * anywhere in the application. Note, the implementation is synchronized. 
+     *   @return
+     * The global error counter.
+     */
+    public static ErrorCounter getGlobalErrorCounter() {
+        if (_errCntGlobal == null) {
+            _errCntGlobal = new ErrorCounter();
+        }
+        return _errCntGlobal;
+    }
+    
     /**
      * Set the value of ErrorCounter.noErrors_.
      *   @param newValue
      * The new value of noErrors_.
      *   @see #getNoErrors
      */
-    public void setNoErrors(int newValue)
+    public synchronized void setNoErrors(int newValue)
         { noErrors_ = newValue; }
 
 
@@ -70,7 +87,7 @@ public class ErrorCounter
      * The new value of noWarnings_.
      *   @see #getNoWarnings
      */
-    public void setNoWarnings(int newValue)
+    public synchronized void setNoWarnings(int newValue)
         { noWarnings_ = newValue; }
 
 
@@ -91,7 +108,7 @@ public class ErrorCounter
      * The member's new value is returned.
      *   @see #error
      */
-    public int error()
+    public synchronized int error()
         { return ++noErrors_; }
 
 
@@ -102,7 +119,7 @@ public class ErrorCounter
      * The member's new value is returned.
      *   @see #error
      */
-    public int warning()
+    public synchronized int warning()
         { return ++noWarnings_; }
 
 
@@ -110,7 +127,7 @@ public class ErrorCounter
     /**
      * Reset the number of errors and warnings.
      */
-    public void reset()
+    public synchronized void reset()
     {
         noErrors_ = 0;
         noWarnings_ = 0;

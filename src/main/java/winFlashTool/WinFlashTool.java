@@ -39,6 +39,7 @@ import winFlashTool.ccp.PCANBasicEx;
 import winFlashTool.ccp.CCP;
 //import winFlashTool.ccp.CcpCroTransmitter;
 import winFlashTool.basics.ErrorCounter;
+import winFlashTool.srecParser.MemoryMap;
 
 
 /**
@@ -90,7 +91,7 @@ public class WinFlashTool
 
     /* A single error counter is used for all operations. A reference to this error counter
        is passed to involved modules and objects. */
-    final ErrorCounter errCnt_ = new ErrorCounter();
+    final ErrorCounter errCnt_ = ErrorCounter.getGlobalErrorCounter();
 
     /** The log4j configurator provides access to the logging settings of this application
         run. */
@@ -167,12 +168,32 @@ public class WinFlashTool
 
         /* Define all command line arguments, which are not logging related. */
         clp.defineArgument
+            ( "s", "srec-input-file"
+            , /*cntMax, cntMax*/ 0, 1
+            , /*defaultValue*/ null
+            , "The srec file with the memory contents to flash."
+              + "\nThis argument is mandatory for normal operation but it is not required"
+              + " if --enumerate-CAN-devices is used to check the hardware setup."
+            );
+        clp.defineArgument
             ( "e", "enumerate-CAN-devices"
-            , /* cntMax */ 1
+            , /*cntMax*/ 1
             , "If given, then the application will only search for connected, available"
               + " CAN devices. It stops after listing available devices."
+              + "\nIf --CAN-device is given, too, then the identification mode is"
+              + " enabled: The LED on the selected device will blink in orange for a"
+              + " short while before the application terminates."
               + "\nUseful for a check of the setup."
               + "\nOptional, default is false."
+            );
+        clp.defineArgument
+            ( "d", "CAN-device"
+            , /*cntMax, cntMax*/ 0, 1
+            , /*defaultValue*/ null
+            , "The CAN device to operate with. Consider using --enumerate-CAN-devices to"
+              + " get a list of connected and available devices."
+              + "\nOptional, default is using the first found available device, which ever"
+              + " that is."
             );
 // Show all device and try to open them. Print the success as "available" in the list and
 // free them again.
@@ -216,8 +237,7 @@ public class WinFlashTool
 
         cmdLineParser_ = clp;
 
-    } /* End of defineArguments */
-
+    } /* defineArguments */
 
 
     /**
@@ -262,8 +282,7 @@ public class WinFlashTool
 
         return true;
 
-    } /* End of WinFlashTool.parseCmdLine. */
-
+    } /* WinFlashTool.parseCmdLine. */
 
 
     /**
@@ -272,13 +291,31 @@ public class WinFlashTool
      *   @return
      * <b>true</b>, if method succeeded, else <b>false</b>.
      */
-    public boolean run()
-    {
+    public boolean run() {
         boolean success = true;
 
         /* Test of basic CAN Tx/Rx. */
         //MinimalisticProgram.main(/*args*/ null);
-
+    
+        final String srecFileName = cmdLineParser_.getString("srec-input-file");
+        if (srecFileName == null) {
+            errCnt_.error();
+            _logger.error( "No srec file is specified on the command line. Please use -h"
+                           + " for help."
+                         );
+            return false;
+        }
+        
+        MemoryMap memMap = new MemoryMap();
+        if (!memMap.readSrecFile(srecFileName)) {
+            errCnt_.error();
+            _logger.error("Can't read srec input file. Application terminates.");
+            return false;
+        }
+errCnt_.warning();
+_logger.warn("Test: Application terminates after parser test.");
+if(false) {
+        
         /* Test of CCP implementation: Open device and repeatedly do a CONNECT/DISCONNECT. */
         long tiTest = System.nanoTime();
         final int noTestCycles = 1;
@@ -312,7 +349,7 @@ public class WinFlashTool
                         , (tiTest + noTestCycles/2) / noTestCycles
                         );
         }
-        
+}        
 // Lesen SREC:
 // - Nur aufsteigende Adressen zulassen. Das ist die einfachste und
 //   speichersparendste Loesung zum Vermeiden von Doppelprogrammierungen und
@@ -413,7 +450,7 @@ public class WinFlashTool
 //            else
 //            {
 //                success = false;
-//                _logger.info( "Output file {} is not generated due to previous errors"
+//                _logger.info( "Output file {} is not generated due to previous errors."
 //                            , templateOutputPair.outputFileName
 //                            );
 //                    }
@@ -494,8 +531,10 @@ public class WinFlashTool
                could happen. */
             _logger = LogManager.getLogger(WinFlashTool.class);
 
+            /* The actual software execution. */
             boolean success = This.run();
-            _logger.debug( "{} terminating {}"
+            
+            _logger.debug( "{} terminating {}."
                          , _applicationName
                          , success? "successfully": "with errors"
                          );
