@@ -75,7 +75,7 @@ enum CroCommandId
         {
             lookupMap_.put(cmd.cmdId_, cmd);
             
-            /* This assertion fires if you forget to add the construction ofthe
+            /* This assertion fires if you forget to add the construction of the
                implementation object to the code block above the loop. */
             assert cmd.ccpCmdProcessor_ != null;
         }

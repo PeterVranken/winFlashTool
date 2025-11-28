@@ -49,17 +49,6 @@ public class MemoryMap {
         file. */
     private long programStartAddress_ = -1;
 
-    /**
-     * A new instance of MemoryMap is created.
-     *   @throws {@inheritDoc}
-     * The exception is thrown if
-     *   @param i
-     * The ... or: {@inheritDoc}
-     *   @see MemoryMap#
-     */
-    //TODO: Fill in the method header.
-    public MemoryMap() {
-    } /* MemoryMap.MemoryMap */
 
     /** A non-static inner class implements the listener of the srec parser. It can access
         the fields of the containing class, even if these are private. */
@@ -78,13 +67,13 @@ public class MemoryMap {
          * Normally, the function returns true for success. Parsing more files is aborted
          * if this method returns false, e.g., after too many errors or warnings.
          */
-        public boolean onRecordParsed( int errCode
+        public boolean onRecordParsed( SrecParserError errCode
                                      , int lineNumber
                                      , int recordType
                                      , long address
                                      , byte[] dataBytes
                                      ) {
-            final int maxNoErrors = 20;
+            final int maxNoErrors = 30;
 
 
             /* Record types with memory data
@@ -109,66 +98,82 @@ public class MemoryMap {
                  standard SREC files. If encountered, most parsers either ignore it or
                  treat it as an error. No official payload definition in the standard. */
 
-            /* Empty lines are unexpected and reported but tolerated. */
-            if (errCode == SrecParser.WARN_EMPTY_LINE) {
-                parseErrCnt_.warning();
-                _logger.debug("SREC input: Line {} is empty.", lineNumber);
-                return true;
-            }
+            boolean abortImmediately = false;
+            if (errCode == SrecParserError.SUCCESS) {
 
-            if (recordType == 4) {
-                _errCnt.warning();
-                _logger.warn( "Line {}: S4 record found. S4 is reserved for the future and "
-                              + " not supported. This record is ignored."
-                            , lineNumber
-                            );
-                return true;
-            }
-
-            if (recordType >= 7  &&  recordType <= 9) {
-                if (programStartAddress_ == -1) {
-                    programStartAddress_ = address;
-                    _logger.info( "Program start address is 0x{}."
-                                , Long.toHexString(address)
-                                );
-                } else if (programStartAddress_ != address) {
-                    _errCnt.error();
-                    _logger.error( "Line {}: Program start address is repeatedly specified."
-                                   + " Had 0x{}, find 0x{}."
-                                 , lineNumber
-                                 , programStartAddress_
-                                 , Long.toHexString(address)
-                                 );
-                }
-                return true;
-            }
-
-            boolean success = true;
-            if (errCode == SrecParser.SUCCESS) {
-                if (recordType == 0) {
-                    _logger.info( "SREC info at address 0x{}: {}."
-                                , Long.toHexString(address)
-                                , new String(dataBytes)
-                                );
-                } else {
+                if(recordType >= 1  &&  recordType <= 3) {
                     _logger.trace( "SREC data at address 0x{}: {}."
                                  , Long.toHexString(address)
                                  , Arrays.toString(dataBytes)
                                  );
                     if(!srecSequence_.add(new SRecord(address, dataBytes))) {
-                        success = false;
+                        abortImmediately = false;
                     }
+                } else if (recordType == 4) {
+                    assert false: "This record type should be reported as error";
+
+                } else if (recordType == 5  ||  recordType == 6) {
+                    _errCnt.warning();
+                    _logger.warn( "Line {}: S{} record found. Count records are not"
+                                  + " supported. This record is ignored."
+                                , lineNumber
+                                , recordType
+                                );
+
+                } else if (recordType >= 7  &&  recordType <= 9) {
+
+                    if (programStartAddress_ == -1) {
+                        programStartAddress_ = address;
+                        _logger.info( "Program start address is 0x{}."
+                                    , Long.toHexString(address)
+                                    );
+                    } else if (programStartAddress_ != address) {
+                        _errCnt.error();
+                        _logger.error( "Line {}: Program start address is repeatedly"
+                                       + " specified. Had 0x{}, find 0x{}."
+                                     , lineNumber
+                                     , programStartAddress_
+                                     , Long.toHexString(address)
+                                     );
+                    }
+                } else {
+                    assert recordType == 0;
+                    _logger.info( "SREC info at address 0x{}: {}."
+                                , Long.toHexString(address)
+                                , new String(dataBytes)
+                                );
+
                 }
+            } else if (errCode == SrecParserError.WARN_EMPTY_LINE) {
+
+                /* Empty lines are unexpected and reported but tolerated. */
+                parseErrCnt_.warning();
+                _logger.debug("Line {}: Empty line in srec input file.", lineNumber);
+
             } else {
                 parseErrCnt_.error();
                 _errCnt.error();
-                _logger.error( "Error reading srec input file. Line {}, error {}."
+                _logger.error( "Line {}: Error reading srec input file. Error {} ({})."
                              , lineNumber
-                             , errCode
+                             , errCode.getErrorCode()
+                             , errCode.getMessage()
                              );
             }
 
-            return success &&  parseErrCnt_.getNoErrors() < maxNoErrors;
+            return !abortImmediately &&  parseErrCnt_.getNoErrors() < maxNoErrors;
+
+        } /* onRecordParsed */
+
+        /**
+         * After parsing is done, this method is invoked by the SrecParser to ask the
+         * listener for the final result. The
+         * listener shall return true only if everything was fine for all seen records.
+         *   @return
+         * true if the listener has not seen any problem with the records it got. false
+         * otherwise.
+         */
+        public boolean getFinalSuccess() {
+            return parseErrCnt_.getNoErrors() == 0;
         }
     }
 
@@ -176,6 +181,9 @@ public class MemoryMap {
      * Read an srec file and build-up the memory map.
      *   @param srecFileName
      * The name of the srec input file, which defines the memory map.
+     *   @return
+     * Get the overall result; true if the input file has been successfully parsed. If
+     * false is returned, then this memory map with its section list must not be used.
      */
     public boolean readSrecFile(String srecFileName) {
 
@@ -187,13 +195,7 @@ public class MemoryMap {
         final SrecListenerForMemMap srecListener = new SrecListenerForMemMap();
         parser.registerListener(srecListener);
 
-        try {
-            parser.parse(srecFile);
-        } catch (IOException e) {
-            System.out.println("SrecParser failed to parse input file " + e.getMessage());
-            e.printStackTrace();
-            return false;
-        }
+        boolean success = parser.parse(srecFile);
 
         if (srecListener.getNoEmptyLines() > 0) {
             _errCnt.warning();
@@ -203,12 +205,12 @@ public class MemoryMap {
                         );
         }
 
-        if (_errCnt.getNoErrors() == 0) {
+        if (success) {
             srecSequence_.logSections(Level.INFO);
-            return true;
-        } else {
-            return false;
         }
+
+        return success;
+
     } /* readSrecFile */
 
 } /* End of class MemoryMap definition. */
