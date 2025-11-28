@@ -76,7 +76,7 @@ class Range implements Comparable<Range>
     }
 
     public boolean overlaps(Range other) {
-        return this.from <= other.till && other.from <= this.till;
+        return this.from < other.till && other.from < this.till;
     }
 
     public static Range intersect(Range a, Range b) {
@@ -113,6 +113,10 @@ class Range implements Comparable<Range>
         return Long.compare(this.from, other.from);
     }
 
+    @Override
+    public String toString() {
+        return "[0x" + Long.toHexString(from) + ", 0x" + Long.toHexString(till) + ")";
+    }
 } /* End of class Range definition. */
 
 

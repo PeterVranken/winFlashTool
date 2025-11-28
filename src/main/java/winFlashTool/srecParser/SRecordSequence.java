@@ -90,6 +90,17 @@ public class SRecordSequence {
             return true;
         }
         
+        /* If we get here, then a random record needs to be put at the right position into
+           the list. Doing this on the fly - our current implementation - means to
+           implement a kind of bubble sort, i.e., O(n^2). If this would ever lead to a
+           problem (getting here will be rather seldom for real srec files), then it would
+           help to only collect all random records in an ArrayList and sort it after
+           reading the last record from the file. Sorting the ArrayList is O(n*log(n)) and
+           merging the sorted ArrayList into the record list is O(n). All in all, we would
+           see a significant gain for large lists of random records.
+             However, tests with srec files of real embedded applications and more than
+           twenty thousand randomly scrambled records caused absolutly no issue. */
+
         /* The address in the new record is somewhere before or in the middle of address
            ranges, we had already collected. A search in the list for the right location is
            required. */
@@ -125,16 +136,17 @@ public class SRecordSequence {
                    have to join with the successor. But anyway, r is inserted and we are
                    done. */
                 srecInList.join(r);
-                if (it.hasNext()) {
-                    final SRecord successor = it.next();
-                    if (srecInList.overlaps(successor)) {
-                        overlap = Range.intersect(r, successor);
-                    } else if (srecInList.connectsBefore(successor)) {
-                        /* Merge current record into successor and delete current one. */
-                        successor.join(srecInList);
-                        it.remove();
-                        break;
-                    }
+                assert it.hasNext()
+                     : "Not becoming the new trailing list element has already been"
+                       + "checked prior to the loop";
+                final SRecord successor = it.next();
+                if (srecInList.overlaps(successor)) {
+                    overlap = Range.intersect(r, successor);
+                } else if (srecInList.connectsBefore(successor)) {
+                    /* Merge successor into current record and delete successor. */
+                    srecInList.join(successor);
+                    it.remove();
+                    break;
                 } else {
                     break;
                 }
@@ -142,14 +154,10 @@ public class SRecordSequence {
                 /* The new record is neither before the current one nor is it connected to
                    it and nor does it overlap with it; it sits somewhere behind. This is
                    now checked by doing the same comparisons with the next record in the
-                   list - if any. If there is no successor then we can simply add the new
-                   element to the list. */
-                assert it.hasNext(): "!it.hasNext has already been check prior to the loop";
-                if (!it.hasNext()) {
-                    /* Add leaves the iterator behind r at the end of the list. */
-                    it.add(r);
-                    assert !it.hasNext();
-                }
+                   list. */
+                assert it.hasNext()
+                     : "Not becoming the new trailing list element has already been checked"
+                       + " prior to the loop";
             }
 
             if (overlap != null) {
