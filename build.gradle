@@ -1,37 +1,31 @@
-// Working with expressions, providing feedback:
 plugins {
-    id 'java'
+	id 'java'
     id 'application'
+	id 'eclipse' // optional (to generate Eclipse project files)
 }
 
-//def name = "World"
+// Working with expressions, providing feedback:
 //println "Hello ${name}!"
-println "Project directory: ${projectDir}"
-println "PEAK-DLLs are expected in: ${projectDir}\\lib\\PEAK\\x86_64"
-
+//println "Project directory: ${projectDir}"
+//println "PEAK-DLLs are expected in: ${projectDir}\\lib\\PEAK\\x86_64"
 application {
     mainClass = 'winFlashTool.WinFlashTool'
     //mainClass = 'winFlashTool.srecParser.SrecParser'
 }
-
-group = 'FlashBootLoader'
+group = 'winFlashTool'
 version = '0.1'
 
 repositories {
-    mavenCentral()
+	mavenCentral()
 }
 
 dependencies {
-    // https://central.sonatype.com/artifact/org.eclipse.jdt/junit
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
-    testImplementation("org.junit.jupiter:junit-jupiter-api:6.1.0-M1")
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
-    testImplementation("org.junit.jupiter:junit-jupiter-engine:6.1.0-M1")
-    implementation 'org.junit.jupiter:junit-jupiter:5.7.1'
-    testImplementation 'junit:junit:4.13.2'
+    // https://github.com/junit-team/junit-examples/blob/r6.0.1/junit-jupiter-starter-gradle/build.gradle
+	testImplementation(platform('org.junit:junit-bom:6.0.1'))
+	testImplementation('org.junit.jupiter:junit-jupiter')
+	testRuntimeOnly('org.junit.platform:junit-platform-launcher')
     implementation 'org.apache.logging.log4j:log4j-core:2.20.0'
     implementation 'org.apache.logging.log4j:log4j-api:2.20.0'
-
     // https://mvnrepository.com/artifact/org.apache.commons/commons-lang3
     implementation("org.apache.commons:commons-lang3:3.20.0")
 
@@ -39,12 +33,6 @@ dependencies {
     //implementation("com.google.guava:guava:33.0.0")
 }
 
-tasks.register("resolveDependencies") {
-    doLast {
-        configurations.compileClasspath.resolve()
-        configurations.testCompileClasspath.resolve()
-    }
-}
 
 // Let the Git tool GitWCRev generate a tool revision as Java source code.
 // The most minor field "build" is derived from the Git repository commit
@@ -69,31 +57,30 @@ compileJava {
 }
 
 test {
-    //useJUnit()
-    useJUnitPlatform()
-    testLogging {
-        events "passed", "failed", "skipped"
-    }
+	useJUnitPlatform()
+	testLogging {
+		events "passed", "skipped", "failed"
+	}
 }
 
 run {
     environment 'PATH', "${System.getenv('PATH')};${projectDir}\\lib\\PEAK\\x86_64"
 }
 
-sourceSets {
-    main {
-        java {
-            srcDirs = ['src']
-        }
-    }
-    test {
-        java {
-            srcDirs = ['test']
-            exclude 'SrecParserDetailedTest.java'
-            exclude '**/java/**' // Tests don't compile; gradle doesn't resolve dependencies for JUnit
-        }
-    }
-}
+// Caution task sourceSets is bad configured and disables the build if uncommented.
+//sourceSets {
+//    main {
+//        java {
+//            srcDirs = ['src']
+//        }
+//    }
+//    test {
+//        java {
+//            srcDirs = ['test']
+//            exclude 'SrecParserDetailedTest.java'
+//        }
+//    }
+//}
 
 distributions {
     main {

@@ -37,10 +37,12 @@ $env:PATH = `
     + ";" + [System.IO.Path]::GetFullPath("$PSScriptRoot\lib\PEAK\x86_64") `
     + ";" + [System.IO.Path]::GetFullPath("$PSScriptRoot\lib\PEAK\x86_64") `
     + ";$env:PATH"
-    
+
 # Prepare the Java classpath for the run of the application.
 $cp = [System.IO.Path]::GetFullPath("$PSScriptRoot\build\libs\winFlashTool-0.1.jar") `
-      + ";" + [System.IO.Path]::GetFullPath("$PSScriptRoot\lib\Apache\log4j\*")
-      
-# Let Java run the application. 
+      + ";" + [System.IO.Path]::GetFullPath("$PSScriptRoot\build\libs\winFlashToolNew.jar") `
+      + ";" + [System.IO.Path]::GetFullPath("$PSScriptRoot\lib\Apache\log4j\*") `
+      + ";" + [System.IO.Path]::GetFullPath("$PSScriptRoot\lib\Apache\commons-lang3-3.20\commons-lang3-3.20.0.jar")
+
+# Let Java run the application.
 java.exe -classpath $cp winFlashTool.WinFlashTool @args
