@@ -1,6 +1,7 @@
 /**
  * @file Range.java
- * Base class for joinable (memory) ranges.
+ * Base class for joinable ranges [a, b). For example, [a, b) can be joind with [b, c),
+ * resulting in [a, c).
  *
  * Copyright (C) 2025 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
  *
@@ -21,15 +22,15 @@
  *   Range
  */
 
-package winFlashTool.srecParser;
+package winFlashTool.basics;
 
 import java.util.*;
 
 /**
- * A range is some interval [from, till). Operations like comparisons,
- * intersection, union are implemented.
+ * A range is some interval [from, till). Operations like comparisons, intersection, union
+ * are implemented. For example, [a, b) can be joind with [b, c), resulting in [a, c).
  */
-class Range implements Comparable<Range>
+public class Range implements Comparable<Range>
 {
     /** First address (inclusive) of range. */
     private long from;
@@ -41,6 +42,10 @@ class Range implements Comparable<Range>
         assert from <= till: "Empty ranges aren't supported";
         this.from = from;
         this.till = till;
+    }
+
+    public Range(Range r) {
+        this(r.from, r.till);
     }
 
     public long from() {

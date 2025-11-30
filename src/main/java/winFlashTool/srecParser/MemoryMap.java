@@ -206,7 +206,7 @@ public class MemoryMap {
         }
 
         if (success) {
-            srecSequence_.logSections(Level.INFO);
+            srecSequence_.logSections();
         }
 
         return success;

@@ -26,6 +26,7 @@ package winFlashTool.srecParser;
 import java.util.*;
 import org.apache.logging.log4j.*;
 import org.apache.commons.lang3.ArrayUtils;
+import winFlashTool.basics.Range;
 
 /**
  * In brief.

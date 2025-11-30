@@ -31,6 +31,7 @@ package winFlashTool;
 import java.util.*;
 import java.io.*;
 import java.text.*;
+import winFlashTool.MCU.Mpc5775BE_C55FMC;
 
 import org.apache.logging.log4j.*;
 import winFlashTool.applicationInterface.cmdLineParser.CmdLineParser;
@@ -305,6 +306,8 @@ public class WinFlashTool
                          );
             return false;
         }
+        
+        Mpc5775BE_C55FMC flashROM = Mpc5775BE_C55FMC.getFlashRomDescription();
         
         MemoryMap memMap = new MemoryMap();
         if (!memMap.readSrecFile(srecFileName)) {

@@ -26,6 +26,7 @@ package winFlashTool.srecParser;
 import java.util.*;
 import org.apache.logging.log4j.*;
 import winFlashTool.basics.ErrorCounter;
+import winFlashTool.basics.Range;
 
 /**
  * An object of this class has a list of SRecords. Small s-records read from an srec file
@@ -182,28 +183,48 @@ public class SRecordSequence {
     /**
      * Write a summary about all found and collected memory chunks to the application log.
      */
-    void logSections(Level logLevel) {
-        ListIterator<SRecord> it = recordList_.listIterator();
-        if (it.hasNext()) {
-            _logger.log( logLevel
-                       , "{} memory sections found in input file."
-                       , recordList_.size()
-                       );
-        } else {
-            _logger.log(logLevel , "Input file contains no memory sections.");
-        }
+    void logSections() {
+        assert !Level.WARN.isLessSpecificThan(Level.WARN);
+        assert !Level.WARN.isMoreSpecificThan(Level.WARN);
+        if (_logger.getLevel().isLessSpecificThan(Level.INFO)) {
+            ListIterator<SRecord> it = recordList_.listIterator();
+            if (it.hasNext()) {
+                _logger.info("{} memory sections found in input file.", recordList_.size());
+            } else {
+                _errCnt.warning();
+                _logger.warn("Input file contains no memory sections.");
+            }
 
-        while (it.hasNext()) {
-            final SRecord r = it.next();
-            _logger.printf( logLevel
-                          , "Section %02d: 0x%06X .. 0x%06X (length %d Byte)"
-                          , it.nextIndex()
-                          , r.from()
-                          , r.till()
-                          , r.size()
-                          );
-            assert r.size() == r.data().length;
-        }
+            final Level logLevel = _logger.getLevel();
+            int noLoggedSections = 0;
+            while (it.hasNext()) {
+                final SRecord r = it.next();
+                _logger.printf( logLevel
+                              , "Section %02d: 0x%06X .. 0x%06X (length %d Byte)"
+                              , it.nextIndex()
+                              , r.from()
+                              , r.till()
+                              , r.size()
+                              );
+                assert r.size() == r.data().length;
+                ++ noLoggedSections;
+
+                if (noLoggedSections == 10  &&  recordList_.size() > 10
+                    &&  _logger.getLevel().equals(Level.INFO)
+                   ) {
+
+                    _logger.info("Use log level DEBUG to see more sections.");
+                    break;
+                }
+                else if (noLoggedSections == 1000  &&  recordList_.size() > 1000
+                         &&  _logger.getLevel().equals(Level.DEBUG)
+                        ) {
+
+                    _logger.info("Use log level TRACE to see all sections.");
+                    break;
+                }
+            }
+        } /* if(Log level not to specific, verbosity high enough to get a list of sections?) */
     }
 } /* End of class SRecordSequence definition. */
 
