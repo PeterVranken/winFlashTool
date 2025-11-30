@@ -184,8 +184,7 @@ public class SRecordSequence {
      * Write a summary about all found and collected memory chunks to the application log.
      */
     void logSections() {
-        assert !Level.WARN.isLessSpecificThan(Level.WARN);
-        assert !Level.WARN.isMoreSpecificThan(Level.WARN);
+        /* Note, a warning level is less specific, if the verbosity is higher or same! */
         if (_logger.getLevel().isLessSpecificThan(Level.INFO)) {
             ListIterator<SRecord> it = recordList_.listIterator();
             if (it.hasNext()) {

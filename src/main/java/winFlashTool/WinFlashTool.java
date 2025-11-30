@@ -300,21 +300,22 @@ public class WinFlashTool
     
         final String srecFileName = cmdLineParser_.getString("srec-input-file");
         if (srecFileName == null) {
+            success = false;
             errCnt_.error();
             _logger.error( "No srec file is specified on the command line. Please use -h"
                            + " for help."
                          );
-            return false;
+        }
+        
+        MemoryMap memMap = new MemoryMap();
+        if (success && !memMap.readSrecFile(srecFileName)) {
+            success = false;
+            errCnt_.error();
+            _logger.error("Can't read srec input file. Application terminates.");
         }
         
         Mpc5775BE_C55FMC flashROM = Mpc5775BE_C55FMC.getFlashRomDescription();
-        
-        MemoryMap memMap = new MemoryMap();
-        if (!memMap.readSrecFile(srecFileName)) {
-            errCnt_.error();
-            _logger.error("Can't read srec input file. Application terminates.");
-            return false;
-        }
+
 errCnt_.warning();
 _logger.warn("Test: Application terminates after parser test.");
 if(false) {
@@ -322,7 +323,7 @@ if(false) {
         /* Test of CCP implementation: Open device and repeatedly do a CONNECT/DISCONNECT. */
         long tiTest = System.nanoTime();
         final int noTestCycles = 1;
-        for(int cycle=0; cycle<noTestCycles; ++cycle)
+        for(int cycle=0; success && cycle<noTestCycles; ++cycle)
         {
             _logger.debug("Start connection test {}/{}.", cycle+1, noTestCycles);
             success = true;

@@ -81,7 +81,7 @@ class SRecord extends Range {
     public SRecord join(Range other) {
         assert other instanceof SRecord: "SRecord can only be joined with other SRecord";
 
-        /* Join the address ranges. */
+        /* Join the address ranges. super.join fails if ranges aren't adjacent. */
         super.join(other);
 
         /* Now join the data chunks, too. */

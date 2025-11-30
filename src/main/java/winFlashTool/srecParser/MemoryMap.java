@@ -58,7 +58,7 @@ public class MemoryMap {
         private ErrorCounter parseErrCnt_ = new ErrorCounter();
 
         /** After parsing, get the number of empty lines found during parsing. */
-        int getNoEmptyLines() {return parseErrCnt_.getNoWarnings();}
+        private int getNoEmptyLines() {return parseErrCnt_.getNoWarnings();}
 
         /**
          * Listen function: It gets every parsed line, with data and potential failure
@@ -107,6 +107,7 @@ public class MemoryMap {
                                  , Arrays.toString(dataBytes)
                                  );
                     if(!srecSequence_.add(new SRecord(address, dataBytes))) {
+                        parseErrCnt_.error();
                         abortImmediately = false;
                     }
                 } else if (recordType == 4) {
@@ -138,7 +139,7 @@ public class MemoryMap {
                     }
                 } else {
                     assert recordType == 0;
-                    _logger.info( "SREC info at address 0x{}: {}."
+                    _logger.info( "SREC info at address 0x{}: \"{}\""
                                 , Long.toHexString(address)
                                 , new String(dataBytes)
                                 );
@@ -173,6 +174,14 @@ public class MemoryMap {
          * otherwise.
          */
         public boolean getFinalSuccess() {
+            if (getNoEmptyLines() > 0) {
+                _errCnt.warning();
+                _logger.warn( "SREC input file contains {} empty lines. Use log level DEBUG"
+                              + " to get detailed information."
+                            , getNoEmptyLines()
+                            );
+            }
+
             return parseErrCnt_.getNoErrors() == 0;
         }
     }
@@ -196,14 +205,6 @@ public class MemoryMap {
         parser.registerListener(srecListener);
 
         boolean success = parser.parse(srecFile);
-
-        if (srecListener.getNoEmptyLines() > 0) {
-            _errCnt.warning();
-            _logger.warn( "SREC input file contains {} empty lines. Use log level DEBUG"
-                          + " to get detailed information."
-                        , srecListener.getNoEmptyLines()
-                        );
-        }
 
         if (success) {
             srecSequence_.logSections();
