@@ -27,6 +27,7 @@ import java.util.*;
 import org.apache.logging.log4j.*;
 import peak.can.basic.*;
 import peak.can.MutableInteger;
+import winFlashTool.basics.ErrorCounter;
 
 /**
  * A collection of static support functions for using the PCANBasic API.
@@ -38,6 +39,9 @@ public class PCANBasicEx
 
     /** The PEAK CAN API; the connection of Java to the external DLL. */
     private static PCANBasic canApi_ = null;
+
+    /** This module uses the one and only global error counter. */
+    private static ErrorCounter _errCnt = ErrorCounter.getGlobalErrorCounter();
 
     /** No need to ever create an instance of this class. */
     private PCANBasicEx()
@@ -59,13 +63,19 @@ public class PCANBasicEx
     
     /**
      * Check the return code got from the PCAN API.<p>
-     *   An error message is logged if it is not OK.
+     *   An error message is logged if it is not OK. The error from the PCANBasic API is
+     * embedded into some caller provided context information.
      *   @return
      * Get true if the status is alright or false if an error has been reported.
      *   @param errCode
      * The error code received from an API call of the PCAN Basic API.
+     *   @param context
+     * Some text, which explains the context of the now checked operation. The text should
+     * end with punctuation.<p>
+     *   Can be null if no context information should be added to the potentially logged
+     * error message.
      */
-    public static boolean checkReturnCode(TPCANStatus errCode)
+    public static boolean checkReturnCode(TPCANStatus errCode, String context)
     {
         if(errCode == TPCANStatus.PCAN_ERROR_OK)
             return true;
@@ -77,23 +87,46 @@ public class PCANBasicEx
                                                          , /*Language*/ (short)0
                                                          , errMsg
                                                          );
+            if (context == null) {
+                context = "";
+            } else if (!context.endsWith(" ")) {
+                context += " ";
+            }
             if(errCodeGet == TPCANStatus.PCAN_ERROR_OK)
             {
-                _logger.error( "PEAK PCAN Basic API returned error code {}: {}"
+                _errCnt.error();
+                _logger.error( "{}PEAK PCAN Basic API returned error code {}: {}"
+                             , context
                              , errCode.toString()
                              , errMsg.toString()
                              );
             }
             else
             {
-                _logger.error( "PEAK PCAN Basic API returned error code {} (No message"
+                _errCnt.error();
+                _logger.error( "{}PEAK PCAN Basic API returned error code {} (No message"
                                + " text is available for this code.)"
+                             , context
                              , errCode.toString()
                              );
             }
             return false;
         }
     } /* checkStatus */
+    
+    
+    /**
+     * Check the return code got from the PCAN API.<p>
+     *   An error message is logged if it is not OK.
+     *   @return
+     * Get true if the status is alright or false if an error has been reported.
+     *   @param errCode
+     * The error code received from an API call of the PCAN Basic API.
+     */
+    public static boolean checkReturnCode(TPCANStatus errCode)
+    {
+        return checkReturnCode(errCode, /*context*/ null);
+    }
     
     
     /**
@@ -110,7 +143,11 @@ public class PCANBasicEx
 
 
     /**
-     *   @param[in]
+     * Print a list of connected PEAK PCAN devices into the application log.
+     *   @return
+     * Get true if at least one device is found and presented with its properties.
+     * Otherwise false.
+     *   @param
      * Pass the initialized PCAN API to use.
      */
     public static boolean printAttachedChannels(PCANBasic canApi)
@@ -122,10 +159,7 @@ public class PCANBasicEx
                                             , countBuffer
                                             , 4 /* Size of int in underlaying PCAN C lib. */
                                             );
-
-        if(status != TPCANStatus.PCAN_ERROR_OK)
-        {
-            _logger.error("Error getting channel count: {}", status);
+        if (!checkReturnCode(status, "Error getting channel count.")) {
             return false;
         }
 
@@ -135,7 +169,8 @@ public class PCANBasicEx
             _logger.info("Found {} attached channels:", channelCount);
         else
         {
-            _logger.error("No PEAK CAN device is connected.");
+            _errCnt.warning();
+            _logger.warn("No PEAK CAN device is connected.");
             return false;
         }
 
@@ -153,13 +188,11 @@ public class PCANBasicEx
                                 , channels.length/* Byte size is computed by PEAK JNI layer. */
                                 );
 
-        if(status != TPCANStatus.PCAN_ERROR_OK)
-        {
-            _logger.error("Error getting channel info: {}", status);
+        if (!checkReturnCode(status, "Error getting channel information.")) {
             return false;
         }
 
-        /* Print channel info. */
+        /* Step 4: Iterate array to print channel info. */
         boolean success = true;
         for(int i=0; i<channelCount; ++i)
         {

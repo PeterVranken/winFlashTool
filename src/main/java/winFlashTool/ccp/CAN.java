@@ -20,6 +20,7 @@
  */
 /* Interface of class CCP
  *   CAN
+ *   listPeakPcanDevices
  *   openCanDevice
  *   closeCanDevice
  */
@@ -47,7 +48,7 @@ public class CAN
     private final ErrorCounter errCnt_;
 
     /** The PEAK CAN API; the connection of Java to the external DLL. */
-    private PCANBasic canApi_ = null;
+    private PCANBasic pcanApi_ = null;
 
     /** The handle of the CAN device or channel, which we are going to use. */
     private TPCANHandle canDev_ = null;
@@ -70,17 +71,17 @@ public class CAN
         errCnt_ = errCnt;
 
         /* Initialize the API opject, which connects us to the PEAK DLLs. */
-        assert canApi_ == null;
-        canApi_ = new PCANBasic();
-        if(canApi_.initializeAPI())
+        assert pcanApi_ == null;
+        pcanApi_ = new PCANBasic();
+        if(pcanApi_.initializeAPI())
         {
             _logger.debug("PCANBasic API successfully initialized.");
-            PCANBasicEx.setCanApi(canApi_);
+            PCANBasicEx.setCanApi(pcanApi_);
         }
         else
         {
             errCnt_.error();
-            canApi_ = null;
+            pcanApi_ = null;
             _logger.fatal("Unable to initialize the PEAK PCAN Basic API. Most probable"
                           + " reason is the application installation; the PEAK DLLs might"
                           + " be not localized. Check application configuration and"
@@ -91,13 +92,64 @@ public class CAN
         }
     } /* CAN.CAN */
 
+    
+    /**
+     * Print a list of available PEAK PCAN devices and indicate their current
+     * availability.<p>
+     *   Optionally, use the "identification" mode to make clear to the user, which connected
+     * device is the one, he meant: The LED of the selected device is flashed.
+     *   @param selectedCanDev
+     * If this parameter is not null, then its LED is flashed in orange - a normally unused
+     * color to indicate, which one it is.<p>
+     *   Note, if this parameter is not null then the function blocks for a few seconds
+     * during which the LED is flashed.
+     */
+    public void listPeakPcanDevices(TPCANHandle selectedCanDev)
+    {
+        assert pcanApi_ != null;
+        
+        /* Print all connected devices. */
+        PCANBasicEx.printAttachedChannels(pcanApi_);
+        
+        if (selectedCanDev != null) {   
+            TPCANStatus status = pcanApi_.SetValue
+                                            ( selectedCanDev
+                                            , TPCANParameter.PCAN_CHANNEL_IDENTIFYING
+                                            , TPCANParameterValue.PCAN_PARAMETER_ON
+                                            , 4 /* Size of int in underlaying PCANBasic lib. */
+                                            );
+            if (!PCANBasicEx.checkReturnCode( status
+                                            , "Error enabling the PCAN device identification.")
+               ) {
+                return;
+            }
+            
+            _logger.info("Device identification: PCAN device {} will now blink in orange"
+                         + " for about three seconds..."
+                        );
+            for (int i=3; i>0; --i) {
+                _logger.info("{} seconds remaining", i);
+                try {
+                    Thread.sleep(1000);
+                } catch(InterruptedException e) {
+                    errCnt_.error();
+                    _logger.error("Pause time for LED blinking can't be implemented. {}"
+                                 , e.getMessage()
+                                 );
+                }
+            }
+            
+            status = pcanApi_.SetValue( selectedCanDev
+                                      , TPCANParameter.PCAN_CHANNEL_IDENTIFYING
+                                      , TPCANParameterValue.PCAN_PARAMETER_OFF
+                                      , 4 /* Size of int in underlaying PCANBasic lib. */
+                                      );
+            PCANBasicEx.checkReturnCode( status
+                                       , "Error disabling the PCAN device identification."
+                                       );
+        }
+    } /* listPeakPcanDevices */
 
-//        assert canApi_ != null;
-            /* Print all connected devices. */
-            // TODO Make this an option. Could be done on log level DEBUG always
-            // TODO The function doesn't have proper error handling yet
-//            PCANBasicEx.printAttachedChannels(canApi_);
-         
 
     /**
      * Try to connect to a PEAK CAN device.
@@ -106,7 +158,7 @@ public class CAN
      */
     public boolean openCanDevice(TPCANHandle canDev)
     {
-        assert canApi_ != null;
+        assert pcanApi_ != null;
         
         // TODO Set list of Rx msgs from fct argument
         // We need to uses ranges to group neigboured IDs. Better: directly pass as list of ranges
@@ -132,12 +184,13 @@ public class CAN
         if (success) {
             /* Arguments 3..5 are not used for the Plug&Play device PEAK-USB and
                PEAK-USB-FD. We set them to "don't care". */
-            final TPCANStatus errCode = canApi_.Initialize( canDev_
-                                                          , TPCANBaudrate.PCAN_BAUD_500K
-                                                          , /*HwType*/ TPCANType.PCAN_TYPE_NONE
-                                                          , /*IOPort*/ 0
-                                                          , /*Interrupt*/ (short)0
-                                                          );
+            final TPCANStatus errCode = pcanApi_.Initialize
+                                                    ( canDev_
+                                                    , TPCANBaudrate.PCAN_BAUD_500K
+                                                    , /*HwType*/ TPCANType.PCAN_TYPE_NONE
+                                                    , /*IOPort*/ 0
+                                                    , /*Interrupt*/ (short)0
+                                                    );
             if(PCANBasicEx.checkReturnCode(errCode))
                 _logger.debug("PCANBasic device {} successfully initialized.", canDev_);
             else
@@ -159,7 +212,7 @@ public class CAN
                 break;
             }
 
-            final TPCANStatus errCode = canApi_.FilterMessages
+            final TPCANStatus errCode = pcanApi_.FilterMessages
                                                     ( canDev_
                                                     , /*FromID*/ canId.getCanId()
                                                     , /*ToID*/ canId.getCanId()
@@ -196,7 +249,7 @@ public class CAN
     {
         boolean success = true;
         if (canDev_ != null) {
-            final TPCANStatus errCode = canApi_.Uninitialize(canDev_);
+            final TPCANStatus errCode = pcanApi_.Uninitialize(canDev_);
             if(!PCANBasicEx.checkReturnCode(errCode))
             {
                 errCnt_.error();

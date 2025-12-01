@@ -34,6 +34,7 @@ class CcpCanIds
     /** The global logger object for all progress and error reporting. */
     private static final Logger _logger = LogManager.getLogger(CcpCanIds.class);
 
+// @todo Need to become two time CanId
     /** The CAN ID of all CRO messages. */
     public final int canIdCro_;
 
