@@ -31,7 +31,7 @@ package winFlashTool;
 import java.util.*;
 import java.io.*;
 import java.text.*;
-import winFlashTool.MCU.Mpc5775BE_C55FMC;
+import winFlashTool.mcu.Mpc5775BE_C55FMC;
 
 import org.apache.logging.log4j.*;
 import winFlashTool.applicationInterface.cmdLineParser.CmdLineParser;

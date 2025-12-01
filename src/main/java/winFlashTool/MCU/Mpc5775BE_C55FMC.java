@@ -21,7 +21,7 @@
  *   Mpc5775BE_C55FMC
  */
 
-package winFlashTool.MCU;
+package winFlashTool.mcu;
 
 import java.util.*;
 import org.apache.logging.log4j.*;
