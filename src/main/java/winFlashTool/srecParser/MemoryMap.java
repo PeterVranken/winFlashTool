@@ -28,6 +28,7 @@ import java.io.*;
 import java.util.*;
 import org.apache.logging.log4j.*;
 import winFlashTool.basics.ErrorCounter;
+import winFlashTool.mcu.Flash;
 
 
 /**
@@ -39,11 +40,14 @@ public class MemoryMap {
     /** The global logger object for all progress and error reporting. */
     private static final Logger _logger = LogManager.getLogger(MemoryMap.class);
 
-    /** The list of memory sectors to program. */
-    private final SRecordSequence srecSequence_ = new SRecordSequence();
+    /** The list of memory sections to erase. */
+    private final EraseSectorSequence eraseSectorSequence_;
 
-    /** This module uses the one and only global error counter. */
-    private static ErrorCounter _errCnt = ErrorCounter.getGlobalErrorCounter();
+    /** The list of memory sections to program. */
+    private final SRecordSequence srecSequence_;
+
+    /** The error counter to be used for all problem reporting. */
+    private final ErrorCounter errCnt_;
 
     /** Program start address as found in the srec input file. Or -1 if not set in the srec
         file. */
@@ -114,7 +118,7 @@ public class MemoryMap {
                     assert false: "This record type should be reported as error";
 
                 } else if (recordType == 5  ||  recordType == 6) {
-                    _errCnt.warning();
+                    errCnt_.warning();
                     _logger.warn( "Line {}: S{} record found. Count records are not"
                                   + " supported. This record is ignored."
                                 , lineNumber
@@ -129,7 +133,7 @@ public class MemoryMap {
                                     , Long.toHexString(address)
                                     );
                     } else if (programStartAddress_ != address) {
-                        _errCnt.error();
+                        errCnt_.error();
                         _logger.error( "Line {}: Program start address is repeatedly"
                                        + " specified. Had 0x{}, find 0x{}."
                                      , lineNumber
@@ -153,7 +157,7 @@ public class MemoryMap {
 
             } else {
                 parseErrCnt_.error();
-                _errCnt.error();
+                errCnt_.error();
                 _logger.error( "Line {}: Error reading srec input file. Error {} ({})."
                              , lineNumber
                              , errCode.getErrorCode()
@@ -174,17 +178,40 @@ public class MemoryMap {
          * otherwise.
          */
         public boolean getFinalSuccess() {
+            boolean success = parseErrCnt_.getNoErrors() == 0;
+            
             if (getNoEmptyLines() > 0) {
-                _errCnt.warning();
+                errCnt_.warning();
                 _logger.warn( "SREC input file contains {} empty lines. Use log level DEBUG"
                               + " to get detailed information."
                             , getNoEmptyLines()
                             );
             }
+            
+            /* Now knowing all s-records to program, we can calculate, which sector from the
+               flash ROM need to be erased. */
+            if (!eraseSectorSequence_.findSectorsToErase(srecSequence_)) {
+                success = false;
+            }
 
-            return parseErrCnt_.getNoErrors() == 0;
+            return success;
         }
-    }
+    } /* class MemoryMap.SrecListenerForMemMap */
+
+    /**
+     * A new instance of MemoryMap is created.
+     *   @param flashRom
+     * The description of the flash ROM of the targeted device. Basically a list of
+     * independently erasable sectors.
+     *   @param errCnt
+     * The error counter to be used for problem reporting.
+     */
+    public MemoryMap(Flash flashRom, ErrorCounter errCnt) {
+        errCnt_ = errCnt;
+        eraseSectorSequence_ = new EraseSectorSequence(flashRom, errCnt);
+        srecSequence_ = new SRecordSequence();
+            
+    } /* MemoryMap.MemoryMap */
 
     /**
      * Read an srec file and build-up the memory map.
@@ -207,6 +234,7 @@ public class MemoryMap {
         boolean success = parser.parse(srecFile);
 
         if (success) {
+            eraseSectorSequence_.logSectors();
             srecSequence_.logSections();
         }
 

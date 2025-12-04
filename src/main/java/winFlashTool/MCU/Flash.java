@@ -19,6 +19,8 @@
  */
 /* Interface of class Flash
  *   Flash
+ *   iterator
+ *   listIterator
  */
 
 package winFlashTool.mcu;
@@ -30,7 +32,7 @@ import winFlashTool.basics.Range;
 /**
  * The abstract descripting of the flash ROM memory in an MCU.
  */
-public class Flash {
+public class Flash implements Iterable<Sector> {
 
     /** The global logger object for all progress and error reporting. */
     private static final Logger _logger = LogManager.getLogger(Flash.class);
@@ -169,6 +171,26 @@ public class Flash {
         }        
     } /* Flash.Flash */
 
+    /**
+     * Interface iterable: Get the iterator for visiting all flash ROM sectors of the MCU.
+     *   @return
+     * Get the iterator.
+     */
+    @Override
+    public Iterator<Sector> iterator() {
+        return sectorList_.iterator();
+    }
+    
+    /**
+     * Get an advanced iterator for visiting all flash ROM sectors of the MCU.
+     *   @return
+     * Get the iterator of class ListIterator, which provides more options for iterations
+     * than the one returned by iterator().
+     */
+    public ListIterator<Sector> listIterator() {
+        return sectorList_.listIterator();
+    }
+    
 } /* End of class Flash definition. */
 
 

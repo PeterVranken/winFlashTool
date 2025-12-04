@@ -307,14 +307,14 @@ public class WinFlashTool
                          );
         }
         
-        MemoryMap memMap = new MemoryMap();
+        final Mpc5775BE_C55FMC flashROM = Mpc5775BE_C55FMC.getFlashRomDescription();
+        MemoryMap memMap = new MemoryMap(flashROM, errCnt_);
         if (success && !memMap.readSrecFile(srecFileName)) {
             success = false;
             errCnt_.error();
             _logger.error("Can't read srec input file. Application terminates.");
         }
         
-        Mpc5775BE_C55FMC flashROM = Mpc5775BE_C55FMC.getFlashRomDescription();
 
 errCnt_.warning();
 _logger.warn("Test: Application terminates after parser test.");

@@ -19,6 +19,10 @@
  */
 /* Interface of class SRecordSequence
  *   SRecordSequence
+ *   add
+ *   iterator
+ *   listIterator
+ *   logSections
  */
 
 package winFlashTool.srecParser;
@@ -35,13 +39,13 @@ import winFlashTool.basics.Range;
  * them. When all small s-records from the file have been added then the (probably large)
  * s-records in the list form the memory sections to program.
  */
-public class SRecordSequence {
+class SRecordSequence implements Iterable<SRecord> {
 
     /** The global logger object for all progress and error reporting. */
     private static final Logger _logger = LogManager.getLogger(SRecordSequence.class);
 
     /** A list of SRecords. */
-    final LinkedList<SRecord> recordList_ = new LinkedList<SRecord>();
+    private final LinkedList<SRecord> recordList_ = new LinkedList<SRecord>();
 
     /** This module uses the one and only global error counter. */
     private static ErrorCounter _errCnt = ErrorCounter.getGlobalErrorCounter();
@@ -178,6 +182,26 @@ public class SRecordSequence {
         } /* while(Still another s-record in the list, to compare with the new one) */
         
         return success;
+    }
+    
+    /**
+     * Interface iterable: Get the iterator for visiting all s-records in this sequence.
+     *   @return
+     * Get the iterator.
+     */
+    @Override
+    public Iterator<SRecord> iterator() {
+        return recordList_.iterator();
+    }
+    
+    /**
+     * Get an advanced iterator for visiting all s-records in this sequence.
+     *   @return
+     * Get the iterator of class ListIterator, which provides more options for iterations
+     * than the one returned by iterator().
+     */
+    public ListIterator<SRecord> listIterator() {
+        return recordList_.listIterator();
     }
     
     /**

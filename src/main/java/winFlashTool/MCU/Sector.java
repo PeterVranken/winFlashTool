@@ -31,7 +31,7 @@ import winFlashTool.basics.Range;
  * The sector of some flash ROM.<p>
  *   Basically the address range plus the reference to the partition, the sector belongs to.
  */
-class Sector extends Range {
+public class Sector extends Range {
 
     /** The global logger object for all progress and error reporting. */
     private static final Logger _logger = LogManager.getLogger(Sector.class);

@@ -99,6 +99,66 @@ public class Range implements Comparable<Range>
         return this;
     }
 
+    /**
+     * Check is another range can be subtracted from this range: If the other range is in the
+     * middle of this range then the subtraction would yield two ranges as result, which is
+     * not represented by the chosen implementation of ranges. Therefore, method subtract()
+     * must be used only if this method returns true.
+     *   @return
+     * Get true if the other range is not in the middle of this range.
+     *   @param other
+     * The other range.
+     */
+    public boolean isSubtractable(Range other) {
+        return other.from <= this.from  ||  other.till >= this.till;
+    }
+
+    /**
+     * Calculate the range which is in a but not in b. (Everything in b, which overlaps
+     * with a is removed from a.)\n
+     *   Note, the operation is impossible if b is somehwere in the middle of a; the result
+     * wouldn't be a new range but a pair of those. This method must not be used in this
+     * case; please, consider using isSubtractable() prior to this method.
+     *   @return
+     * Get the delta range a-b or null if a is entirely inside b.
+     *   @param a
+     * The first range.
+     *   @param b
+     * The second, subtracted range.
+     */
+    public static Range subtract(Range a, Range b) {
+        assert a.isSubtractable(b);
+        if (a.till > b.from  &&  b.till >= a.till) {
+            /* Result is first part of a, until where b begins. */
+            if (b.from > a.from) {
+                return new Range(a.from, b.from);
+            } else {
+                /* Result is the empty range. This is represented by null. */
+                return null;
+            }
+        } else if (a.from >= b.from) {
+            if (b.till >= a.till) {
+                /* a is entirely inside b. This is not representable as Range object but -
+                   at least for a static method - as null. */
+                return null;
+            } else if(b.till > a.from) {
+                /* Result is last part of a, from where b ends. */
+                if (a.till > b.till) {
+                    return new Range(b.till, a.till);
+                } else {
+                   /* Result is the empty range. This is represented by null. */
+                    return null;
+                }
+            } else {
+                assert a.isBehind(b);
+                return a;
+            }
+        } else {
+            assert a.isBefore(b);
+            return a;
+        }
+    } /* Range.subtract */
+
     public static Range join(Range a, Range b) {
         assert a.connectsTo(b) || a.overlaps(b): "Ranges not connected";
         return new Range( Math.min(a.from, b.from)
