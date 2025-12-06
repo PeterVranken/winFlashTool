@@ -101,6 +101,7 @@ class EraseSectorSequence implements Iterable<Range> {
             Range rangeErase = null;
             Sector blk = itBlk.next();
             while (secPrg != null) {
+//_logger.info("New loop cycle: blk: {}, prg: {}, erase: {}", blk, secPrg, rangeErase);
                 if (blk.overlaps(secPrg)) {
                 
                     /* The current block belongs into the result list. However, we wait

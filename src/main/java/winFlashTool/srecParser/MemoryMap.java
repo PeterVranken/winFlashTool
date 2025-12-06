@@ -234,6 +234,10 @@ public class MemoryMap {
         boolean success = parser.parse(srecFile);
 
         if (success) {
+            // TODO If we have !success but this is due to the mapping of the s-records
+            // onto the flash blocks, then we should still list the found s-records.
+            // Particularly in this situation it is useful information for the user.
+            // Boolean seems to be too weak to be able to take the right decision.
             eraseSectorSequence_.logSectors();
             srecSequence_.logSections();
         }

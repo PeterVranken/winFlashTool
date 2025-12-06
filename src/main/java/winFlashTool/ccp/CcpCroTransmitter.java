@@ -34,7 +34,8 @@ import java.util.*;
 import org.apache.logging.log4j.*;
 import peak.can.basic.*;
 import winFlashTool.basics.ErrorCounter;
-
+import winFlashTool.can.CanId;
+import winFlashTool.can.PCANBasicEx;
 
 /**
  * Base class of CCP communication: A command receive object (CRO message) is assembled
@@ -131,8 +132,11 @@ class CcpCroTransmitter
         from sending the CRO until reception of DTO. */
     public long tiResponseEcuInNs_;
     
-    /** The CAN IDs of all CRO and DTO messages. */
-    private final CcpCanIds ccpCanIds_;
+    /** The CAN ID of all CRO messages. */
+    private final CanId ccpCanIdCro_;
+    
+    /** The CAN ID of all DTO messages. */
+    private final CanId ccpCanIdDto_;
     
     /** The length of all CRO and DTO messages. */
     private final int MSG_LEN = 8;
@@ -159,22 +163,26 @@ class CcpCroTransmitter
      *   @param timeoutTillRxDtoInMs
      * The maximum time, which may elapse after sending the CRO until the DTO arrives. Unit
      * is Milliseconds.
-     *   @param ccpCanIds
-     * The CAN IDs of all CRO and DTO messages.
+     *   @param ccpCanIdCro
+     * The CAN ID of all CRO messages.
+     *   @param ccpCanIdDto
+     * The CAN ID of all DTO messages.
      *   @param errCnt
      * The error counter to be used for problem reporting.
      */
     static public void CreateCcpCroTransmitter( PCANBasic pcanBasicAPI
                                               , TPCANHandle canDev
                                               , int timeoutTillRxDtoInMs
-                                              , CcpCanIds ccpCanIds
+                                              , CanId ccpCanIdCro
+                                              , CanId ccpCanIdDto
                                               , ErrorCounter errCnt
                                               )
     {
         _croTransmitter = new CcpCroTransmitter( pcanBasicAPI
                                                , canDev
                                                , timeoutTillRxDtoInMs
-                                               , ccpCanIds
+                                               , ccpCanIdCro
+                                               , ccpCanIdDto
                                                , errCnt
                                                );
     } /* CreateCcpCroTransmitter */
@@ -204,25 +212,28 @@ class CcpCroTransmitter
      *   @param timeoutTillRxDtoInMs
      * The maximum time, which may elapse after sending the CRO until the DTO arrives. Unit
      * is Milliseconds.
-     *   @param ccpCanIds
-     * The CAN IDs of all CRO and DTO messages.
+     *   @param ccpCanIdCro
+     * The CAN ID of all CRO messages.
+     *   @param ccpCanIdDto
+     * The CAN ID of all DTO messages.
      *   @param errCnt
      * The error counter to be used for problem reporting.
      */
     private CcpCroTransmitter( PCANBasic pcanBasicAPI
                              , TPCANHandle canDev
                              , int timeoutTillRxDtoInMs
-                             , CcpCanIds ccpCanIds
+                             , CanId ccpCanIdCro
+                             , CanId ccpCanIdDto
                              , ErrorCounter errCnt
                              )
     {
         errCnt_ = errCnt;
         canApi_ = pcanBasicAPI;
         canDev_ = canDev;
+        ccpCanIdCro_ = ccpCanIdCro;
+        ccpCanIdDto_ = ccpCanIdDto; 
 
         timerRxDtoTO_ = new TimeoutTimer((long)timeoutTillRxDtoInMs);
-
-        ccpCanIds_ = ccpCanIds;
 
         state_ = StateTransmission.IDLE;
 
@@ -251,8 +262,8 @@ class CcpCroTransmitter
         for(int idxByte=noContentBytes; idxByte<MSG_LEN; ++idxByte)
             payloadAry[idxByte] = (byte)0xFF;
 
-        final TPCANMsg canMsg = new TPCANMsg( ccpCanIds_.getCroCanId()
-                                            , ccpCanIds_.getCroMsgType().getValue()
+        final TPCANMsg canMsg = new TPCANMsg( ccpCanIdCro_.getCanId()
+                                            , ccpCanIdCro_.getMsgType().getValue()
                                             , (byte)MSG_LEN
                                             , payloadAry
                                             );
@@ -332,8 +343,8 @@ class CcpCroTransmitter
                        should hinder that we ever see a wrong one, but this is external
                        code and we don't have a guarantee how it behaves. Better to
                        double-check it. */
-                    if(canMsg.getID() == ccpCanIds_.getDtoCanId()
-                       &&  canMsg.getType() == ccpCanIds_.getCroMsgType().getValue()
+                    if(canMsg.getID() == ccpCanIdDto_.getCanId()
+                       &&  canMsg.getType() == ccpCanIdDto_.getMsgType().getValue()
                        &&  (int)canMsg.getLength() == MSG_LEN
                       )
                     {
@@ -384,7 +395,7 @@ class CcpCroTransmitter
                         _logger.error( "Invalid DTO message received. Expected CAN"
                                        + " ID {} and length {}, but received{}"
                                        + " ID {} and length {}."
-                                     , ccpCanIds_.dtoIdToString()
+                                     , ccpCanIdDto_
                                      , MSG_LEN
                                      , canMsg.getType() 
                                        == TPCANMessageType.PCAN_MESSAGE_EXTENDED.getValue()

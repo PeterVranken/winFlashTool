@@ -36,12 +36,15 @@ import winFlashTool.mcu.Mpc5775BE_C55FMC;
 import org.apache.logging.log4j.*;
 import winFlashTool.applicationInterface.cmdLineParser.CmdLineParser;
 import winFlashTool.applicationInterface.loggerConfiguration.Log4j2Configurator;
-import winFlashTool.ccp.PCANBasicEx;
+import winFlashTool.can.PCANBasicEx;
 import winFlashTool.ccp.CCP;
 //import winFlashTool.ccp.CcpCroTransmitter;
 import winFlashTool.basics.ErrorCounter;
 import winFlashTool.srecParser.MemoryMap;
-
+import winFlashTool.can.CAN;
+import winFlashTool.can.CanId;
+import peak.can.basic.TPCANHandle;
+import peak.can.basic.TPCANBaudrate;
 
 /**
  * This class has a main function, which implements the excel exporter application.
@@ -189,12 +192,27 @@ public class WinFlashTool
             );
         clp.defineArgument
             ( "d", "CAN-device"
-            , /*cntMax, cntMax*/ 0, 1
-            , /*defaultValue*/ null
+            , /*cntMin, cntMax*/ 0, 1
+            , /*defaultValue*/ ""
             , "The CAN device to operate with. Consider using --enumerate-CAN-devices to"
               + " get a list of connected and available devices."
               + "\nOptional, default is using the first found available device, which ever"
               + " that is."
+            );
+// Defaults should become 0x600 and 0x650
+        clp.defineArgument
+            ( "t", "CAN-ID-CRO"
+            , /*cntMin, cntMax*/ 0, 1
+            , /*defaultValue*/ 100
+            , "The CAN ID for all CCP CRO Tx messages."
+              + "\nOptional, default is the 11 Bit ID 100."
+            );
+        clp.defineArgument
+            ( "r", "CAN-ID-DTO"
+            , /*cntMin, cntMax*/ 0, 1
+            , /*defaultValue*/ 101
+            , "The CAN ID for all CCP DTO Rx messages."
+              + "\nOptional, default is the 11 Bit ID 101."
             );
 // Show all device and try to open them. Print the success as "available" in the list and
 // free them again.
@@ -250,15 +268,12 @@ public class WinFlashTool
      *   @param argAry
      * The command line arguments of the application.
      */
-    private boolean parseCmdLine(String[] argAry)
-    {
+    private boolean parseCmdLine(String[] argAry) {
         assert cmdLineParser_ != null;
-        try
-        {
+        try {
             cmdLineParser_.parseArgs(argAry);
 
-            if(cmdLineParser_.getBoolean("h"))
-            {
+            if (cmdLineParser_.getBoolean("h")) {
                 /* ... and explain them. */
                 greeting();
                 System.out.print(cmdLineParser_.getUsageInfo( _applicationName
@@ -268,9 +283,7 @@ public class WinFlashTool
                                 );
                 return false;
             }
-        }
-        catch(CmdLineParser.InvalidArgException e)
-        {
+        } catch (CmdLineParser.InvalidArgException e) {
             greeting();
             System.err.print(cmdLineParser_.getUsageInfo( _applicationName
                                                         , /*argumentsTabularOnly*/ true
@@ -315,45 +328,78 @@ public class WinFlashTool
             _logger.error("Can't read srec input file. Application terminates.");
         }
         
-
+        if (success) {
+            success = PCANBasicEx.initClass(errCnt_)
+                      &&  CAN.initClass(errCnt_);
+        }
+            
+        final String canDeviceName = cmdLineParser_.getString("CAN-device");
+        if(success && cmdLineParser_.getBoolean("enumerate-CAN-devices"))
+        {
+            /* Print all connected devices. */
+            PCANBasicEx.printAttachedChannels();
+            if (!canDeviceName.isEmpty()) {
+                success = PCANBasicEx.identifyChannel(canDeviceName);
+            }
+        } else {
+        
+        
+if(false) {
 errCnt_.warning();
 _logger.warn("Test: Application terminates after parser test.");
-if(false) {
-        
-        /* Test of CCP implementation: Open device and repeatedly do a CONNECT/DISCONNECT. */
-        long tiTest = System.nanoTime();
-        final int noTestCycles = 1;
-        for(int cycle=0; success && cycle<noTestCycles; ++cycle)
-        {
-            _logger.debug("Start connection test {}/{}.", cycle+1, noTestCycles);
-            success = true;
+} else {        
+            /* Set the CN Ids to use for CCP communication. */
+            final CanId canIdCro = new CanId( cmdLineParser_.getInteger("CAN-ID-CRO")
+                                            , /*isExtId*/ false
+                                            );
+            final CanId canIdDto = new CanId( cmdLineParser_.getInteger("CAN-ID-DTO")
+                                            , /*isExtId*/ false
+                                            );
 
-            CCP ccp = new CCP(errCnt_);
-            assert ccp.getProcessState() == CCP.StateFlashProcess.DISCONNECTED;
-            boolean deviceOpened = false;
-            if(success)
-                deviceOpened = success = ccp.openCanDevice();
-            if(success)
-                assert ccp.getProcessState() == CCP.StateFlashProcess.CONNECTING;
-            while(success && !ccp.step())
-                assert ccp.getProcessState() != CCP.StateFlashProcess.DISCONNECTED;
+            final ArrayList<CanId> listOfRxCanIds = new ArrayList<CanId>(1);
+            listOfRxCanIds.add(canIdDto);
 
-            assert ccp.getProcessState() == CCP.StateFlashProcess.DISCONNECTED;
-            if(deviceOpened)
-                success = ccp.closeCanDevice();
+            /* Test of CCP implementation: Open device and repeatedly do a CONNECT/DISCONNECT. */
+            long tiTest = System.nanoTime();
+            final int noTestCycles = 1;
+            for(int cycle=0; success && cycle<noTestCycles; ++cycle) {
+                _logger.debug("Start connection test {}/{}.", cycle+1, noTestCycles);
+                success = true;
 
-            _logger.debug("Result of test of CCP process: {}.", success? "Ok": "failed");
-        }
-        tiTest = System.nanoTime() - tiTest;
-        if(noTestCycles > 0)
-        {
-            _logger.warn( "Test duration: {}ns for {} cycles. {}ns per cycle."
-                        , tiTest
-                        , noTestCycles
-                        , (tiTest + noTestCycles/2) / noTestCycles
-                        );
-        }
-}        
+                CCP ccp = new CCP(canIdCro, canIdDto, errCnt_);
+                assert ccp.getProcessState() == CCP.StateFlashProcess.DISCONNECTED;
+                boolean deviceOpened = false;
+                final CAN canDev = new CAN();
+                if(success) {
+                    deviceOpened = success = canDev.open( canDeviceName
+                                                        , TPCANBaudrate.PCAN_BAUD_500K
+                                                        , listOfRxCanIds
+                                                        );
+                }
+                if(success)
+                    assert ccp.getProcessState() == CCP.StateFlashProcess.CONNECTING;
+                while(success && !ccp.step())
+                    assert ccp.getProcessState() != CCP.StateFlashProcess.DISCONNECTED;
+
+                assert ccp.getProcessState() == CCP.StateFlashProcess.DISCONNECTED;
+                if(deviceOpened) {
+                    success = canDev.close();
+                    deviceOpened = false;
+                }
+
+                _logger.debug("Result of test of CCP process: {}.", success? "Ok": "failed");
+            }
+            tiTest = System.nanoTime() - tiTest;
+            if(noTestCycles > 0)
+            {
+                _logger.warn( "Test duration: {}ns for {} cycles. {}ns per cycle."
+                            , tiTest
+                            , noTestCycles
+                            , (tiTest + noTestCycles/2) / noTestCycles
+                            );
+            }
+}
+    }
 // Lesen SREC:
 // - Nur aufsteigende Adressen zulassen. Das ist die einfachste und
 //   speichersparendste Loesung zum Vermeiden von Doppelprogrammierungen und
@@ -481,12 +527,6 @@ if(false) {
      */
     private static void greeting()
     {
-        /* Printing the applied version of ANTLR and StringTemplate is useful but unsafe.
-           By experiment, it turned out that the printed values do not depend on the
-           run-time jars. Instead the values are frozen at compilation time, i.e., when
-           excelExporter-*.jar is made. If the application is run with another classpath
-           than the compiler then the printed versions may not match the actually used,
-           actually running libraries. */
         final String greeting = _applicationName + " " + _versionFull
                                 + " Copyright (C) 2025, Peter Vranken"
                                 + " (mailto:Peter_Vranken@Yahoo.de)"
@@ -516,15 +556,17 @@ if(false) {
         This.defineArguments();
         if(This.parseCmdLine(argAry))
         {
-            /* Print the application greeting. */
-            greeting();
+            final CmdLineParser clp = This.cmdLineParser_;
+            
+            /* Print the application greeting, but only if log level is not OFF. */
+            final Level logLevel = Level.getLevel(clp.getString("v").toUpperCase());
+            if(logLevel == null  ||  logLevel != Level.OFF)
+                greeting();
 
             /* Configure log4j2 prior to first use. This is done by side-effect of a
                constructor call. The object is kept only to have access to the configured
                logging settings; they are reported into the application log later. */
-            This.log4j2Configurator_ = new Log4j2Configurator( This.cmdLineParser_
-                                                             , This.errCnt_
-                                                             );
+            This.log4j2Configurator_ = new Log4j2Configurator(clp, This.errCnt_);
 
             /* Get this class' and ParameterSet's logger instance only after completing the
                log4j2 configuration. Setting the logger for classes, which are involved in

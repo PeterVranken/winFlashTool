@@ -51,18 +51,6 @@ class SRecordSequence implements Iterable<SRecord> {
     private static ErrorCounter _errCnt = ErrorCounter.getGlobalErrorCounter();
 
     /**
-     * A new instance of SRecordSequence is created.
-     *   @throws {@inheritDoc}
-     * The exception is thrown if 
-     *   @param i
-     * The ... or: {@inheritDoc}
-     *   @see SRecordSequence#
-     */
-    //TODO: Fill in the method header.
-    public SRecordSequence() {
-    } /* SRecordSequence.SRecordSequence */
-
-    /**
      * Add a new SRecord to the list.
      *   @return
      * We don't support repeatedly used addresses, or, with other words, overlapping memory

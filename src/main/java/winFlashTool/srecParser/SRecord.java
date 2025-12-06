@@ -48,13 +48,11 @@ class SRecord extends Range {
 
     /**
      * A new instance of SRecord is created.
-     *   @throws {@inheritDoc}
-     * The exception is thrown if
-     *   @param i
-     * The ... or: {@inheritDoc}
-     *   @see SRecord#
+     *   @param addrFrom
+     * The first memory address.
+     *   @param data
+     * An array of bytes, which describe the memory contents beginning at address addrFrom.
      */
-    //TODO: Fill in the method header.
     public SRecord(long addrFrom, byte[] data) {
         super(addrFrom, addrFrom+data.length);
         data_ = data;

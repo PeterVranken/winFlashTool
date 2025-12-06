@@ -29,7 +29,7 @@ import java.util.Set;
 import java.util.HashSet;
 import org.apache.logging.log4j.*;
 import winFlashTool.basics.ErrorCounter;
-
+import winFlashTool.can.PCANBasicEx;
 
 /**
  * Download a number of bytes to the ECU using CCP commands DOWNLOAD, DOWNLOAD_6, PROGRAM
