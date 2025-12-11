@@ -19,6 +19,12 @@
  */
 /* Interface of class CcpCommandBase
  *   CcpCommandBase
+ *   setErrorCounter
+ *   sendCro
+ *   checkRxDto
+ *   myCcpCmdIds
+ *   start
+ *   step
  */
 
 package winFlashTool.ccp;
@@ -68,6 +74,10 @@ abstract class CcpCommandBase
        and PROGRAMM commands. */
     static protected int _Mta0;
     
+    /** The CRO transmitter, which is globally used by all CCP protocol operations in
+        this base class and the derived classes. */
+    static private CcpCroTransmitter _croTransmitter;
+    
     static        
     {
         /* Create a forever reused PCAN Basic message object for DTO reception and make its
@@ -78,9 +88,6 @@ abstract class CcpCommandBase
 
     /**
      * A new instance of CcpCommandBase is created.
-     *   @param croTransmitter
-     * The fully initialized CRO transmitter, which will be used for exchanging all CRO/DTO
-     * messages of all CCP commands.
      */
     protected CcpCommandBase()
     {
@@ -103,6 +110,19 @@ abstract class CcpCommandBase
 
     
     /**
+     * Set the CRO transmitter, which is globally used by all CCP protocol operations in
+     * this base class and the derived classes.
+     *   @param croTransmitter
+     * The fully initialized CRO transmitter, which will be used for exchanging all CRO/DTO
+     * messages of all CCP commands.
+     */
+    static public void setCroTransmitter(CcpCroTransmitter croTransmitter)
+    {
+        _croTransmitter = croTransmitter;
+    }
+    
+    
+    /**
      * Send a CRO message. The payload of the CAN message is taken from _payloadCroAry
      *   @param noContentBytes
      * The number of meaningful payload bytes in _payloadCroAry. The remaining bytes will
@@ -110,7 +130,7 @@ abstract class CcpCommandBase
      */
     static protected void sendCro(int noContentBytes)
     {
-        CcpCroTransmitter.getCroTransmitter().sendCro(_payloadCroAry, noContentBytes);
+        _croTransmitter.sendCro(_payloadCroAry, noContentBytes);
     }
 
     
@@ -124,7 +144,7 @@ abstract class CcpCommandBase
      */
     static protected CcpCroTransmitter.ResultTransmission checkRxDto()
     {
-        return CcpCroTransmitter.getCroTransmitter().getDto(_msgDto);
+        return _croTransmitter.getDto(_msgDto);
     }
 
     /**

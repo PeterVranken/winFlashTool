@@ -1,5 +1,5 @@
 /**
- * @file CAN.java
+ * @file CanDevice.java
  * Support of using a PEAK PCAN device, mainly open and close device and setting the
  * configuration parameters.
  *
@@ -19,7 +19,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 /* Interface of class CCP
- *   CAN
+ *   CanDevice
  *   listPeakPcanDevices
  *   open (2 variants)
  *   close
@@ -39,10 +39,10 @@ import peak.can.basic.*;
  *   Reading and writing of CAN messages is not element of this file; having an opened and
  * configured device, this can directly be done with the PCANBasics API.
  */
-public class CAN
+public class CanDevice
 {
     /** The global logger object for all progress and error reporting. */
-    private static final Logger _logger = LogManager.getLogger(CAN.class);
+    private static final Logger _logger = LogManager.getLogger(CanDevice.class);
 
     /** All CAN devices use the one and only global error counter. */
     private static ErrorCounter _errCnt;
@@ -81,12 +81,12 @@ public class CAN
      * A new instance of CCAN is created. It can be used to open a CAN device to transmit
      * or receive messages with that device.
      */
-    public CAN()
+    public CanDevice()
     {
         assert _pcanApi != null: "Class not initialized";
         canDev_ = null;
         
-    } /* CAN.CAN */
+    } /* CanDevice.CanDevice */
 
 
     /**
@@ -99,7 +99,7 @@ public class CAN
      *   @param baudRate
      * The wanted bitrate of the CAN transmission.
      *   @param listOfRxCanIds
-     * A list of CAN Ids for reception. All Rx messages need to be registered n form of CAN
+     * A list of CAN Ids for reception. All Rx messages need to be registered in form of CAN
      * acceptance filters. The list contains objects, which can designate a single CAN ID
      * or a solid range of those, from..till. All of the IDs in the list will be configured
      * as accetance filters. (It's unclear, how many messages can be registered.)
@@ -143,7 +143,7 @@ public class CAN
      *   @param baudRate
      * The wanted bitrate of the CAN transmission.
      *   @param listOfRxCanIds
-     * A list of CAN Ids for reception. All Rx messages need to be registered n form of CAN
+     * A list of CAN Ids for reception. All Rx messages need to be registered in form of CAN
      * acceptance filters. The list contains objects, which can designate a single CAN ID
      * or a solid range of those, from..till. All of the IDs in the list will be configured
      * as accetance filters. (It's unclear, how many messages can be registered.)
@@ -166,7 +166,7 @@ public class CAN
                          );
         }
         
-        /* No particular device is specified. Use the first available in the itertaion of
+        /* No particular device is specified. Use the first available in the iteration of
            all PEAK devices. */
         if (success &&  canDev == null) {
             canDev = PCANBasicEx.getFirstAvailableChannel();
@@ -278,7 +278,66 @@ public class CAN
 
     } /* close */
 
-} /* End of class CAN definition. */
+
+    /**
+     * Reads a CAN message from the receive queue of the PCAN Channel, which has been
+     * acquired and opened by this CanDevice object.
+     *   @return A TPCANStatus error code.
+     *   @param messageBuffer
+     * A TPCANMsg buffer with the message to be read.
+     *   @param timestampBuffer
+     * A TPCANTimestamp structure buffer to get the reception time of the message. If this
+     * value is not desired, this parameter should be passed as null.
+     */
+    public TPCANStatus Read(TPCANMsg messageBuffer, TPCANTimestamp timestampBuffer) {
+        assert _pcanApi != null: "Class not initialized";
+        assert canDev_ != null: "No device opened";
+        return _pcanApi.Read(canDev_, messageBuffer, timestampBuffer);
+    }
+    
+    /**
+     * Reads a CAN message from the receive queue of a FD capable PCAN Channel, which has
+     * been acquired and opened by this CanDevice object.
+     *   @return A TPCANStatus error code.
+     *   @param messageBuffer 
+     * A TPCANMsgFD structure buffer to store the CAN message.
+     *   @param timestampBuffer
+     * A TPCANTimestampFD buffer to get the reception time of the message. If this value is
+     * not desired, this parameter should be passed as null.
+     */
+    public TPCANStatus ReadFD(TPCANMsgFD messageBuffer, TPCANTimestampFD timestampBuffer) {
+        assert _pcanApi != null: "Class not initialized";
+        assert canDev_ != null: "No device opened";
+        return _pcanApi.ReadFD(canDev_, messageBuffer, timestampBuffer);
+    }
+    
+    /**
+     * Transmits a CAN message on the PCAN Channel, which has been acquired and opened by
+     * this CanDevice object.
+     *   @return A TPCANStatus error code.
+     *   @param messageBuffer 
+     * A TPCANMsg buffer with the message to be sent.
+     */
+    public TPCANStatus Write(TPCANMsg messageBuffer) {
+        assert _pcanApi != null: "Class not initialized";
+        assert canDev_ != null: "No device opened";
+        return _pcanApi.Write(canDev_, messageBuffer);
+    }
+    
+    /**
+     * Transmits a CAN message over the FD capable PCAN Channel, which has been acquired
+     * and opened by this CanDevice object.
+     *   @return A TPCANStatus error code.
+     *   @param messageBuffer 
+     * A TPCANMsg buffer with the message to be sent.
+     */
+    public TPCANStatus WriteFD(TPCANMsgFD messageBuffer) {
+        assert _pcanApi != null: "Class not initialized";
+        assert canDev_ != null: "No device opened";
+        return _pcanApi.WriteFD(canDev_, messageBuffer);
+    }
+    
+} /* End of class CanDevice definition. */
 
 
 

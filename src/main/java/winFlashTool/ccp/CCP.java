@@ -15,7 +15,7 @@
  * with the arguments of the command taken from the command sequence and run the command
  * implementation object's step function until it signals completion.<p>
  *   The CroTransmitter is the major element of the context, all the command implementation
- * object use to communicate via the right channel.<p>
+ * objects use to communicate via the right channel.<p>
  *   Fetching the command implementation object can mean a constructor call every time or
  * some pooling can be applied; one and the same object can (as it is now) be
  * re-initialized and used repeatedly if the same command appears more than once in the
@@ -67,6 +67,52 @@
  * null). The objects would be owned by the CCP object, because it needs them to process
  * the command sequence.
  *
+ * Neuer Gedanke: Es macht keine Sinn, Komandoprozessoren an IDs zu binden, weil jede
+ * Instanz andere Parameter hat. Wenn man mit Singleton-Instanzen arbeitet, die an eine ID
+ * gebunden sind, muss man diese vor jeder Benutzung initialisieren und das bedeutet, dass
+ * man neben den (elegant wiedergefunden) Instanzen noch deren Parameter nebenher speichern
+ * müsste. Womit der Vorteil des elegnaten Auffinden der Kommandoprozessoren egalisisert
+ * sein dürfte.\n
+ *   Da ist es naheliegender, die Programmsequenz als eine Liste fertig initialisierter
+ * Kommandoprozessoren zu sehen. Dabei kann von jeder ARt jede Anzahl Instanzen in der
+ * Liste sein und jede Instanz hat ihre individuellen Parameter. Damit wäre die
+ * Programmsequenz im Wesentlichen eine Liste von Kommandoprozessoren.\n
+ *   CCP hat als API die Vorgabe der verschiedenen Aufgaben, jeweils mit allen Parametern.
+ * Z.B. würde eine API "Erase" nur die von..bis Adressen als Parameter haben und sie würde
+ * eine Programmsequenz aus vier Kommandoprozessoren aufbauen, Connect, SetMta, Erase,
+ * Disconnect. Die Adressangaben würde zu Parametern von zweien der Prozessoren werden,
+ * SetMta bekmmt die Startadresse, Erase die Anzahl Bytes.\n
+ *   Weitere APIs dieser Art von CCP wären natürlich Flashen, Hochladen, Auslesen,
+ * Verifizieren. Auslesen und Verifizieren, die bzgl. CCP Protokollgeschehen auf dem Bus
+ * vielleicht völlig identisch sind, könnten sich in der Art der Parameter der
+ * Prozessoren unterscheiden; Auslesen könnte einen Streambuffer bekommen, in den Daten
+ * eingeschrieben werden, Verifizieren könnte einen Datensatz bekommen, gegen den
+ * verglichen wird.\n
+ *   Ein Kommandoprozessor hat die Basis, die Zugang zum CroTransmitter schafft und die
+ * Funktionen Start und Step, die seinen Btrieb ermöglichen, ohne Kenntnis des speziellen
+ * Prozessors.\n
+ *   CCP hat dann die Kern-API step, die die ganze Programmsequenz abarbeitet.\n
+ *   Evtl. ist Disconnect nicht einfach das letzte Element der Sequenz, sondern hat den
+ * besonderen Stellenwert eines "on-error" Zweiges des Programms, der immer ausgeführt
+ * wird, auch wenn zuvor ausgeführte Programmschritte einen Fehler gemeldet haben.\n
+ *   Das stark überladene Konzept der Enums mit dem Aufsuchen eines Objektes über eine ID,
+ * wird nicht mehr benötigt; die CCP APIs erzeugen die Prozessorobjekte unter gezielter
+ * Kenntnis ihres Namens und ihrer Bedeutung.\n
+ *   Der Übergang vom Objekt CCP mit seiner Liste aus Prozessoren zum letztendlich
+ * statischen PCAN Basic API muss irgendwo vollzogen werden. Der CAN Kanal ist statisch.
+ * Der CroTransmitter sollte dem CCP Objekt gehören und wäre also nicht statisch. Ein
+ * CroTransmitter bekommt im Zuge seiner Initialisierung einen CAN Kanal. Der geöffnete
+ * Kanal ist dann auch bereits ein echtes Objekt. Er steht demnach nur dem CroTransmitter
+ * für CRO und DTO Message zur Verfügung. Soll zugleich mit dem CCP Protokoll noch weiteres
+ * auf dem CAN Bus passieren, dann müsste zwischen PCAN Basic Channel Handle und
+ * CroTransmitter eine Virtualisiserung stattfinden, die die CCP Bostschaften
+ * herausfiltert, bzw. einleitet, aber andere Botschaften anderen Kunden zur Verfügung
+ * stellt. Da ließe sich nachträglich im Package can realisieren, aber vorerst bekommt der
+ * CroTransmitter einen kompletten PCAN Basic Channel.
+ *   TODO: Basisklasse CcpCommandBase stellt die gemeinsamen resourcen für alle
+ * abgeleiteten Klassen als static Objekte zur Verfügung. Damit können unterschiedliche CCP
+ * Objekte nicht koexistieren. Hier muss eine bessere Datenkapselung gefunden werden.
+ *
  * Copyright (C) 2025 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
  *
  * This program is free software: you can redistribute it and/or modify it
@@ -99,6 +145,7 @@ import winFlashTool.basics.ErrorCounter;
 import peak.can.basic.*;
 import java.util.concurrent.ThreadLocalRandom;
 import winFlashTool.can.CanId;
+import winFlashTool.can.CanDevice;
 import winFlashTool.can.PCANBasicEx;
 
 /**
@@ -147,10 +194,6 @@ public class CCP
 //    /** The PEAK CAN API; the connection of Java to the external DLL. */
 //    private PCANBasic pcanApi_ = null;
 
-    /** The handle of the CAN device or channel, which we are going to use. */
-    // TODO Could become an application parameter
-    private final TPCANHandle canDev_ = TPCANHandle.PCAN_USBBUS1;
-
     /** The 16 Bit station address of the connected ECU. */
     // TODO Needs to become an application parameter
     private final short stationAddr_ = 0x0000;
@@ -167,6 +210,9 @@ public class CCP
     
     /**
      * A new instance of CCP is created. It represents a CCP connection with a ECU.
+     *   @param canDev
+     * All CAN communication will be done with this CAN device. Pass an already opened and
+     * initialized device.
      *   @param canIdCro
      * The CAN ID of the CCP CRO Tx messages.
      *   @param canIdDto
@@ -174,11 +220,7 @@ public class CCP
      *   @param errCnt
      * The error counter to be used for problem reporting.
      */
-    public CCP( CanId canIdCro
-              , CanId canIdDto
-              , ErrorCounter errCnt
-              )
-    {
+    public CCP(CanDevice canDev, CanId canIdCro, CanId canIdDto, ErrorCounter errCnt) {
         errCnt_ = errCnt;
         state_ = StateFlashProcess.DISCONNECTED;
         
@@ -189,13 +231,14 @@ public class CCP
         // TODO CLEAR_MEMORY requires a timeout of at least 10s. All other commands
         // don't. We can add an API to CroTransmitter to temporarily select another
         // timeout.
-        CcpCroTransmitter.CreateCcpCroTransmitter( PCANBasicEx.getPcanBasicApi()
-                                                 , canDev_
-                                                 , /*timeoutTillRxDtoInMs*/ 1000 * 20
-                                                 , canIdCro
-                                                 , canIdDto
-                                                 , errCnt
-                                                 );
+        CcpCommandBase.setCroTransmitter(new CcpCroTransmitter
+                                                    ( canDev
+                                                    , /*timeoutTillRxDtoInMs*/ 1000 * 20
+                                                    , canIdCro
+                                                    , canIdDto
+                                                    , errCnt
+                                                    )
+                                        );
 
         /* Temporary test code: We generate some random code for flashing. */
         final int noBytesToProgram = (ThreadLocalRandom.current().nextInt(12, 66) + 7) & ~0x7;

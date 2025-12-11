@@ -35,6 +35,7 @@ import org.apache.logging.log4j.*;
 import peak.can.basic.*;
 import winFlashTool.basics.ErrorCounter;
 import winFlashTool.can.CanId;
+import winFlashTool.can.CanDevice;
 import winFlashTool.can.PCANBasicEx;
 
 /**
@@ -116,11 +117,8 @@ class CcpCroTransmitter
     /** The state of the state machine. */
     private StateTransmission state_ = StateTransmission.UNDEFINED;
     
-    /** The PEAK CAN API; the connection of Java to the external DLL. */
-    private final PCANBasic canApi_;
-
-    /** The CAN device from the PCANBasic API, which is used for CAN Tx and Rx. */
-    private final TPCANHandle canDev_;
+    /** The CAN device, which is used for CAN Tx and Rx. */
+    private final CanDevice canDev_;
     
     /** The command counter. It cycles from 0 till 255. */
     private byte cmdCntr_ = 0;
@@ -141,77 +139,16 @@ class CcpCroTransmitter
     /** The length of all CRO and DTO messages. */
     private final int MSG_LEN = 8;
     
-    /** The one and only CRO transmitter object. */
-    static private CcpCroTransmitter _croTransmitter = null;
-
-    /**
-     * The one and only instance of CcpCroTransmitter is created. This needs to be
-     * accomplished before getCroTransmitter() is called the very first time.<p>
-     *   The singleton concept implies that only a single CCP channel can be supported at a
-     * time. However, it is possible to have different CCP sessions subsequently, with
-     * different settings. This constructor can be re-invoked at any time. Then, the
-     * transmitter object so far is replaced by the newly created one. Caution, all
-     * coordination of re-creating the transmitter object with the state of the CCP
-     * communication so far is out of scope of this module. The client code needs to take
-     * care.
-     *   @param pcanBasicAPI
-     * The PEAK CAN API; the connection of Java to the external DLL. Needs to be already
-     * initialized.
-     *   @param canDev
-     * All CAN communication will be done with this CAN device. Pass an already initialized
-     * device from the PCANBasic API.
-     *   @param timeoutTillRxDtoInMs
-     * The maximum time, which may elapse after sending the CRO until the DTO arrives. Unit
-     * is Milliseconds.
-     *   @param ccpCanIdCro
-     * The CAN ID of all CRO messages.
-     *   @param ccpCanIdDto
-     * The CAN ID of all DTO messages.
-     *   @param errCnt
-     * The error counter to be used for problem reporting.
-     */
-    static public void CreateCcpCroTransmitter( PCANBasic pcanBasicAPI
-                                              , TPCANHandle canDev
-                                              , int timeoutTillRxDtoInMs
-                                              , CanId ccpCanIdCro
-                                              , CanId ccpCanIdDto
-                                              , ErrorCounter errCnt
-                                              )
-    {
-        _croTransmitter = new CcpCroTransmitter( pcanBasicAPI
-                                               , canDev
-                                               , timeoutTillRxDtoInMs
-                                               , ccpCanIdCro
-                                               , ccpCanIdDto
-                                               , errCnt
-                                               );
-    } /* CreateCcpCroTransmitter */
-    
-    
-    /**
-     * Get the one and only initialized CRO transmitter object for temporary use.
-     *   @return
-     * Get the instance of a CRO transmitter, which had been cretaed last recently using
-     * CreateCcpCroTransmitter(). Get null if CreateCcpCroTransmitter() had not been called
-     * before.
-     */
-    static protected CcpCroTransmitter getCroTransmitter()
-    {
-        return _croTransmitter;
-    }
-
-     
     /**
      * A new instance of CcpCroTransmitter is created.
-     *   @param pcanBasicAPI
-     * The PEAK CAN API; the connection of Java to the external DLL. Needs to be already
-     * initialized.
      *   @param canDev
-     * All CAN communication will be done with this CAN device. Pass an already initialized
-     * device from the PCANBasic API.
+     * All CAN communication will be done with this CAN device. Pass an already opened and
+     * initialized device.
      *   @param timeoutTillRxDtoInMs
      * The maximum time, which may elapse after sending the CRO until the DTO arrives. Unit
-     * is Milliseconds.
+     * is Milliseconds.<p>
+     *   Note, this value can be modified later, e.g., temporarily for the execution of a
+     * long lasting CCP command like Erase.
      *   @param ccpCanIdCro
      * The CAN ID of all CRO messages.
      *   @param ccpCanIdDto
@@ -219,16 +156,14 @@ class CcpCroTransmitter
      *   @param errCnt
      * The error counter to be used for problem reporting.
      */
-    private CcpCroTransmitter( PCANBasic pcanBasicAPI
-                             , TPCANHandle canDev
-                             , int timeoutTillRxDtoInMs
-                             , CanId ccpCanIdCro
-                             , CanId ccpCanIdDto
-                             , ErrorCounter errCnt
-                             )
+    CcpCroTransmitter( CanDevice canDev
+                     , int timeoutTillRxDtoInMs
+                     , CanId ccpCanIdCro
+                     , CanId ccpCanIdDto
+                     , ErrorCounter errCnt
+                     )
     {
         errCnt_ = errCnt;
-        canApi_ = pcanBasicAPI;
         canDev_ = canDev;
         ccpCanIdCro_ = ccpCanIdCro;
         ccpCanIdDto_ = ccpCanIdDto; 
@@ -267,7 +202,7 @@ class CcpCroTransmitter
                                             , (byte)MSG_LEN
                                             , payloadAry
                                             );
-        final TPCANStatus errCode = canApi_.Write(canDev_, canMsg);
+        final TPCANStatus errCode = canDev_.Write(canMsg);
         tiResponseEcuInNs_ = System.nanoTime();
         if(PCANBasicEx.checkReturnCode(errCode))
         {
@@ -333,7 +268,7 @@ class CcpCroTransmitter
             assert state_ == StateTransmission.WAITING_FOR_DTO: "Bad use of class interface";
              
             /* Check PCANBasic API for Rx event. */
-            final TPCANStatus errCode = canApi_.Read(canDev_, canMsg, /*TimestampBuffer*/null);
+            final TPCANStatus errCode = canDev_.Read(canMsg, /*TimestampBuffer*/null);
             if(errCode != TPCANStatus.PCAN_ERROR_QRCVEMPTY)
             {
                 tiResponseEcuInNs_ = System.nanoTime() - tiResponseEcuInNs_;

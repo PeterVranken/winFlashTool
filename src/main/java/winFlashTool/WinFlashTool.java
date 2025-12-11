@@ -41,7 +41,7 @@ import winFlashTool.ccp.CCP;
 //import winFlashTool.ccp.CcpCroTransmitter;
 import winFlashTool.basics.ErrorCounter;
 import winFlashTool.srecParser.MemoryMap;
-import winFlashTool.can.CAN;
+import winFlashTool.can.CanDevice;
 import winFlashTool.can.CanId;
 import peak.can.basic.TPCANHandle;
 import peak.can.basic.TPCANBaudrate;
@@ -330,7 +330,7 @@ public class WinFlashTool
         
         if (success) {
             success = PCANBasicEx.initClass(errCnt_)
-                      &&  CAN.initClass(errCnt_);
+                      &&  CanDevice.initClass(errCnt_);
         }
             
         final String canDeviceName = cmdLineParser_.getString("CAN-device");
@@ -366,22 +366,28 @@ _logger.warn("Test: Application terminates after parser test.");
                 _logger.debug("Start connection test {}/{}.", cycle+1, noTestCycles);
                 success = true;
 
-                CCP ccp = new CCP(canIdCro, canIdDto, errCnt_);
-                assert ccp.getProcessState() == CCP.StateFlashProcess.DISCONNECTED;
+                final CanDevice canDev = new CanDevice();
                 boolean deviceOpened = false;
-                final CAN canDev = new CAN();
                 if(success) {
                     deviceOpened = success = canDev.open( canDeviceName
                                                         , TPCANBaudrate.PCAN_BAUD_500K
                                                         , listOfRxCanIds
                                                         );
                 }
-                if(success)
+                final CCP ccp;
+                if(success) {
+                    ccp = new CCP(canDev, canIdCro, canIdDto, errCnt_);
+                    assert ccp.getProcessState() == CCP.StateFlashProcess.DISCONNECTED;
+                } else {
+                    ccp = null;
+                }
+                if(success) {
                     assert ccp.getProcessState() == CCP.StateFlashProcess.CONNECTING;
-                while(success && !ccp.step())
+                }
+                while(success && !ccp.step()) {
                     assert ccp.getProcessState() != CCP.StateFlashProcess.DISCONNECTED;
-
-                assert ccp.getProcessState() == CCP.StateFlashProcess.DISCONNECTED;
+                }
+                assert !success || ccp.getProcessState() == CCP.StateFlashProcess.DISCONNECTED;
                 if(deviceOpened) {
                     success = canDev.close();
                     deviceOpened = false;
