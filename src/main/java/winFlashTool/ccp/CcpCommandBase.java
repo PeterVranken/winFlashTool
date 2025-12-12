@@ -34,8 +34,20 @@ import java.util.Set;
 import java.util.HashSet;
 import org.apache.logging.log4j.*;
 import winFlashTool.basics.ErrorCounter;
+import winFlashTool.can.CanDevice;
 import peak.can.basic.TPCANMsg;
 import java.util.HashSet;
+
+/**
+ * All actual, derived CCP commands need to share some data, in particular the CAN device
+ * to use. The shared data is called the Toolbox of the commands. 
+ *   @param canDev
+ * The initialized, ready to use CAN device for sending all CRO and receiving all DTO
+ * messages.
+ */
+final record CcpCommandToolbox(CanDevice can) {
+}
+
 
 /**
  * Base class of all CCP command implementations.<p>
@@ -55,8 +67,12 @@ abstract class CcpCommandBase
     /** The global logger object for all progress and error reporting. */
     private static final Logger _logger = LogManager.getLogger(CcpCommandBase.class);
 
-    /* The error counter to be used for error reporting. */
+    /** The error counter to be used for error reporting. */
     static ErrorCounter _errCnt;
+    
+    /** The data, which is shared between all instances of the class, which have been
+        created by the same factory object. */
+    protected CcpCommandToolbox base_;
     
     /** An always available buffer to prepare the payload of a CRO, which is then sent out
         using sendCro(). */
@@ -91,9 +107,26 @@ abstract class CcpCommandBase
      */
     protected CcpCommandBase()
     {
+        base_ = null;
         for(CroCommandId ccpCmd: myCcpCmdIds())
             ccpCmd.setCmd(this);
             
+    } /* CcpCommandBase.CcpCommandBase */
+
+
+    /**
+     * Add the toolbox to a (newly created) CCP command object.
+     *   @param toolbox
+     * The toolbox. To make it immutable, it is not allowed to ever use this method more
+     * than once for a given object.
+     */
+    void setToolbox(CcpCommandToolbox toolbox)
+    {
+        if(base_ == null) {
+            base_ = toolbox;
+        } else {
+            assert false;
+        }            
     } /* CcpCommandBase.CcpCommandBase */
 
 

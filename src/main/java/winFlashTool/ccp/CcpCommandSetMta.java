@@ -42,12 +42,32 @@ public class CcpCommandSetMta extends CcpCommandBase
         the ECU acknowledges the command. */
     private int memoryAddr_;
     
+    /** The index of the affected MTA, either 0 or 1. */
+    private final int idxMta_;
+    
     /**
      * A new instance of CcpCommandSetMta is created.
      */
     protected CcpCommandSetMta()
     {
         memoryAddr_ = 0x00000000;
+        idxMta_ = 0;
+        
+    } /* CcpCommandSetMta.CcpCommandSetMta */
+
+
+    /**
+     * A new instance of CcpCommandSetMta is created.
+     */
+    CcpCommandSetMta(CcpCommandArgs.SetMta args)
+    {
+        memoryAddr_ = 0x00000000;
+        memoryAddr_ = args.address();
+        idxMta_ = args.idxMta();
+        
+        /* We do not support the address extension, which is just a relict from the ancient
+           16 Bit controllers with paging mechanisms. */ 
+        assert args.addressExt() == 0: "Address extension for CCP SET_MTA is not supported";
         
     } /* CcpCommandSetMta.CcpCommandSetMta */
 
@@ -77,14 +97,19 @@ public class CcpCommandSetMta extends CcpCommandBase
      */
     public void start(Object... argAry)
     {
-        /* Parse argument list. */
-        assert argAry.length == 2
-               &&  argAry[0] instanceof Integer
-               &&  argAry[1] instanceof Integer
-             : "Bad argument list. Expect two Integer objects";
-        memoryAddr_ = ((Integer)argAry[0]).intValue();
-        final byte idxMta = ((Integer)argAry[1]).byteValue();
-
+        final byte idxMta;
+        if (argAry.length > 0) {
+            /* Parse argument list. */
+            assert argAry.length == 2
+                   &&  argAry[0] instanceof Integer
+                   &&  argAry[1] instanceof Integer
+                 : "Bad argument list. Expect two Integer objects";
+            memoryAddr_ = ((Integer)argAry[0]).intValue();
+            idxMta = ((Integer)argAry[1]).byteValue();
+        } else {
+            idxMta = (byte)idxMta_;
+        }
+        
         /* Send CAN CRO message with command SET_MTA. */
         _payloadCroAry[0] = CroCommandId.SET_MTA.getCode();
         _payloadCroAry[2] = idxMta; /* The x in MTAx, x=0..1 */
@@ -98,6 +123,32 @@ public class CcpCommandSetMta extends CcpCommandBase
         sendCro(/*noContentBytes*/ 8);
         _logger.printf(Level.DEBUG, "CRO message SET_MTA(0x%06X) sent to ECU.", memoryAddr_);
     }
+
+    /**
+     * The CCP command is started. After return from start(), the caller will repeatedly
+     * call step() - until step() indicates completion of the command.
+     *   @param argAry
+     * The argument list consists of two arguments:<p>
+     *   - The memory address, which sub-sequent CCP command will relate to. It is a 32 Bit
+     * value, expected as an Integer.
+     *   - There are to target addresses, which can be set. Pass 0 or 1 as an Integer to
+     * select either MTA0 or MTA1, respectively.
+     */
+//    public void start()
+//    {
+//        /* Send CAN CRO message with command SET_MTA. */
+//        _payloadCroAry[0] = CroCommandId.SET_MTA.getCode();
+//        _payloadCroAry[2] = (byte)idxMta_; /* The x in MTAx, x=0..1 */
+//        _payloadCroAry[3] = (byte)0; /* Address extension not used in PowerPC. */
+//        
+//        /* Memory address in MSB endianess. */ 
+//        _payloadCroAry[4] = (byte)((memoryAddr_ >> 24) & 0xFF);
+//        _payloadCroAry[5] = (byte)((memoryAddr_ >> 16) & 0xFF);
+//        _payloadCroAry[6] = (byte)((memoryAddr_ >>  8) & 0xFF);
+//        _payloadCroAry[7] = (byte)((memoryAddr_ >>  0) & 0xFF);
+//        sendCro(/*noContentBytes*/ 8);
+//        _logger.printf(Level.DEBUG, "CRO message SET_MTA(0x%06X) sent to ECU.", memoryAddr_);
+//    }
 
     /**
      * All CCP commands are implemented as state machines. This method implements a single

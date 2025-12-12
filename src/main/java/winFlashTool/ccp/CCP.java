@@ -204,6 +204,9 @@ public class CCP
 //    /** The CAN IDs of the CCP connection. */
 //    final CcpCanIds ccpCanIds_;
 
+    /** The CCP command object factory used by this CCP object. */
+    final CcpCommandFactory ccpCmdFactory_;
+    
     /* Temporary test code: We generate some random code for flashing. */
     final byte[] progData_;
     
@@ -228,6 +231,9 @@ public class CCP
            with all modules. */
         CcpCommandBase.setErrorCounter(errCnt);
 
+        final CcpCommandToolbox toolbox = new CcpCommandToolbox(canDev);
+        ccpCmdFactory_ = new CcpCommandFactory(toolbox);
+        
         // TODO CLEAR_MEMORY requires a timeout of at least 10s. All other commands
         // don't. We can add an API to CroTransmitter to temporarily select another
         // timeout.
@@ -245,7 +251,12 @@ public class CCP
         progData_ = new byte[noBytesToProgram];
         for(int i=0; i<noBytesToProgram; ++i)
             progData_[i] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
+        _logger.info("Dummy program assembled with {} Byte", noBytesToProgram);
 
+        /* Initiate the state machine, which stepy through the CCP protocol. The next
+           command sends the first CRO for session connect. */
+        setStateConnecting();
+        
     } /* CCP.CCP */
 
 //    /**
@@ -469,10 +480,18 @@ public class CCP
             if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
             {
                 state_ = StateFlashProcess.SETTING_MTA;
-                currentCcpCmd_ = CroCommandId.SET_MTA.getCmd();
-                final Integer memoryAddr = Integer.valueOf(0xA00000);
-                final Integer idxMta = Integer.valueOf(0);
-                currentCcpCmd_.start(memoryAddr, idxMta);
+                
+                //currentCcpCmd_ = CroCommandId.SET_MTA.getCmd();
+                //final Integer memoryAddr = Integer.valueOf(0xA00000);
+                //final Integer idxMta = Integer.valueOf(0);
+                //currentCcpCmd_.start(memoryAddr, idxMta);
+                final CcpCommandArgs.SetMta args = new CcpCommandArgs.SetMta
+                                                                        ( /*address*/ 0xA00000
+                                                                        , /*addressExt*/ 0
+                                                                        , /*idxMta*/ 0
+                                                                        );
+                currentCcpCmd_ = ccpCmdFactory_.create(args);
+                currentCcpCmd_.start();
             }
             else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)
             {
