@@ -45,7 +45,36 @@ import java.util.HashSet;
  * The initialized, ready to use CAN device for sending all CRO and receiving all DTO
  * messages.
  */
-final record CcpCommandToolbox(CanDevice can) {
+final class CcpCommandToolbox {
+    /** The error counter to be used for error reporting. */
+    ErrorCounter errCnt_;
+    
+    /** An always available buffer to prepare the payload of a CRO, which is then sent out
+        using sendCro(). */
+    final byte[] payloadCroAry_ = new byte[8];
+    
+    /** An always available buffer, which contains the payload of the last recently
+        received DTO message. */
+    final byte[] payloadDtoAry_;
+
+    /** The CAN message representation from the PCAN Basic API of the last recently
+        received DTO message. Note, it is _payloadDtoAry = _msgDto.getData(). */
+    final TPCANMsg msgDto_;
+
+    /** Current memory address, initially set with SET_MTA and modified with the DOWNLOAD
+       and PROGRAMM commands. */
+    int _Mta0;
+    
+    /** The CRO transmitter, which is globally used by all CCP protocol operations in
+        this base class and the derived classes. */
+    CcpCroTransmitter croTransmitter_;
+    
+    CcpCommandToolbox() {
+        /* Create a forever reused PCAN Basic message object for DTO reception and make its
+           data buffer accessible via a field. */
+        msgDto_ = new TPCANMsg();
+        payloadDtoAry_ = msgDto_.getData();
+    }
 }
 
 

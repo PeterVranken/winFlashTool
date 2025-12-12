@@ -231,21 +231,22 @@ public class CCP
            with all modules. */
         CcpCommandBase.setErrorCounter(errCnt);
 
-        final CcpCommandToolbox toolbox = new CcpCommandToolbox(canDev);
-        ccpCmdFactory_ = new CcpCommandFactory(toolbox);
-        
         // TODO CLEAR_MEMORY requires a timeout of at least 10s. All other commands
         // don't. We can add an API to CroTransmitter to temporarily select another
         // timeout.
-        CcpCommandBase.setCroTransmitter(new CcpCroTransmitter
-                                                    ( canDev
-                                                    , /*timeoutTillRxDtoInMs*/ 1000 * 20
-                                                    , canIdCro
-                                                    , canIdDto
-                                                    , errCnt
-                                                    )
-                                        );
+        final CcpCroTransmitter croTransmitter = new CcpCroTransmitter
+                                                        ( canDev
+                                                        , /*timeoutTillRxDtoInMs*/ 1000 * 20
+                                                        , canIdCro
+                                                        , canIdDto
+                                                        , errCnt
+                                                        );
+        CcpCommandBase.setCroTransmitter(croTransmitter);
 
+        final CcpCommandToolbox toolbox = new CcpCommandToolbox();
+        toolbox.croTransmitter_ = croTransmitter;
+        ccpCmdFactory_ = new CcpCommandFactory(toolbox);
+        
         /* Temporary test code: We generate some random code for flashing. */
         final int noBytesToProgram = (ThreadLocalRandom.current().nextInt(12, 66) + 7) & ~0x7;
         progData_ = new byte[noBytesToProgram];
@@ -253,185 +254,11 @@ public class CCP
             progData_[i] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
         _logger.info("Dummy program assembled with {} Byte", noBytesToProgram);
 
-        /* Initiate the state machine, which stepy through the CCP protocol. The next
+        /* Initiate the state machine, which steps through the CCP protocol. The next
            command sends the first CRO for session connect. */
         setStateConnecting();
         
     } /* CCP.CCP */
-
-//    /**
-//     * A new instance of CCP is created. It represents a CCP connection with a ECU.
-//     *   @param errCnt
-//     * The error counter to be used for problem reporting.
-//     */
-//    public CCP(ErrorCounter errCnt)
-//    {
-//        errCnt_ = errCnt;
-//        state_ = StateFlashProcess.DISCONNECTED;
-//        
-//        /* In this project, we just have a single, global error counter, which is shared
-//           with all modules. */
-//        CcpCommandBase.setErrorCounter(errCnt);
-//
-//        /* Set and remind the CN Ids to use for CCP communication. */
-//        ccpCanIds_ = new CcpCanIds( /*canIdCro*/ 100
-//                                  , /*isExtCroId*/ false
-//                                  , /*canIdDto*/ 101
-//                                  , /*isExtDtoId*/ false
-//                                  );
-//
-//        /* Initialize the API opject, which connects us to the PEAK DLLs. */
-//        assert canApi_ == null;
-//        canApi_ = new PCANBasic();
-//        if(canApi_.initializeAPI())
-//        {
-//            _logger.debug("PCANBasic API successfully initialized.");
-//            
-//            /* Print all connected devices. */
-//            // TODO Make this an option. Could be done on log level DEBUG always
-//            // TODO The function doesn't have proper error handling yet
-//            PCANBasicEx.printAttachedChannels(canApi_);
-//         
-//            // TODO CLEAR_MEMORY requires a timeout of at least 10s. All other commands
-//            // don't. We can add an API to CroTransmitter to temporarily select another
-//            // timeout.
-//            CcpCroTransmitter.CreateCcpCroTransmitter( canApi_
-//                                                     , canDev_
-//                                                     , /*timeoutTillRxDtoInMs*/ 1000 * 20
-//                                                     , ccpCanIds_
-//                                                     , errCnt
-//                                                     );
-//            PCANBasicEx.setCanApi(canApi_);
-//        }
-//        else
-//        {
-//            errCnt_.error();
-//            canApi_ = null;
-//            _logger.fatal("Unable to initialize the PEAK PCAN Basic API. Most probable"
-//                          + " reason is the application installation; the PEAK DLLs might"
-//                          + " be not localized. Check application configuration and"
-//                          + " Windows search path. Files PCANBasic.dll and"
-//                          + " PCANBasic_JNI.dll need to be found."
-//                         );
-//        }
-//
-//        /* Temporary test code: We generate some random code for flashing. */
-//        final int noBytesToProgram = (ThreadLocalRandom.current().nextInt(12, 66) + 7) & ~0x7;
-//        progData_ = new byte[noBytesToProgram];
-//        for(int i=0; i<noBytesToProgram; ++i)
-//            progData_[i] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
-//
-//    } /* CCP.CCP */
-//
-//    /**
-//     * Try to connect to a PEAK CAN device.
-//     */
-//    public boolean openCanDevice()
-//    {
-//        assert state_ == StateFlashProcess.DISCONNECTED;
-//        boolean success = true;
-//        
-//        if(canApi_ != null)
-//        {
-//            /* Arguments 3..5 are not used for the Plug&Play device PEAK-USB and
-//               PEAK-USB-FD. We set them to "don't care". */
-//            final TPCANStatus errCode = canApi_.Initialize( canDev_
-//                                                          , TPCANBaudrate.PCAN_BAUD_500K
-//                                                          , /*HwType*/ TPCANType.PCAN_TYPE_NONE
-//                                                          , /*IOPort*/ 0
-//                                                          , /*Interrupt*/ (short)0
-//                                                          );
-//            if(PCANBasicEx.checkReturnCode(errCode))
-//                _logger.debug("PCANBasic device {} successfully initialized.", canDev_);
-//            else
-//            {
-//                success = false;
-//                errCnt_.error();
-//                _logger.fatal( "Can't open PEAK PCAN-USB CAN device {}. This application"
-//                               + " expects a PCAN-USB or PCAN-USB FD device connected to"
-//                               + " a USB port. The device must not be allocated to another"
-//                               + " application, e.g., the PCAN Explorer."
-//                             , canDev_
-//                             );
-//            }
-//        }
-//        else
-//        {
-//            success = false;
-//            errCnt_.error();
-//            _logger.fatal( "Can't open PEAK PCAN-USB CAN device {}. The PCANBasic API"
-//                           + " is not available. See previous error messages for details."
-//                         , canDev_
-//                         );
-//        }
-//        
-//        /* Set the CAN acceptance filter; this application just wants to receive the CAN ID
-//           of the CCP DTO message. */
-//        if(success == true)
-//        {
-//            final TPCANStatus errCode = canApi_.FilterMessages
-//                                                        ( canDev_
-//                                                        , /*FromID*/ ccpCanIds_.canIdDto_
-//                                                        , /*ToID*/ ccpCanIds_.canIdDto_
-//                                                        , /*Mode*/ ccpCanIds_.getDtoMsgMode()
-//                                                        );
-//            if(PCANBasicEx.checkReturnCode(errCode))
-//            {
-//                _logger.debug( "CAN acceptance filter for ID {} configured for Rx DTO"
-//                               + " messages."
-//                             , ccpCanIds_.dtoIdToString()
-//                             );
-//            }
-//            else
-//            {
-//                success = false;
-//                errCnt_.error();
-//                _logger.fatal( "Configuring the CAN acceptance filter for PEAK PCAN-USB"
-//                               + " CAN device {} failed."
-//                             , canDev_
-//                             );
-//            }
-//        }
-//        
-//        if(success == true)
-//            setStateConnecting();
-//        else
-//        {
-//            /* We remain in state DISCONNECTED. */
-//        }
-//
-//        return success;
-//        
-//    } /* openCanDevice */
-//
-//
-//    /**
-//     * Close CAN device after use. This operation should release the device such that other
-//     * applications can acquire and use it, e.g., the PCAN Explorer.
-//     */
-//    public boolean closeCanDevice()
-//    {
-//        assert state_ == StateFlashProcess.DISCONNECTED;
-//        boolean success = false;
-//        final TPCANStatus errCode = canApi_.Uninitialize(canDev_);
-//        if(PCANBasicEx.checkReturnCode(errCode))
-//        {
-//            success = true;
-//            state_ = StateFlashProcess.DISCONNECTED;
-//        }
-//        else
-//        {
-//            errCnt_.error();
-//            _logger.fatal("Can't close PEAK PCAN-USB CAN device.");
-//
-//            /* We still return to state DISCONNECTED. There's nothing else to do and this
-//               enables the client code to retry later. */
-//            state_ = StateFlashProcess.DISCONNECTED;
-//        }
-//        return success;
-//
-//    } /* closeCanDevice */
-
 
     /**
      * Enter state connecting.<p>
