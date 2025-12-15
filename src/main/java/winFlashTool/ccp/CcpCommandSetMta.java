@@ -40,30 +40,25 @@ public class CcpCommandSetMta extends CcpCommandBase
 
     /** Temporary storage of memory address to set with SET_MTA. Will become new MTA when
         the ECU acknowledges the command. */
-    private int memoryAddr_;
-    
+    private final int memoryAddr_;
+
     /** The index of the affected MTA, either 0 or 1. */
     private final int idxMta_;
     
     /**
-     * A new instance of CcpCommandSetMta is created.
-     */
-    protected CcpCommandSetMta()
-    {
-        memoryAddr_ = 0x00000000;
-        idxMta_ = 0;
-        
-    } /* CcpCommandSetMta.CcpCommandSetMta */
-
-
-    /**
-     * A new instance of CcpCommandSetMta is created.
+     * A new instance of CcpCommandSetMta is created and configured for the CCP SET_MTA
+     * command. 
+     *   @param args
+     * A record with all required configuration data.
      */
     CcpCommandSetMta(CcpCommandArgs.SetMta args)
     {
-        memoryAddr_ = 0x00000000;
         memoryAddr_ = args.address();
+        
         idxMta_ = args.idxMta();
+        
+        /* For now, we do not implement any CCP which would ever make use of MTA1. */
+        assert idxMta_ == 0: "MTA1 is not suppoted, yet";
         
         /* We do not support the address extension, which is just a relict from the ancient
            16 Bit controllers with paging mechanisms. */ 
@@ -71,84 +66,28 @@ public class CcpCommandSetMta extends CcpCommandBase
         
     } /* CcpCommandSetMta.CcpCommandSetMta */
 
-
-    /**
-     * Inform the base class, which particular CCP commands are implemented by this class.
-     *   @return
-     * Get the set of enumerated values, which represent CCP commands that are implemented
-     * by this derived class.
-     */
-    protected Set<CroCommandId> myCcpCmdIds()
-    {
-        final Set<CroCommandId> setOfCmdIds = new HashSet<CroCommandId>(1);
-        setOfCmdIds.add(CroCommandId.SET_MTA);
-        return setOfCmdIds;
-    }
-    
     /**
      * The CCP command is started. After return from start(), the caller will repeatedly
      * call step() - until step() indicates completion of the command.
-     *   @param argAry
-     * The argument list consists of two arguments:<p>
-     *   - The memory address, which sub-sequent CCP command will relate to. It is a 32 Bit
-     * value, expected as an Integer.
-     *   - There are to target addresses, which can be set. Pass 0 or 1 as an Integer to
-     * select either MTA0 or MTA1, respectively.
      */
-    public void start(Object... argAry)
+    public void start()
     {
-        final byte idxMta;
-        if (argAry.length > 0) {
-            /* Parse argument list. */
-            assert argAry.length == 2
-                   &&  argAry[0] instanceof Integer
-                   &&  argAry[1] instanceof Integer
-                 : "Bad argument list. Expect two Integer objects";
-            memoryAddr_ = ((Integer)argAry[0]).intValue();
-            idxMta = ((Integer)argAry[1]).byteValue();
-        } else {
-            idxMta = (byte)idxMta_;
-        }
+        final byte idxMta = (byte)idxMta_;
         
         /* Send CAN CRO message with command SET_MTA. */
-        _payloadCroAry[0] = CroCommandId.SET_MTA.getCode();
-        _payloadCroAry[2] = idxMta; /* The x in MTAx, x=0..1 */
-        _payloadCroAry[3] = (byte)0; /* Address extension not used in PowerPC. */
+        final byte[] payloadCroAry = payloadCroAry();
+        payloadCroAry[0] = CroCommandId.SET_MTA.getCode();
+        payloadCroAry[2] = idxMta; /* The x in MTAx, x=0..1 */
+        payloadCroAry[3] = (byte)0; /* Address extension not used in PowerPC. */
         
         /* Memory address in MSB endianess. */ 
-        _payloadCroAry[4] = (byte)((memoryAddr_ >> 24) & 0xFF);
-        _payloadCroAry[5] = (byte)((memoryAddr_ >> 16) & 0xFF);
-        _payloadCroAry[6] = (byte)((memoryAddr_ >>  8) & 0xFF);
-        _payloadCroAry[7] = (byte)((memoryAddr_ >>  0) & 0xFF);
+        payloadCroAry[4] = (byte)((memoryAddr_ >> 24) & 0xFF);
+        payloadCroAry[5] = (byte)((memoryAddr_ >> 16) & 0xFF);
+        payloadCroAry[6] = (byte)((memoryAddr_ >>  8) & 0xFF);
+        payloadCroAry[7] = (byte)((memoryAddr_ >>  0) & 0xFF);
         sendCro(/*noContentBytes*/ 8);
         _logger.printf(Level.DEBUG, "CRO message SET_MTA(0x%06X) sent to ECU.", memoryAddr_);
     }
-
-    /**
-     * The CCP command is started. After return from start(), the caller will repeatedly
-     * call step() - until step() indicates completion of the command.
-     *   @param argAry
-     * The argument list consists of two arguments:<p>
-     *   - The memory address, which sub-sequent CCP command will relate to. It is a 32 Bit
-     * value, expected as an Integer.
-     *   - There are to target addresses, which can be set. Pass 0 or 1 as an Integer to
-     * select either MTA0 or MTA1, respectively.
-     */
-//    public void start()
-//    {
-//        /* Send CAN CRO message with command SET_MTA. */
-//        _payloadCroAry[0] = CroCommandId.SET_MTA.getCode();
-//        _payloadCroAry[2] = (byte)idxMta_; /* The x in MTAx, x=0..1 */
-//        _payloadCroAry[3] = (byte)0; /* Address extension not used in PowerPC. */
-//        
-//        /* Memory address in MSB endianess. */ 
-//        _payloadCroAry[4] = (byte)((memoryAddr_ >> 24) & 0xFF);
-//        _payloadCroAry[5] = (byte)((memoryAddr_ >> 16) & 0xFF);
-//        _payloadCroAry[6] = (byte)((memoryAddr_ >>  8) & 0xFF);
-//        _payloadCroAry[7] = (byte)((memoryAddr_ >>  0) & 0xFF);
-//        sendCro(/*noContentBytes*/ 8);
-//        _logger.printf(Level.DEBUG, "CRO message SET_MTA(0x%06X) sent to ECU.", memoryAddr_);
-//    }
 
     /**
      * All CCP commands are implemented as state machines. This method implements a single
@@ -166,13 +105,13 @@ public class CcpCommandSetMta extends CcpCommandBase
             _logger.debug("ECU acknowledged SET_MTA.");
             
             /* Make new MTA available to other commands, e.g., DOWNLOAD and PROGRAM. */
-            _Mta0 = memoryAddr_;
+            mta0(memoryAddr_);
         }
         else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)
         {
             /* The connect CRO/DTO exchange failed. The reason has been logged. Nothing
                else to do. */
-            _errCnt.error();
+            errCnt().error();
             _logger.error("Can't set MTA in the ECU. See previous error messages"
                           + " for details."
                          );

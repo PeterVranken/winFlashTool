@@ -49,6 +49,24 @@ package winFlashTool.ccp;
 sealed interface CcpCommandArgs {
 
     /**
+     * The arguments of CCP command Disconnect.
+     *   @param stationAddr
+     * The 16 Bit station address of the CCP device, which we want to disconnect from.
+     */
+    record Connect(int stationAddr) implements CcpCommandArgs {
+    }
+    
+    /**
+     * The arguments of CCP command Disconnect.
+     *   @param stationAddr
+     * The 16 Bit station address of the CCP device, which we want to disconnect from.
+     *   @param isEndOfSession
+     * A CCP session can be paused or terminated. Pass true to terminate it.
+     */
+    record Disconnect(int stationAddr, boolean isEndOfSession) implements CcpCommandArgs {
+    }
+    
+    /**
      * The arguments of CCP command SET_MTA.
      *   @param address
      * The byte address, where to subsequently program or erase some bytes.
@@ -63,23 +81,40 @@ sealed interface CcpCommandArgs {
     }
     
     /**
-     * The arguments of CCP command UPLOAD.
-     *   @param address
-     * The byte address, where to program the bytes.
-     *   @param data
-     * The up to five bytes to program at address.
+     * The arguments of CCP command CLEAR_MEMORY.
+     *   @param noBytesToErase
+     * The minimum number of bytes to erase. (The target device may need to erase more
+     * bytes in order to align with its flash sector address boundaries.)
      */
-    record Upload(int address, byte[] data) implements CcpCommandArgs {
+    record ClearMemory(int noBytesToErase) implements CcpCommandArgs {
+    }
+        
+    /**
+     * The arguments of CCP command DOWNLOAD.
+     *   @param data
+     * The bytes to program at current MTA0. Any number of bytes can be specified. The
+     * implementation of the command will break it down into a series of #DOWNLOAD and
+     * #DOWNLOAD_6 commands.
+     */
+    record Download(byte[] data) implements CcpCommandArgs {
     }
     
     /**
-     * The arguments of CCP command CLEAR_MEMORY.
-     *   @param address
-     * The address of the first byte to erase.
-     *   @param noBytes
-     * The number of bytes to erase.
+     * The arguments of CCP command PROGRAM.
+     *   @param data
+     * The bytes to program at current MTA0. Any number of bytes can be specified. The
+     * implementation of the command will break it down into a series of #PROGRAM and
+     * #PROGRAM_6 commands.
      */
-    record ClearMemory(int address, int length) implements CcpCommandArgs {
+    record Program(byte[] data) implements CcpCommandArgs {
     }
-        
+    
+    /**
+     * The arguments of CCP command UPLOAD.
+     *   @param noBytes
+     * The number of bytes to upload from current MTA0.
+     */
+    record Upload(int noBytes) implements CcpCommandArgs {
+    }
+    
 } /* End of interface CcpCommandArgs definition. */

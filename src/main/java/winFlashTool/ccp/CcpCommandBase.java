@@ -40,19 +40,19 @@ import java.util.HashSet;
 
 /**
  * All actual, derived CCP commands need to share some data, in particular the CAN device
- * to use. The shared data is called the Toolbox of the commands. 
+ * to use. The shared data is called the Toolbox of the commands.
  *   @param canDev
  * The initialized, ready to use CAN device for sending all CRO and receiving all DTO
  * messages.
  */
 final class CcpCommandToolbox {
     /** The error counter to be used for error reporting. */
-    ErrorCounter errCnt_;
-    
+    final ErrorCounter errCnt_;
+
     /** An always available buffer to prepare the payload of a CRO, which is then sent out
         using sendCro(). */
-    final byte[] payloadCroAry_ = new byte[8];
-    
+    final byte[] payloadCroAry_;
+
     /** An always available buffer, which contains the payload of the last recently
         received DTO message. */
     final byte[] payloadDtoAry_;
@@ -61,19 +61,35 @@ final class CcpCommandToolbox {
         received DTO message. Note, it is _payloadDtoAry = _msgDto.getData(). */
     final TPCANMsg msgDto_;
 
-    /** Current memory address, initially set with SET_MTA and modified with the DOWNLOAD
-       and PROGRAMM commands. */
-    int _Mta0;
-    
+    /** The current memory address, initially set with SET_MTA and modified with the
+        DOWNLOAD and PROGRAMM commands. */
+    int mta0_;
+
     /** The CRO transmitter, which is globally used by all CCP protocol operations in
         this base class and the derived classes. */
-    CcpCroTransmitter croTransmitter_;
-    
-    CcpCommandToolbox() {
+    final CcpCroTransmitter croTransmitter_;
+
+    /**
+     * Create the new toolbox.<p>
+     *   This toolbox will be owned by a CCP command factory and all CCP command, which are
+     * created by the factory use this toolbox.
+     *   @param croTransmitter
+     * The CRO transmitter, which is used by all CCP protocol operations, using this
+     * tolbox.
+     *   @param errCnt
+     * The error counter to be used for error reporting by all dependent CCP commands.
+     */
+    CcpCommandToolbox(CcpCroTransmitter croTransmitter, ErrorCounter errCnt) {
+        errCnt_ = errCnt;
+        payloadCroAry_ = new byte[8];
+
         /* Create a forever reused PCAN Basic message object for DTO reception and make its
            data buffer accessible via a field. */
         msgDto_ = new TPCANMsg();
         payloadDtoAry_ = msgDto_.getData();
+
+        mta0_ = 0;
+        croTransmitter_ = croTransmitter;
     }
 }
 
@@ -96,50 +112,17 @@ abstract class CcpCommandBase
     /** The global logger object for all progress and error reporting. */
     private static final Logger _logger = LogManager.getLogger(CcpCommandBase.class);
 
-    /** The error counter to be used for error reporting. */
-    static ErrorCounter _errCnt;
-    
     /** The data, which is shared between all instances of the class, which have been
         created by the same factory object. */
-    protected CcpCommandToolbox base_;
-    
-    /** An always available buffer to prepare the payload of a CRO, which is then sent out
-        using sendCro(). */
-    static protected final byte[] _payloadCroAry = new byte[8];
-    
-    /** An always available buffer, which contains the payload of the last recently
-        received DTO message. */
-    static protected final byte[] _payloadDtoAry;
-
-    /** The CAN message representation from the PCAN Basic API of the last recently
-        received DTO message. Note, it is _payloadDtoAry = _msgDto.getData(). */
-    static final TPCANMsg _msgDto;
-
-    /** Current memory address, initially set with SET_MTA and modified with the DOWNLOAD
-       and PROGRAMM commands. */
-    static protected int _Mta0;
-    
-    /** The CRO transmitter, which is globally used by all CCP protocol operations in
-        this base class and the derived classes. */
-    static private CcpCroTransmitter _croTransmitter;
-    
-    static        
-    {
-        /* Create a forever reused PCAN Basic message object for DTO reception and make its
-           data buffer accessible via a field. */
-        _msgDto = new TPCANMsg();
-        _payloadDtoAry = _msgDto.getData();
-    }
+    private CcpCommandToolbox toolbox_;
 
     /**
      * A new instance of CcpCommandBase is created.
      */
     protected CcpCommandBase()
     {
-        base_ = null;
-        for(CroCommandId ccpCmd: myCcpCmdIds())
-            ccpCmd.setCmd(this);
-            
+        toolbox_ = null;
+
     } /* CcpCommandBase.CcpCommandBase */
 
 
@@ -151,51 +134,65 @@ abstract class CcpCommandBase
      */
     void setToolbox(CcpCommandToolbox toolbox)
     {
-        if(base_ == null) {
-            base_ = toolbox;
+        if(toolbox_ == null) {
+            toolbox_ = toolbox;
         } else {
             assert false;
-        }            
-    } /* CcpCommandBase.CcpCommandBase */
+        }
+    } /* CcpCommandBase.setToolbox */
 
 
     /**
-     * Set the error counter, which is globally used by all failure reporting in this base
-     * class and the derived classes.
-     *   @param errCnt
-     * The error counter to be used for problem reporting.
+     * Get the @{linkplain CcpCommandToolbox#errCnt_ error counter} to use by this CCP
+     * command.
      */
-    static public void setErrorCounter(ErrorCounter errCnt)
-    {
-        _errCnt = errCnt;
+    protected ErrorCounter errCnt() {
+        return toolbox_.errCnt_;
     }
 
-    
     /**
-     * Set the CRO transmitter, which is globally used by all CCP protocol operations in
-     * this base class and the derived classes.
-     *   @param croTransmitter
-     * The fully initialized CRO transmitter, which will be used for exchanging all CRO/DTO
-     * messages of all CCP commands.
+     * Get a @{linkplain CcpCommandToolbox#payloadCroAry_ buffer to prepare the payload of
+     * a CRO}.
      */
-    static public void setCroTransmitter(CcpCroTransmitter croTransmitter)
-    {
-        _croTransmitter = croTransmitter;
+    protected byte[] payloadCroAry() {
+        return toolbox_.payloadCroAry_;
+    }
+
+    /** 
+     * Get a @{linkplain CcpCommandToolbox#payloadDtoAry_ buffer} with the payload of the
+     * last recently received DTO message.
+     */
+    protected byte[] payloadDtoAry() {
+        return toolbox_.payloadDtoAry_;
+    }
+
+    /**
+     * Get the current memory address @{linkplain CcpCommandToolbox#mta0_ MTA0}, which is
+     * shared between all CCP commands emitted by the same factory.
+     */
+    protected int mta0() {
+        return toolbox_.mta0_;
     }
     
-    
+    /**
+     * Set the current memory address @{linkplain CcpCommandToolbox#mta0_ MTA0}, which is
+     * shared between all CCP commands emitted by the same factory.
+     */
+    protected void mta0(int mta0) {
+        toolbox_.mta0_ = mta0;
+    }
+
     /**
      * Send a CRO message. The payload of the CAN message is taken from _payloadCroAry
      *   @param noContentBytes
      * The number of meaningful payload bytes in _payloadCroAry. The remaining bytes will
      * be set to a don't care value.
      */
-    static protected void sendCro(int noContentBytes)
+    protected void sendCro(int noContentBytes)
     {
-        _croTransmitter.sendCro(_payloadCroAry, noContentBytes);
+        toolbox_.croTransmitter_.sendCro(toolbox_.payloadCroAry_, noContentBytes);
     }
 
-    
     /**
      * Check for reception of the DTO, which belongs to the previously sent CRO. The
      * function result tells, whether or not the DTO has been received yet. If it has been
@@ -204,27 +201,16 @@ abstract class CcpCommandBase
      * Get the reception status for the DTO. This can be either succes or "still waiting"
      * or an error code.
      */
-    static protected CcpCroTransmitter.ResultTransmission checkRxDto()
+    protected CcpCroTransmitter.ResultTransmission checkRxDto()
     {
-        return _croTransmitter.getDto(_msgDto);
+        return toolbox_.croTransmitter_.getDto(toolbox_.msgDto_);
     }
-
-    /**
-     * Inform the base class, which particular CCP commands are implemented by this class.
-     *   @return
-     * Get the set of enumerated values, which represent CCP commands that are implemented
-     * by the derived class.
-     */
-    protected abstract Set<CroCommandId> myCcpCmdIds();
 
     /**
      * The CCP command is started. After return from start(), the caller will repeatedly
      * call step() - until step() indicates completion of the command.
-     *   @param argAry
-     * A list of optional arguments. Which one, will depend on the actual command to
-     * implement.
      */
-    public abstract void start(Object... argAry);
+    public abstract void start();
 
     /**
      * All CCP commands are implemented as state machines. This method implements a single
@@ -235,7 +221,7 @@ abstract class CcpCommandBase
      * is called -- until the command is re-started and executed again.
      */
     public abstract CcpCroTransmitter.ResultTransmission step();
-    
+
 } /* End of class CcpCommandBase definition. */
 
 

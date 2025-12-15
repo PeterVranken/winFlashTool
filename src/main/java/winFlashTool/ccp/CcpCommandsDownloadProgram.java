@@ -44,7 +44,7 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
     private final boolean isDownload_;
 
     /** The data to download. */
-    private byte[] dataToDownload_;
+    private final byte[] dataToDownload_;
 
     /** Number of bytes from dataToDownload_, which have not been transmitted to the ECU
         yet. */
@@ -57,21 +57,36 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
     private int noBytesThisTime_;
     
     /**
-     * A new instance of CcpCommandsDownloadProgram is created.
-     *   @param isDownload
-     * Pass true if CCP DOWNLOAD or DOWNLOAD_6 commands are required and false for PROGRAM
-     * or PROGRAM_6 commands.
+     * A new instance of CcpCommandsDownloadProgram is created and configured for a number
+     * of CCP DOWNLOAD commands.
+     *   @param args
+     * A record with all required configuration data.
      */
-    protected CcpCommandsDownloadProgram(boolean isDownload)
+    protected CcpCommandsDownloadProgram(CcpCommandArgs.Download args)
     {
-        isDownload_ = isDownload;
-        dataToDownload_ = null;
+        isDownload_ = true;
+        dataToDownload_ = args.data();
         noBytesToDownload_ = 0;
         readPos_ = 0;
         noBytesThisTime_ = 0;
 
     } /* CcpCommandsDownloadProgram.CcpCommandsDownloadProgram */
 
+    /**
+     * A new instance of CcpCommandsDownloadProgram is created and configured for a number
+     * of CCP PROGRAM commands.
+     *   @param args
+     * A record with all required configuration data.
+     */
+    protected CcpCommandsDownloadProgram(CcpCommandArgs.Program args)
+    {
+        isDownload_ = false;
+        dataToDownload_ = args.data();
+        noBytesToDownload_ = 0;
+        readPos_ = 0;
+        noBytesThisTime_ = 0;
+
+    } /* CcpCommandsDownloadProgram.CcpCommandsDownloadProgram */
 
     /**
      * Compose a CRO message with the next bytes to download/program and update status of
@@ -98,11 +113,12 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
             else
                 ccpCmdId = CroCommandId.PROGRAM.getCode();
         }
-        _payloadCroAry[0] = ccpCmdId;
+        final byte[] payloadCroAry = payloadCroAry();
+        payloadCroAry[0] = ccpCmdId;
         final int idxByteWithData;
         if(noBytesThisTime_ < 6)
         {
-            _payloadCroAry[2] = (byte)noBytesThisTime_;
+            payloadCroAry[2] = (byte)noBytesThisTime_;
             idxByteWithData = 3;
         }
         else
@@ -111,12 +127,12 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
         /* Copy next block of bytes into the CRO message. */
         System.arraycopy( dataToDownload_
                         , readPos_
-                        , _payloadCroAry
+                        , payloadCroAry
                         , idxByteWithData
                         , noBytesThisTime_
                         );
         _logger.trace( "CRO message {} sent with {} Byte data. {} Byte remaining."
-                     , CroCommandId.fromCode(_payloadCroAry[0]).getCmdName()
+                     , CroCommandId.fromCode(payloadCroAry[0]).getCmdName()
                      , noBytesThisTime_
                      , noBytesToDownload_ - noBytesThisTime_
                      );
@@ -124,44 +140,14 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
 
 
     /**
-     * Inform the base class, which particular CCP commands are implemented by this class.
-     *   @return
-     * Get the set of enumerated values, which represent CCP commands that are implemented
-     * by this derived class.
-     */
-    protected Set<CroCommandId> myCcpCmdIds()
-    {
-        final Set<CroCommandId> setOfCmdIds = new HashSet<CroCommandId>(4);
-        if(isDownload_)
-        {
-            setOfCmdIds.add(CroCommandId.DOWNLOAD);
-            setOfCmdIds.add(CroCommandId.DOWNLOAD_6);
-        }
-        else
-        {
-            setOfCmdIds.add(CroCommandId.PROGRAM);
-            setOfCmdIds.add(CroCommandId.PROGRAM_6);
-        }
-        return setOfCmdIds;
-    }
-    
-
-    /**
      * The CCP command is started. After return from start(), the caller will repeatedly
      * call step() - until step() indicates completion of the command.
-     *   @param argAry
-     * The argument list consists of a single argument: An array of byte values with the
-     * bytes to download or program. The array can have 1.. elements.
      */
-    public void start(Object... argAry)
+    public void start()
     {
-        /* Parse argument list. */
-        assert argAry.length == 1
-               &&  argAry[0] instanceof byte[]
-               &&  ((byte[])argAry[0]).length > 0
-             : "Bad argument list. Expect a byte array with up to six elements";
-        dataToDownload_ = (byte[])argAry[0];
+        assert dataToDownload_ != null;
         noBytesToDownload_ = dataToDownload_.length;
+        assert noBytesToDownload_ > 0: "Empty program is not supported";
         readPos_ = 0;
 
         /* Send CAN CRO message with appropriate command ID. */
@@ -173,7 +159,7 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
                       , isDownload_? "Download": "Program"
                       , noBytesToDownload_ 
                       , isDownload_? "to": "at"
-                      , _Mta0
+                      , mta0()
                       );
     } /* start */
 
@@ -192,23 +178,24 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
         if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
         {
             /* The new MTA is returned as 4 bytes with MSB endianess. */
-            final int newMta = (PCANBasicEx.b2i(_payloadDtoAry[4]) << 24)
-                               + (PCANBasicEx.b2i(_payloadDtoAry[5]) << 16)
-                               + (PCANBasicEx.b2i(_payloadDtoAry[6]) <<  8)
-                               + (PCANBasicEx.b2i(_payloadDtoAry[7]) <<  0);
+            final byte[] payloadDtoAry = payloadDtoAry();
+            final int newMta = (PCANBasicEx.b2i(payloadDtoAry[4]) << 24)
+                               + (PCANBasicEx.b2i(payloadDtoAry[5]) << 16)
+                               + (PCANBasicEx.b2i(payloadDtoAry[6]) <<  8)
+                               + (PCANBasicEx.b2i(payloadDtoAry[7]) <<  0);
 
             _logger.printf( Level.TRACE
                           , "ECU acknowledges data transfer. New MTA is 0x%06X."
                           , newMta
                           );
 
-            final int expectedNewMta = _Mta0 + noBytesThisTime_;
+            final int expectedNewMta = mta0() + noBytesThisTime_;
             if(newMta == expectedNewMta)
             {
                 /* Update the status, where we are with the download. */
                 noBytesToDownload_ -= noBytesThisTime_;
                 readPos_ += noBytesThisTime_;
-                _Mta0 = expectedNewMta;
+                mta0(expectedNewMta);
 
                 /* Send next chunk of data if there are bytes left. */
                 if(noBytesToDownload_ > 0)
@@ -221,7 +208,7 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
             else
             {
                 /* There is a communication problem. We abort the download. */
-                _errCnt.error();
+                errCnt().error();
                 _logger.printf( Level.ERROR
                               , "MTA update error during download/program to/in the ECU."
                                 + " Expected MTA 0x%06X but received 0x%06X."
@@ -235,13 +222,13 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
         {
             /* The connect CRO/DTO exchange failed. The reason has been logged. Nothing
                else to do. */
-            _errCnt.error();
+            errCnt().error();
             _logger.printf( Level.ERROR
                           , "Can't %s data %s the ECU. Failing memory address is 0x%06X. See"
                             + " previous error messages for details." 
                           , isDownload_? "download": "program"
                           , isDownload_? "to": "in"
-                          , _Mta0
+                          , mta0()
                           );
         }
         else

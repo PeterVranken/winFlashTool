@@ -39,55 +39,43 @@ public class CcpCommandClearMemory extends CcpCommandBase
     /** The global logger object for all progress and error reporting. */
     private static final Logger _logger = LogManager.getLogger(CcpCommandClearMemory.class);
 
+    /** All required command arguments, provided at object creation time. */
+    private final CcpCommandArgs.ClearMemory args_;
+        
     /**
-     * A new instance of CcpCommandClearMemory is created.
+     * A new instance of CcpCommandClearMemory is created and configured for the CCP
+     * #CLEAR_MEMORY command.
+     *   @param args
+     * A record with all required configuration data.
      */
-    protected CcpCommandClearMemory()
+    protected CcpCommandClearMemory(CcpCommandArgs.ClearMemory args)
     {
+        args_ = args;
+        
     } /* CcpCommandClearMemory.CcpCommandClearMemory */
 
 
     /**
-     * Inform the base class, which particular CCP commands are implemented by this class.
-     *   @return
-     * Get the set of enumerated values, which represent CCP commands that are implemented
-     * by this derived class.
-     */
-    protected Set<CroCommandId> myCcpCmdIds()
-    {
-        final Set<CroCommandId> setOfCmdIds = new HashSet<CroCommandId>(1);
-        setOfCmdIds.add(CroCommandId.CLEAR_MEMORY);
-        return setOfCmdIds;
-    }
-    
-    /**
      * The CCP command is started. After return from start(), the caller will repeatedly
      * call step() - until step() indicates completion of the command.
-     *   @param argAry
-     * The argument list consists of a single argument: The number of Byte to erase in the
-     * memory. It is a 32 Bit value, expected as an Integer.
      */
-    public void start(Object... argAry)
+    public void start()
     {
-        /* Parse argument list. */
-        assert argAry.length == 1
-               &&  argAry[0] instanceof Integer
-             : "Bad argument list. Expect a single Integer object";
-        final int memorySize = ((Integer)argAry[0]).intValue();
+        final byte[] payloadCroAry = payloadCroAry();
         
         /* Send CAN CRO message with command CLEAR_MEMORY. */
-        _payloadCroAry[0] = CroCommandId.CLEAR_MEMORY.getCode();
+        payloadCroAry[0] = CroCommandId.CLEAR_MEMORY.getCode();
         
-        /* Memory block size in MSB endianess. */ 
-        _payloadCroAry[2] = (byte)((memorySize >> 24) & 0xFF);
-        _payloadCroAry[3] = (byte)((memorySize >> 16) & 0xFF);
-        _payloadCroAry[4] = (byte)((memorySize >>  8) & 0xFF);
-        _payloadCroAry[5] = (byte)((memorySize >>  0) & 0xFF);
+        /* Memory block size in MSB endianess. */
+        payloadCroAry[2] = (byte)((args_.noBytesToErase() >> 24) & 0xFF);
+        payloadCroAry[3] = (byte)((args_.noBytesToErase() >> 16) & 0xFF);
+        payloadCroAry[4] = (byte)((args_.noBytesToErase() >>  8) & 0xFF);
+        payloadCroAry[5] = (byte)((args_.noBytesToErase() >>  0) & 0xFF);
         
         sendCro(/*noContentBytes*/ 6);
         _logger.printf( Level.DEBUG
                       , "CRO message CLEAR_MEMORY(0x%06X) sent to ECU."
-                      , memorySize
+                      , args_.noBytesToErase()
                       );
     }
 
@@ -110,7 +98,7 @@ public class CcpCommandClearMemory extends CcpCommandBase
         {
             /* The connect CRO/DTO exchange failed. The reason has been logged. Nothing
                else to do. */
-            _errCnt.error();
+            errCnt().error();
             _logger.error("Can't erase ECU memory. See previous error messages for"
                           + " details."
                          );

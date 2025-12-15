@@ -75,20 +75,38 @@ class SRecord extends Range {
         return null;
     }
 
+    /**
+     * Combine two SRecords, which connect to one another.
+     *   @return
+     * Get the concatenated two SRanges.
+     *   @param other     
+     * The second SRecord, which needs to either begin immediately at the first address
+     * behind this SRecord or end at the address, where this begins. There must neither be
+     * a gap between the two SREcords nor an overlap.
+     *   @warning
+     * We override the base class' mtehod, although the operation is not generally defines
+     * for SRecord. Two ranges can be joind if the y overlap but two SRecords can't: what
+     * to do with the overlapping data if not by chance identical in both operands?<p>
+     *   This implementation fails if the two ranges don't properly connet to one another.
+     */
     @Override
     public SRecord join(Range other) {
         assert other instanceof SRecord: "SRecord can only be joined with other SRecord";
-
-        /* Join the address ranges. super.join fails if ranges aren't adjacent. */
-        super.join(other);
-
         /* Now join the data chunks, too. */
         if (connectsBefore(other)) {
             data_ = ArrayUtils.addAll(data_, ((SRecord)other).data_);
         } else {
-            assert connectsBehind(other): "Internal implementation error";
+            if (!connectsBehind(other)) {
+                throw new IndexOutOfBoundsException( "SRecord.join is not fully"
+                                                     + " implemented. Address ranges must"
+                                                     + " not overlap"
+                                                   );
+            }
             data_ = ArrayUtils.addAll(((SRecord)other).data_, data_);
         }
+
+        /* Join the address ranges. super.join fails if ranges aren't adjacent. */
+        super.join(other);
 
         return this;
     }

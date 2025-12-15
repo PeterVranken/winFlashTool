@@ -38,48 +38,34 @@ public class CcpCommandConnect extends CcpCommandBase
     /** The global logger object for all progress and error reporting. */
     private static final Logger _logger = LogManager.getLogger(CcpCommandConnect.class);
 
+    /** All required command arguments, provided at object creation time. */
+    private final CcpCommandArgs.Connect args_;
+    
     /**
-     * A new instance of CcpCommandConnect is created.
+     * A new instance of CcpCommandConnect is created and configured for the CCP
+     * #CONNECT command.
+     *   @param args
+     * A record with all required configuration data.
      */
-    protected CcpCommandConnect()
+    protected CcpCommandConnect(CcpCommandArgs.Connect args)
     {
+        args_ = args;
+
     } /* CcpCommandConnect.CcpCommandConnect */
 
-
-    /**
-     * Inform the base class, which particular CCP commands are implemented by this class.
-     *   @return
-     * Get the set of enumerated values, which represent CCP commands that are implemented
-     * by this derived class.
-     */
-    protected Set<CroCommandId> myCcpCmdIds()
-    {
-        final Set<CroCommandId> setOfCmdIds = new HashSet<CroCommandId>(1);
-        setOfCmdIds.add(CroCommandId.CONNECT);
-        return setOfCmdIds;
-    }
-    
     /**
      * The CCP command is started. After return from start(), the caller will repeatedly
      * call step() - until step() indicates completion of the command.
-     *   @param argAry
-     * The argument list consists of a single argument: The station address of the ECU to
-     * connect to. It is a 16 Bit value, expected as an Integer.
      */
-    public void start(Object... argAry)
+    public void start()
     {
-        /* Parse argument list. */
-        assert argAry.length == 1
-               &&  argAry[0] instanceof Integer
-             : "Bad argument list. Expect a single Integer object";
-        final int stationAddr = ((Integer)argAry[0]).intValue();
-        
         /* Send CAN CRO message with command CONNECT. */
-        _payloadCroAry[0] = CroCommandId.CONNECT.getCode();
-        _payloadCroAry[2] = (byte)(stationAddr & 0x00FF);
-        _payloadCroAry[3] = (byte)((stationAddr & 0xFF00) >> 8);
+        final byte[] payloadCroAry = payloadCroAry();
+        payloadCroAry[0] = CroCommandId.CONNECT.getCode();
+        payloadCroAry[2] = (byte)(args_.stationAddr() & 0x00FF);
+        payloadCroAry[3] = (byte)((args_.stationAddr() & 0xFF00) >> 8);
         sendCro(/*noContentBytes*/ 4);
-        _logger.debug("CRO message CONNECT sent to station {}.", stationAddr);
+        _logger.debug("CRO message CONNECT sent to station {}.", args_.stationAddr());
     }
 
     /**
@@ -101,7 +87,7 @@ public class CcpCommandConnect extends CcpCommandBase
         {
             /* The connect CRO/DTO exchange failed. The reason has been logged. Nothing
                else to do. */
-            _errCnt.error();
+            errCnt().error();
             _logger.error("Can't connect to the ECU. See previous error messages for"
                           + " details."
                          );

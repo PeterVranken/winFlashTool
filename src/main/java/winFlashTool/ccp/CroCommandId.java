@@ -1,5 +1,5 @@
 /**
- * @file CcpCommandBase.java
+ * @file CroCommandId.java
  * Enumeration of supported CCP commands.
  *
  * Copyright (C) 2025 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
@@ -17,8 +17,10 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-/* Interface of class CcpCommandBase
- *   CcpCommandBase
+/* Interface of class CroCommandId
+ *   getCode
+ *   getCmdName
+ *   fromCode
  */
 
 package winFlashTool.ccp;
@@ -47,37 +49,16 @@ enum CroCommandId
     private final byte cmdId_;
     private static final Map<Byte, CroCommandId> lookupMap_ = new HashMap<>();
 
-    /** Each enumerated value stores the singleton object of base class CcpCommandBase for
-        efficient O(1) lookup. */
-    private CcpCommandBase ccpCmdProcessor_;
-
     /**
      * An enumeration in Java is a number of static singleton objects, that represent
      * the enumerated values and which are automatically created once and forever.
      * After creation of all of these objects, we can create a hash map of all of these
      * values in order to later find them back by value.
      */
-    static
-    {
-        /* The constructors of the CCP command implementations enter themselves in the
-           related enumerated value defined in this module. The later lookup is done only
-           via the enumeration. Therefore, the returned reference to the newly created
-           object is not required and we drop it. */
-        new CcpCommandConnect();
-        new CcpCommandSetMta();
-        new CcpCommandClearMemory();
-        new CcpCommandsDownloadProgram(/*isDownload*/ true);
-        new CcpCommandsDownloadProgram(/*isDownload*/ false);
-        new CcpCommandDisconnect();
-                
+    static {
         /* Iterate all enumerated values and put them in a hash map. */
-        for(CroCommandId cmd: values())
-        {
+        for (CroCommandId cmd: values()) {
             lookupMap_.put(cmd.cmdId_, cmd);
-            
-            /* This assertion fires if you forget to add the construction of the
-               implementation object to the code block above the loop. */
-            assert cmd.ccpCmdProcessor_ != null;
         }
     }
 
@@ -91,8 +72,7 @@ enum CroCommandId
      * The byte value associated with a particular enumerated value from the
      * enumeration.
      */
-    CroCommandId(byte cmdId)
-    {
+    private CroCommandId(byte cmdId) {
         cmdId_ = cmdId;
 
         /* Note, from the constructor, it is not allowed to access static fields of the
@@ -109,8 +89,7 @@ enum CroCommandId
      *   @return
      * CCP command code.
      */
-    public byte getCode()
-    {
+    public byte getCode() {
         return cmdId_;
     }
 
@@ -119,8 +98,7 @@ enum CroCommandId
      *   @return
      * CCP command by human readable name.
      */
-    public String getCmdName()
-    {
+    public String getCmdName() {
         return toString();
     }
 
@@ -135,42 +113,19 @@ enum CroCommandId
      * This runtime exception is thrown if ccpCmdCode is not the byte code of any
      * enumerated value.
      */
-    public static CroCommandId fromCode(byte ccpCmdCode)
-    {
+    public static CroCommandId fromCode(byte ccpCmdCode) {
         CroCommandId cmd = lookupMap_.get(ccpCmdCode);
-        if(cmd == null) 
-        {
+        if (cmd == null) {
             throw new IllegalArgumentException("Unknown command ID: " + ccpCmdCode);
         }
         return cmd;
     }
     
-    
-    /**
-     * Get the implementation of the enumerated CCP command.
-     *   @return
-     * Get the object, which implements the CAN message exchange; it sends the CRO and it
-     * receives and evaluates the DTO.
-     */
-    public CcpCommandBase getCmd() 
-    {
-        assert ccpCmdProcessor_ != null;
-        return ccpCmdProcessor_;
+    // Tmp to make it compilable
+    public CcpCommandBase getCmd() {
+        assert false;
+        return null;
     }
-    
-    
-    /**
-     * Initialization only: Associate the CCP command implementation with the enumerated
-     * value.<p>
-     *   This function is called once from the constructor of the implementation object; it
-     * cnnects itself with the related enumerated value.
-     */
-    void setCmd(CcpCommandBase ccpCmdProcessor)
-    {
-        assert ccpCmdProcessor_ == null;
-        ccpCmdProcessor_ = ccpCmdProcessor;
-    }
-
 } /* End of class CroCommandId definition. */
 
 

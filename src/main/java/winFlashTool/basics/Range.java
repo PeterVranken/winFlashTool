@@ -33,47 +33,47 @@ import java.util.*;
 public class Range implements Comparable<Range>
 {
     /** First address (inclusive) of range. */
-    private long from;
+    private long from_;
 
     /** Last address (exclusive) of range. */
-    private long till;
+    private long till_;
 
     public Range(long from, long till) {
-        assert from <= till: "Empty ranges aren't supported";
-        this.from = from;
-        this.till = till;
+        assert from < till: "Empty ranges aren't supported";
+        from_ = from;
+        till_ = till;
     }
 
     public Range(Range r) {
-        this(r.from, r.till);
+        this(r.from_, r.till_);
     }
 
     public long from() {
-        return from;
+        return from_;
     }
 
     public long till() {
-        return till;
+        return till_;
     }
 
     public long size() {
-        return till - from;
+        return till_ - from_;
     }
 
     public boolean isBefore(Range other) {
-        return this.till <= other.from;
+        return till_ <= other.from_;
     }
 
     public boolean connectsBefore(Range other) {
-        return this.till == other.from;
+        return till_ == other.from_;
     }
 
     public boolean connectsBehind(Range other) {
-        return this.from == other.till;
+        return from_ == other.till_;
     }
 
     public boolean isBehind(Range other) {
-        return this.from >= other.till;
+        return from_ >= other.till_;
     }
 
     public boolean connectsTo(Range other) {
@@ -81,12 +81,12 @@ public class Range implements Comparable<Range>
     }
 
     public boolean overlaps(Range other) {
-        return this.from < other.till && other.from < this.till;
+        return from_ < other.till_ && other.from_ < till_;
     }
 
     public static Range intersect(Range a, Range b) {
         if (a.overlaps(b)) {
-            return new Range(Math.max(a.from, b.from), Math.min(a.till, b.till));
+            return new Range(Math.max(a.from_, b.from_), Math.min(a.till_, b.till_));
         } else {
             return null;
         }
@@ -94,8 +94,8 @@ public class Range implements Comparable<Range>
 
     public Range intersect(Range other) {
         assert overlaps(other): "Intersect would delete this object";
-        from = Math.max(this.from, other.from);
-        till = Math.min(this.till, other.till);
+        from_ = Math.max(from_, other.from_);
+        till_ = Math.min(till_, other.till_);
         return this;
     }
 
@@ -110,7 +110,7 @@ public class Range implements Comparable<Range>
      * The other range.
      */
     public boolean isSubtractable(Range other) {
-        return other.from <= this.from  ||  other.till >= this.till;
+        return other.from_ <= from_  ||  other.till_ >= till_;
     }
 
     /**
@@ -127,60 +127,106 @@ public class Range implements Comparable<Range>
      * The second, subtracted range.
      */
     public static Range subtract(Range a, Range b) {
-        assert a.isSubtractable(b);
-        if (a.till > b.from  &&  b.till >= a.till) {
-            /* Result is first part of a, until where b begins. */
-            if (b.from > a.from) {
-                return new Range(a.from, b.from);
+        // @todo Can be simplified. Re-order the conditions.
+        //assert a.isSubtractable(b);
+        //if (a.till_ > b.from_  &&  b.till_ >= a.till_) {
+        //    /* Result is first part of a, until where b begins. */
+        //    if (b.from_ > a.from_) {
+        //        return new Range(a.from_, b.from_);
+        //    } else {
+        //        /* Result is the empty range. This is represented by null. */
+        //        return null;
+        //    }
+        //} else if (a.from_ >= b.from_) {
+        //    if (b.till_ >= a.till_) {
+        //        /* a is entirely inside b. This is not representable as Range object but -
+        //           at least for a static method - as null. */
+        //        return null;
+        //    } else if(b.till_ > a.from_) {
+        //        /* Result is last part of a, from where b ends. */
+        //        if (a.till_ > b.till_) {
+        //            return new Range(b.till_, a.till_);
+        //        } else {
+        //           /* Result is the empty range. This is represented by null. */
+        //            return null;
+        //        }
+        //    } else {
+        //        assert a.isBehind(b);
+        //        return a;
+        //    }
+        //} else {
+        //    assert a.isBefore(b);
+        //    return a;
+        //}
+        if (b.from_ <= a.from_) {
+            if (b.till_ <= a.from_) {
+                /* b is entirely before a. Result is a unmodified. */
+                return a;
+            } else if (b.till_ < a.till_) {
+                /* Result is last part of a, from where b ends. */
+                return new Range(b.till_, a.till_);
             } else {
                 /* Result is the empty range. This is represented by null. */
                 return null;
             }
-        } else if (a.from >= b.from) {
-            if (b.till >= a.till) {
-                /* a is entirely inside b. This is not representable as Range object but -
-                   at least for a static method - as null. */
-                return null;
-            } else if(b.till > a.from) {
-                /* Result is last part of a, from where b ends. */
-                if (a.till > b.till) {
-                    return new Range(b.till, a.till);
-                } else {
-                   /* Result is the empty range. This is represented by null. */
-                    return null;
-                }
-            } else {
-                assert a.isBehind(b);
-                return a;
-            }
+        } else if(b.from_ < a.till_) {
+            assert b.till_ >= a.till_: "Difference of ranges is undefined, not a range";
+            /* Result is first part of a, until where b begins. */
+            return new Range(a.from_, b.from_);
         } else {
-            assert a.isBefore(b);
+            /* b is entirely behind a. Result is a unmodified. */
             return a;
         }
     } /* Range.subtract */
 
+    /**
+     * Join two ranges, which don't have a gap in between them.
+     *   @param a
+     * The first range.
+     *   @param b
+     * The second range. It may directly connect to a or overlap with a. Otherwise an
+     * assertion fires.
+     */
     public static Range join(Range a, Range b) {
         assert a.connectsTo(b) || a.overlaps(b): "Ranges not connected";
-        return new Range( Math.min(a.from, b.from)
-                               , Math.max(a.till, b.till)
-                               );
+        return new Range(Math.min(a.from_, b.from_), Math.max(a.till_, b.till_));
     }
 
+    /**
+     * Join this range with another one.<p>
+     *   The two ranges don't have a gap in between them.
+     *   @param other
+     * The range to join with this range. It may directly connect to this or overlap with
+     * this. Otherwise an assertion fires.
+     */
     public Range join(Range other) {
         assert connectsTo(other) || overlaps(other): "Ranges not connected";
-        from = Math.min(this.from, other.from);
-        till = Math.max(this.till, other.till);
+        from_ = Math.min(from_, other.from_);
+        till_ = Math.max(till_, other.till_);
         return this;
     }
-
+    
+    /** 
+     * The Comparable interface is implemented to allow srting of ranges.
+     *   @return
+     * A range will be "lower/greater than" another if its first address comes
+     * before/behind the first address of the other range. The function will return -1/1 in
+     * this case. 0 is returned for ranges with same first address. (The last address of
+     * the ranges is not considered.)
+     *   @param other
+     * The second operand of the comparison.
+     *   @todo
+     * For two ranges with same start address, we could make the result dependent on the
+     * end address of the range; the shorter one should be "lower than" the longer one.
+     */
     @Override
     public int compareTo(Range other) {
-        return Long.compare(this.from, other.from);
+        return Long.compare(from_, other.from_);
     }
 
     @Override
     public String toString() {
-        return "[0x" + Long.toHexString(from) + ", 0x" + Long.toHexString(till) + ")";
+        return "[0x" + Long.toHexString(from_) + ", 0x" + Long.toHexString(till_) + ")";
     }
 } /* End of class Range definition. */
 

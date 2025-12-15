@@ -73,7 +73,7 @@ public class Mpc5775BE_C55FMC extends Flash {
              , new Range(0x00020000, 0x00030000), Integer.valueOf(2), Boolean.valueOf(false) /* Block type Mid, EEPROM */
              , new Range(0x00030000, 0x00040000), Integer.valueOf(3), Boolean.valueOf(false) /* Block type Mid, EEPROM */
              , new Range(0x00600000, 0x00604000), Integer.valueOf(4), Boolean.valueOf(false) /* Block type High, CSE */
-             , new Range(0x00640000, 0x00608000), Integer.valueOf(5), Boolean.valueOf(false) /* Block type High, CSE */
+             , new Range(0x00604000, 0x00608000), Integer.valueOf(5), Boolean.valueOf(false) /* Block type High, CSE */
              , new Range(0x00800000, 0x00840000), Integer.valueOf(8), Boolean.valueOf(true)  /* Block type Large, Boot */
              , new Range(0x00840000, 0x00880000), Integer.valueOf(8), Boolean.valueOf(true)  /* Block type Large, Application code */
              , new Range(0x00880000, 0x008C0000), Integer.valueOf(8), Boolean.valueOf(true)  /* Block type Large, Application code */

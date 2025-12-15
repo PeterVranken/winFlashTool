@@ -10,6 +10,7 @@ plugins {
 //println "PEAK-DLLs are expected in: ${projectDir}\\lib\\PEAK\\x86_64"
 application {
     mainClass = 'winFlashTool.WinFlashTool'
+    applicationDefaultJvmArgs = ['-ea']   // enable assertions
 }
 group = 'winFlashTool'
 version = '0.1'

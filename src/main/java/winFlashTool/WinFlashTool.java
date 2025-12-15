@@ -377,12 +377,9 @@ _logger.warn("Test: Application terminates after parser test.");
                 final CCP ccp;
                 if(success) {
                     ccp = new CCP(canDev, canIdCro, canIdDto, errCnt_);
-                    assert ccp.getProcessState() == CCP.StateFlashProcess.DISCONNECTED;
+                    assert ccp.getProcessState() == CCP.StateFlashProcess.CONNECTING;
                 } else {
                     ccp = null;
-                }
-                if(success) {
-                    assert ccp.getProcessState() == CCP.StateFlashProcess.CONNECTING;
                 }
                 while(success && !ccp.step()) {
                     assert ccp.getProcessState() != CCP.StateFlashProcess.DISCONNECTED;

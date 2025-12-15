@@ -1,82 +1,11 @@
 /**
  * @file CCP.java
  * CAN Calibration Protocol for download of binary and flashing. This module implements the
- * needed subset of CCP.
+ * needed subset of CCP. The needed processes are decomposed into sequences of required CCP
+ * commands and these commands are then sequentially executed. 
  *
- * Redesign concept:<p>
- *   CCP statically initializes the PCANBasic API.<p>
- *   A CCP object creates a CroTransmitter object and owns thus a CAN channel. Maybe, the
- * tranmitter object should have the open/close device logic, as it is the only instance,
- * which uses the CAN channel. (Downside could be that the error context and the logged
- * feedback is poor.)<p>
- *   A CCP object has a command sequence. It opens the CAN device, or uses the
- * CroTransmitter object to do so, processes all commands and closes the CAN device.<p>
- *   Processing a command, means fetching the command implementation object, initialize it
- * with the arguments of the command taken from the command sequence and run the command
- * implementation object's step function until it signals completion.<p>
- *   The CroTransmitter is the major element of the context, all the command implementation
- * objects use to communicate via the right channel.<p>
- *   Fetching the command implementation object can mean a constructor call every time or
- * some pooling can be applied; one and the same object can (as it is now) be
- * re-initialized and used repeatedly if the same command appears more than once in the
- * sequence. The sequences don't have many entries, so optimization by pooling has no
- * particular advantage.<p>
- *   Elegant processing of the sequence requires simple decision, which command
- * implementation object is required. The reference to the constructor could become element
- * of the command in the sequence. Or a map is applied, which relates a command to the
- * right constructor.<p>
- *   The current association of CRO command IDs to command implementation object is
- * improper, as a single implementation object can handle more than one CRO command ID.
- * Moreover, the implementation object doesn't necessarily processes a single CRO/DTO.
- * "Program" for example will send many CRO commands PROGRAM in order to program a byte
- * sequence of any length. Consequently, we need to have two enumerations: CRO command ID
- * just for the CroTransmitter and something new like CcpCommandId for the use in the
- * command sequence.
- *
- * Copilot proposes this code for mapping a command implementation object constructor with
- * a byte encoded command ID:<p>
- *   public class CcpCommandRegistry {
- *       private final Map<Byte, Function<CcpContext, CcpCommandProcessor>> registry = new HashMap<>();
- *   
- *       public CcpCommandRegistry() {
- *           register((byte) 0x01, ConnectCommand::new);
- *           // Add more registrations here
- *       }
- *   
- *       public void register(byte commandId, Function<CcpContext, CcpCommandProcessor> constructor) {
- *           registry.put(commandId, constructor);
- *       }
- *   
- *       public CcpCommandProcessor createProcessor(byte commandId, CcpContext context) {
- *           Function<CcpContext, CcpCommandProcessor> constructor = registry.get(commandId);
- *           if (constructor == null) {
- *               throw new IllegalArgumentException("Unknown command ID: " + commandId);
- *           }
- *           return constructor.apply(context);
- *       }
- *   }
- * where "ConnectCommand::new" is equivalent to "(context) -> new ConnectCommand(context)".
- * Particularly the latter notation makes apparent that the constructor of any of the
- * command implementation object takes the "context" as any argument. The context would be
- * our CAN channel, represented by the CroTransmitter in use, among more.<p>
- *   If we don't use the lambda expression then we will likely end up with a switch case
- * along all command IDs - which has the advantage of allowing individual argument lists
- * for the constructors. (At the moment, the shared implementation of DOWNLOAD and PROGRAM
- * still has the additional argument isDownload.) This traditional way is easy to combine
- * with pooling (call constructor only if field with command implementation object is still
- * null). The objects would be owned by the CCP object, because it needs them to process
- * the command sequence.
- *
- * Neuer Gedanke: Es macht keine Sinn, Komandoprozessoren an IDs zu binden, weil jede
- * Instanz andere Parameter hat. Wenn man mit Singleton-Instanzen arbeitet, die an eine ID
- * gebunden sind, muss man diese vor jeder Benutzung initialisieren und das bedeutet, dass
- * man neben den (elegant wiedergefunden) Instanzen noch deren Parameter nebenher speichern
- * müsste. Womit der Vorteil des elegnaten Auffinden der Kommandoprozessoren egalisisert
- * sein dürfte.\n
- *   Da ist es naheliegender, die Programmsequenz als eine Liste fertig initialisierter
- * Kommandoprozessoren zu sehen. Dabei kann von jeder ARt jede Anzahl Instanzen in der
- * Liste sein und jede Instanz hat ihre individuellen Parameter. Damit wäre die
- * Programmsequenz im Wesentlichen eine Liste von Kommandoprozessoren.\n
+ * Neuer Gedanke: Die Programmsequenz ist im Wesentlichen eine Liste von
+ * Kommandoprozessoren.\n 
  *   CCP hat als API die Vorgabe der verschiedenen Aufgaben, jeweils mit allen Parametern.
  * Z.B. würde eine API "Erase" nur die von..bis Adressen als Parameter haben und sie würde
  * eine Programmsequenz aus vier Kommandoprozessoren aufbauen, Connect, SetMta, Erase,
@@ -88,30 +17,10 @@
  * Prozessoren unterscheiden; Auslesen könnte einen Streambuffer bekommen, in den Daten
  * eingeschrieben werden, Verifizieren könnte einen Datensatz bekommen, gegen den
  * verglichen wird.\n
- *   Ein Kommandoprozessor hat die Basis, die Zugang zum CroTransmitter schafft und die
- * Funktionen Start und Step, die seinen Btrieb ermöglichen, ohne Kenntnis des speziellen
- * Prozessors.\n
  *   CCP hat dann die Kern-API step, die die ganze Programmsequenz abarbeitet.\n
  *   Evtl. ist Disconnect nicht einfach das letzte Element der Sequenz, sondern hat den
  * besonderen Stellenwert eines "on-error" Zweiges des Programms, der immer ausgeführt
  * wird, auch wenn zuvor ausgeführte Programmschritte einen Fehler gemeldet haben.\n
- *   Das stark überladene Konzept der Enums mit dem Aufsuchen eines Objektes über eine ID,
- * wird nicht mehr benötigt; die CCP APIs erzeugen die Prozessorobjekte unter gezielter
- * Kenntnis ihres Namens und ihrer Bedeutung.\n
- *   Der Übergang vom Objekt CCP mit seiner Liste aus Prozessoren zum letztendlich
- * statischen PCAN Basic API muss irgendwo vollzogen werden. Der CAN Kanal ist statisch.
- * Der CroTransmitter sollte dem CCP Objekt gehören und wäre also nicht statisch. Ein
- * CroTransmitter bekommt im Zuge seiner Initialisierung einen CAN Kanal. Der geöffnete
- * Kanal ist dann auch bereits ein echtes Objekt. Er steht demnach nur dem CroTransmitter
- * für CRO und DTO Message zur Verfügung. Soll zugleich mit dem CCP Protokoll noch weiteres
- * auf dem CAN Bus passieren, dann müsste zwischen PCAN Basic Channel Handle und
- * CroTransmitter eine Virtualisiserung stattfinden, die die CCP Bostschaften
- * herausfiltert, bzw. einleitet, aber andere Botschaften anderen Kunden zur Verfügung
- * stellt. Da ließe sich nachträglich im Package can realisieren, aber vorerst bekommt der
- * CroTransmitter einen kompletten PCAN Basic Channel.
- *   TODO: Basisklasse CcpCommandBase stellt die gemeinsamen resourcen für alle
- * abgeleiteten Klassen als static Objekte zur Verfügung. Damit können unterschiedliche CCP
- * Objekte nicht koexistieren. Hier muss eine bessere Datenkapselung gefunden werden.
  *
  * Copyright (C) 2025 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
  *
@@ -158,7 +67,7 @@ public class CCP
 
     /* The error counter to be used for error reporting. */
     final ErrorCounter errCnt_;
-    
+
     /** The states of the processing. */
     public enum StateFlashProcess
     {
@@ -191,26 +100,20 @@ public class CCP
     /** The current state of the communication process. */
     private StateFlashProcess state_ = StateFlashProcess.UNDEFINED;
 
-//    /** The PEAK CAN API; the connection of Java to the external DLL. */
-//    private PCANBasic pcanApi_ = null;
-
     /** The 16 Bit station address of the connected ECU. */
     // TODO Needs to become an application parameter
-    private final short stationAddr_ = 0x0000;
+    private final int stationAddr_ = 0x0000;
 
     /** The currently processed CCP command. */
     CcpCommandBase currentCcpCmd_ = null;
-    
-//    /** The CAN IDs of the CCP connection. */
-//    final CcpCanIds ccpCanIds_;
 
     /** The CCP command object factory used by this CCP object. */
     final CcpCommandFactory ccpCmdFactory_;
-    
+
     /* Temporary test code: We generate some random code for flashing. */
     final byte[] progData_;
-    
-    
+
+
     /**
      * A new instance of CCP is created. It represents a CCP connection with a ECU.
      *   @param canDev
@@ -226,10 +129,6 @@ public class CCP
     public CCP(CanDevice canDev, CanId canIdCro, CanId canIdDto, ErrorCounter errCnt) {
         errCnt_ = errCnt;
         state_ = StateFlashProcess.DISCONNECTED;
-        
-        /* In this project, we just have a single, global error counter, which is shared
-           with all modules. */
-        CcpCommandBase.setErrorCounter(errCnt);
 
         // TODO CLEAR_MEMORY requires a timeout of at least 10s. All other commands
         // don't. We can add an API to CroTransmitter to temporarily select another
@@ -241,12 +140,9 @@ public class CCP
                                                         , canIdDto
                                                         , errCnt
                                                         );
-        CcpCommandBase.setCroTransmitter(croTransmitter);
-
-        final CcpCommandToolbox toolbox = new CcpCommandToolbox();
-        toolbox.croTransmitter_ = croTransmitter;
+        final CcpCommandToolbox toolbox = new CcpCommandToolbox(croTransmitter, errCnt);
         ccpCmdFactory_ = new CcpCommandFactory(toolbox);
-        
+
         /* Temporary test code: We generate some random code for flashing. */
         final int noBytesToProgram = (ThreadLocalRandom.current().nextInt(12, 66) + 7) & ~0x7;
         progData_ = new byte[noBytesToProgram];
@@ -257,7 +153,7 @@ public class CCP
         /* Initiate the state machine, which steps through the CCP protocol. The next
            command sends the first CRO for session connect. */
         setStateConnecting();
-        
+
     } /* CCP.CCP */
 
     /**
@@ -267,8 +163,9 @@ public class CCP
     private void setStateConnecting()
     {
         /* On entry: Send CAN CRO message with command CONNECT. */
-        currentCcpCmd_ = CroCommandId.CONNECT.getCmd();
-        currentCcpCmd_.start(Integer.valueOf(stationAddr_));
+        final CcpCommandArgs.Connect args = new CcpCommandArgs.Connect(stationAddr_);
+        currentCcpCmd_ = ccpCmdFactory_.create(args);
+        currentCcpCmd_.start();
         state_ = StateFlashProcess.CONNECTING;
     }
 
@@ -279,10 +176,10 @@ public class CCP
     private void setStateDisconnecting()
     {
         /* On entry: Send CAN CRO message with command DISCONNECT. */
-        currentCcpCmd_ = CroCommandId.DISCONNECT.getCmd();
-        final Integer stationAddr = Integer.valueOf(stationAddr_);
-        final Boolean isEndOfSession = Boolean.valueOf(true);
-        currentCcpCmd_.start(stationAddr, isEndOfSession);
+        final CcpCommandArgs.Disconnect args = 
+                        new CcpCommandArgs.Disconnect(stationAddr_, /*isEndOfSession*/ true);
+        currentCcpCmd_ = ccpCmdFactory_.create(args);
+        currentCcpCmd_.start();
         state_ = StateFlashProcess.DISCONNECTING;
     }
 
@@ -307,11 +204,7 @@ public class CCP
             if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
             {
                 state_ = StateFlashProcess.SETTING_MTA;
-                
-                //currentCcpCmd_ = CroCommandId.SET_MTA.getCmd();
-                //final Integer memoryAddr = Integer.valueOf(0xA00000);
-                //final Integer idxMta = Integer.valueOf(0);
-                //currentCcpCmd_.start(memoryAddr, idxMta);
+
                 final CcpCommandArgs.SetMta args = new CcpCommandArgs.SetMta
                                                                         ( /*address*/ 0xA00000
                                                                         , /*addressExt*/ 0
@@ -331,17 +224,18 @@ public class CCP
                 /* DTO has not been received yet. We remain in this state. */
             }
             break;
-        
+
         case SETTING_MTA:
             resultTxRx = currentCcpCmd_.step();
             if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
             {
 _logger.warn("Test: Disconnect immediately after connect");
 setStateDisconnecting();
-//                currentCcpCmd_ = CroCommandId.CLEAR_MEMORY.getCmd();
 //                final Integer noBytesToEraseAtMta = Integer.valueOf(progData_.length);
-//                currentCcpCmd_.start(noBytesToEraseAtMta);
-//
+//                final CcpCommandArgs.ClearMemory args = 
+//                                        new CcpCommandArgs.ClearMemory(noBytesToEraseAtMta);
+//                currentCcpCmd_ = ccpCmdFactory_.create(args);
+//                currentCcpCmd_.start();
 //                state_ = StateFlashProcess.ERASING;
             }
             else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)
@@ -355,14 +249,14 @@ setStateDisconnecting();
                 /* DTO has not been received yet. We remain in this state. */
             }
             break;
-        
+
         case ERASING:
             resultTxRx = currentCcpCmd_.step();
             if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
             {
-                currentCcpCmd_ = CroCommandId.PROGRAM.getCmd();
-                currentCcpCmd_.start(progData_);
-
+                final CcpCommandArgs.Program args = new CcpCommandArgs.Program(progData_);
+                currentCcpCmd_ = ccpCmdFactory_.create(args);
+                currentCcpCmd_.start();
                 state_ = StateFlashProcess.DOWNLOADING;
             }
             else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)
@@ -376,7 +270,7 @@ setStateDisconnecting();
                 /* DTO has not been received yet. We remain in this state. */
             }
             break;
-        
+
         case DOWNLOADING:
             resultTxRx = currentCcpCmd_.step();
             if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
@@ -393,9 +287,9 @@ setStateDisconnecting();
             {
                 /* DTO has not been received yet. We remain in this state. */
             }
-        
+
             break;
-        
+
         case DISCONNECTING:
         {
             resultTxRx = currentCcpCmd_.step();

@@ -72,7 +72,12 @@ final class CcpCommandFactory {
         
         /* Put the constructor of all known CCP commands into the map so that they can be
            created with public method create. */
+        register(CcpCommandArgs.Connect.class, CcpCommandConnect::new);
+        register(CcpCommandArgs.Disconnect.class, CcpCommandDisconnect::new);
         register(CcpCommandArgs.SetMta.class, CcpCommandSetMta::new);
+        register(CcpCommandArgs.ClearMemory.class, CcpCommandClearMemory::new);
+        register(CcpCommandArgs.Download.class, CcpCommandsDownloadProgram::new);
+        register(CcpCommandArgs.Program.class, CcpCommandsDownloadProgram::new);
     }
 
     /**
