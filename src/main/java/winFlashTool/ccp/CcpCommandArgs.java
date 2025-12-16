@@ -77,7 +77,7 @@ sealed interface CcpCommandArgs {
      *   @param idxMta
      * CPP knows two memory transfer addresses. Which one is meant? The x in MTAx, x=0..1.
      */
-    record SetMta(int address, int addressExt, int idxMta) implements CcpCommandArgs {
+    record SetMta(long address, int addressExt, int idxMta) implements CcpCommandArgs {
     }
     
     /**

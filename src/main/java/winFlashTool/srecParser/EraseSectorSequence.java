@@ -41,7 +41,7 @@ import winFlashTool.mcu.Sector;
  * to be erased in order to be able to program the data, which has been read from the srec
  * file.
  */
-class EraseSectorSequence implements Iterable<Range> {
+public class EraseSectorSequence implements Iterable<Range> {
 
     /** The global logger object for all progress and error reporting. */
     private static final Logger _logger = LogManager.getLogger(EraseSectorSequence.class);

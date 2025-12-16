@@ -39,7 +39,7 @@ import winFlashTool.basics.Range;
  * them. When all small s-records from the file have been added then the (probably large)
  * s-records in the list form the memory sections to program.
  */
-class SRecordSequence implements Iterable<SRecord> {
+public class SRecordSequence implements Iterable<SRecord> {
 
     /** The global logger object for all progress and error reporting. */
     private static final Logger _logger = LogManager.getLogger(SRecordSequence.class);

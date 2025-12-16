@@ -107,6 +107,9 @@ public class CCP
     /** The currently processed CCP command. */
     CcpCommandBase currentCcpCmd_ = null;
 
+    /** The currently processed CCP command sequence. */
+    CcpCmdSequence ccpCmdSequence_ = null;
+
     /** The CCP command object factory used by this CCP object. */
     final CcpCommandFactory ccpCmdFactory_;
 
@@ -129,7 +132,8 @@ public class CCP
     public CCP(CanDevice canDev, CanId canIdCro, CanId canIdDto, ErrorCounter errCnt) {
         errCnt_ = errCnt;
         state_ = StateFlashProcess.DISCONNECTED;
-
+        ccpCmdSequence_ = null;
+        
         // TODO CLEAR_MEMORY requires a timeout of at least 10s. All other commands
         // don't. We can add an API to CroTransmitter to temporarily select another
         // timeout.

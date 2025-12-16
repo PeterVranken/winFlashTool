@@ -189,7 +189,7 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
                           , newMta
                           );
 
-            final int expectedNewMta = mta0() + noBytesThisTime_;
+            final long expectedNewMta = mta0() + noBytesThisTime_;
             if(newMta == expectedNewMta)
             {
                 /* Update the status, where we are with the download. */

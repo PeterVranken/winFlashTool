@@ -40,7 +40,7 @@ public class CcpCommandSetMta extends CcpCommandBase
 
     /** Temporary storage of memory address to set with SET_MTA. Will become new MTA when
         the ECU acknowledges the command. */
-    private final int memoryAddr_;
+    private final long memoryAddr_;
 
     /** The index of the affected MTA, either 0 or 1. */
     private final int idxMta_;

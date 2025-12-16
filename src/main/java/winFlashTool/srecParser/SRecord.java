@@ -29,17 +29,10 @@ import org.apache.commons.lang3.ArrayUtils;
 import winFlashTool.basics.Range;
 
 /**
- * In brief.
- *   This class ... Use {@link #method} to ...
- * <pre>{@code
- * Code example: x=y*class.method(3.34);}
- * </pre>
- *   @author Peter Vranken <a href="mailto:vranken@fev.io">(Contact)</a>
- *   @see SRecord#method
- *   @see #method
+ * The description of a solid chunk of memory, with start address, length and contained
+ * data bytes.
  */
-//TODO: Fill in the method header.
-class SRecord extends Range {
+public class SRecord extends Range {
     /** The global logger object for all progress and error reporting. */
     private static final Logger _logger = LogManager.getLogger(SRecord.class);
 

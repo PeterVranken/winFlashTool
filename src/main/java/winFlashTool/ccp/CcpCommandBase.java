@@ -63,7 +63,7 @@ final class CcpCommandToolbox {
 
     /** The current memory address, initially set with SET_MTA and modified with the
         DOWNLOAD and PROGRAMM commands. */
-    int mta0_;
+    long mta0_;
 
     /** The CRO transmitter, which is globally used by all CCP protocol operations in
         this base class and the derived classes. */
@@ -170,7 +170,7 @@ abstract class CcpCommandBase
      * Get the current memory address @{linkplain CcpCommandToolbox#mta0_ MTA0}, which is
      * shared between all CCP commands emitted by the same factory.
      */
-    protected int mta0() {
+    protected long mta0() {
         return toolbox_.mta0_;
     }
     
@@ -178,7 +178,7 @@ abstract class CcpCommandBase
      * Set the current memory address @{linkplain CcpCommandToolbox#mta0_ MTA0}, which is
      * shared between all CCP commands emitted by the same factory.
      */
-    protected void mta0(int mta0) {
+    protected void mta0(long mta0) {
         toolbox_.mta0_ = mta0;
     }
 

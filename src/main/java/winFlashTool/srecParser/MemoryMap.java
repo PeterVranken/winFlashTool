@@ -20,6 +20,9 @@
  */
 /* Interface of class MemoryMap
  *   MemoryMap
+ *   readSrecFile
+ *   eraseSectorSequence
+ *   srecSequence
  */
 
 package winFlashTool.srecParser;
@@ -246,6 +249,19 @@ public class MemoryMap {
 
     } /* readSrecFile */
 
+    /**
+     * Get the @{linkplain #eraseSectorSequence_ list of memory sections to erase}.
+     */
+    public EraseSectorSequence eraseSectorSequence() {
+        return eraseSectorSequence_;
+    }
+
+    /**
+     * Get the @{linkplain #srecSequence_ list of memory sections to program}.
+     */
+    public SRecordSequence srecSequence() {
+        return srecSequence_;
+    }
 } /* End of class MemoryMap definition. */
 
 
