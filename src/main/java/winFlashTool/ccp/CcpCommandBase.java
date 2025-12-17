@@ -207,6 +207,20 @@ abstract class CcpCommandBase
     }
 
     /**
+     * If the user enables the "dry run" of the flash application (a configuration test of
+     * the tool setup), a CCP command is usually not send to the target. However,
+     * significance of the dry rises, if CCP commands are not skipped or suppressed. CCP
+     * commands, which don't have an impact on the state of flash of the target, may
+     * override this method and return false - and they will be executed even in dry
+     * run.<p>
+     *   Consider implementing this method for harmless commands like CONNECT/DISCONNECT or
+     * SET_MTA.
+     */
+    protected boolean isSkippedInDryRun() {
+        return true;
+    }
+    
+    /**
      * The CCP command is started. After return from start(), the caller will repeatedly
      * call step() - until step() indicates completion of the command.
      */

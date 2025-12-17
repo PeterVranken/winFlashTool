@@ -269,11 +269,10 @@ public class CanDevice
                 _errCnt.error();
                 _logger.error("Can't close PEAK PCAN-USB CAN device. Error in PCANBasic API");
             }
+            canDev_ = null;
         } else {
-            _errCnt.warning();
-            _logger.warn("Can't close PEAK PCAN-USB CAN device because it is not opened");
+            _logger.debug("Can't close PEAK PCAN-USB CAN device because it is not opened");
         }
-        canDev_ = null;
         return success;
 
     } /* close */

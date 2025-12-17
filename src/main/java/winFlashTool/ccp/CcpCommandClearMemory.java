@@ -112,6 +112,16 @@ public class CcpCommandClearMemory extends CcpCommandBase
         
     } /* step */
 
+
+    /**
+     * Display name and arguments of this CCP command.
+     *   @return
+     * Get a meaningful representation of this object.
+     */
+    @Override
+    public String toString() {
+        return "CLEAR_MEMORY(0x" + Integer.toHexString(args_.noBytesToErase()) + ")";
+    }
 } /* End of class CcpCommandClearMemory definition. */
 
 

@@ -199,42 +199,47 @@ public class WinFlashTool
               + "\nOptional, default is using the first found available device, which ever"
               + " that is."
             );
-// Defaults should become 0x600 and 0x650
+        clp.defineArgument
+            ( "n", "dry-run"
+            , /*cntMax*/ 1
+            , "Dry-run is a means to check the hardware and flash tool setup without"
+              + " impacting the target ECU. The flash tool executes as usual but all CCP"
+              + " commands that could impact the flash of the target are skipped. CONNECT"
+              + " and DISCONNECT are still executed. Using the dry-run, many sources of"
+              + " problems can be detected without any risk for the target."
+              + "\nOptional, default is false."
+            );
         clp.defineArgument
             ( "t", "CAN-ID-CRO"
             , /*cntMin, cntMax*/ 0, 1
-            , /*defaultValue*/ 100
-            , "The CAN ID for all CCP CRO Tx messages."
-              + "\nOptional, default is the 11 Bit ID 100."
+            , /*defaultValue*/ 0x600
+            , "The CAN ID for all CCP CRO Tx messages. Please note, extended CAN IDs are not"
+              + " supported yet."
+              + "\nOptional, default is the 11 Bit ID 0x600."
             );
         clp.defineArgument
             ( "r", "CAN-ID-DTO"
             , /*cntMin, cntMax*/ 0, 1
-            , /*defaultValue*/ 101
-            , "The CAN ID for all CCP DTO Rx messages."
-              + "\nOptional, default is the 11 Bit ID 101."
+            , /*defaultValue*/ 0x650
+            , "The CAN ID for all CCP DTO Rx messages. Please note, extended CAN IDs are not"
+              + " supported yet."
+              + "\nOptional, default is the 11 Bit ID 0x650."
             );
-// Show all device and try to open them. Print the success as "available" in the list and
-// free them again.
-//   TBC: Could be combined with identification mode, if argument for device choice is also
-// given.
-//   This argument makes many others optional, which are actually mandatory. Help of
-// mandatory options will say: "Mandatory unless --enumerate-CAN-devices is given." The
-// implicit "mandatory support of cmdLineParser is broken.
         clp.defineArgument
-            ( "n", "dry-run"
-            , /* cntMax */ 1
-            , "If given, then the application won't flash. It will still read the srec"
-              + " input and connect to the ECU device. However, it'll immediately"
-              + " disconnect again, without sending or programming any binary data."
-              + " Moreover, the \"identification\" of the selected PCAN device is applied;"
-              + " the LED in the device will be flashed in another color."
-              + "\nUseful for a check of the setup."
-              + "\nOptional, default is false."
+            ( "a", "station-address"
+            , /*cntMin, cntMax*/ 0, 1
+            , /*defaultValue*/ 0
+            , "The 16 Bit station address of the CCP target."
+              + "\nOptional, default is station address 0."
             );
-// For the ECU connection, reduce the CCP timeout to the minimum reasonable in order to not
-// prolong the dry-run more than necessary.
-
+        clp.defineArgument
+            ( "nr", "no-retries-ccp-connect"
+            , /*cntMin, cntMax*/ 0, 1
+            , /*defaultValue*/ 2
+            , "The number of re-tries (after short delay) if the initial CCP connect fails."
+              + " The supported range is [0, 10]"
+              + "\nOptional, default is 2."
+            );
 //        clp.defineArgument
 //            ( "$(point)", ""
 //            , /* cntMin, cntMax */ 0, -1
@@ -308,9 +313,6 @@ public class WinFlashTool
     public boolean run() {
         boolean success = true;
 
-        /* Test of basic CAN Tx/Rx. */
-        //MinimalisticProgram.main(/*args*/ null);
-    
         final String srecFileName = cmdLineParser_.getString("srec-input-file");
         if (srecFileName == null) {
             success = false;
@@ -342,95 +344,57 @@ public class WinFlashTool
                 success = PCANBasicEx.identifyChannel(canDeviceName);
             }
         } else {
-        
-        
 if(false) {
 errCnt_.warning();
 _logger.warn("Test: Application terminates after parser test.");
 } else {        
-            /* Set the CN Ids to use for CCP communication. */
-            final CanId canIdCro = new CanId( cmdLineParser_.getInteger("CAN-ID-CRO")
+            /* Set the CN IDs to use for CCP communication. */
+            final CanId canIdCro = new CanId( cmdLineParser_.getInteger("CAN-ID-CRO") & 0x7FF
                                             , /*isExtId*/ false
                                             );
-            final CanId canIdDto = new CanId( cmdLineParser_.getInteger("CAN-ID-DTO")
+            final CanId canIdDto = new CanId( cmdLineParser_.getInteger("CAN-ID-DTO") & 0x7FF
                                             , /*isExtId*/ false
                                             );
 
             final ArrayList<CanId> listOfRxCanIds = new ArrayList<CanId>(1);
             listOfRxCanIds.add(canIdDto);
 
-            /* Test of CCP implementation: Open device and repeatedly do a CONNECT/DISCONNECT. */
-            long tiTest = System.nanoTime();
-            final int noTestCycles = 1;
-            for(int cycle=0; success && cycle<noTestCycles; ++cycle) {
-                _logger.debug("Start connection test {}/{}.", cycle+1, noTestCycles);
-                success = true;
-
-                final CanDevice canDev = new CanDevice();
-                boolean deviceOpened = false;
-                if(success) {
-                    deviceOpened = success = canDev.open( canDeviceName
-                                                        , TPCANBaudrate.PCAN_BAUD_500K
-                                                        , listOfRxCanIds
-                                                        );
-                }
-                final CCP ccp;
-                if(success) {
-                    ccp = new CCP(canDev, canIdCro, canIdDto, errCnt_);
-                    assert ccp.getProcessState() == CCP.StateFlashProcess.CONNECTING;
-                } else {
-                    ccp = null;
-                }
-                while(success && !ccp.step()) {
-                    assert ccp.getProcessState() != CCP.StateFlashProcess.DISCONNECTED;
-                }
-                assert !success || ccp.getProcessState() == CCP.StateFlashProcess.DISCONNECTED;
-                if(deviceOpened) {
-                    success = canDev.close();
-                    deviceOpened = false;
-                }
-
-                _logger.debug("Result of test of CCP process: {}.", success? "Ok": "failed");
+            /* Try to open the PCAN-USB CAN device. */
+            final CanDevice canDev = new CanDevice();
+            if (success) {
+                success = canDev.open( canDeviceName
+                                     , TPCANBaudrate.PCAN_BAUD_500K
+                                     , listOfRxCanIds
+                                     );
             }
-            tiTest = System.nanoTime() - tiTest;
-            if(noTestCycles > 0)
-            {
-                _logger.warn( "Test duration: {}ns for {} cycles. {}ns per cycle."
-                            , tiTest
-                            , noTestCycles
-                            , (tiTest + noTestCycles/2) / noTestCycles
-                            );
+            
+            /* Setup the CCP communication. */
+            final CCP ccp;
+            if(success) {
+                ccp = new CCP( canDev
+                             , canIdCro
+                             , canIdDto
+                             , cmdLineParser_.getInteger("station-address")
+                             , cmdLineParser_.getInteger("no-retries-ccp-connect")
+                             , errCnt_
+                             );
+                             
+                /* Prepare a CCP communication thread for erase and program. */
+                ccp.eraseAndProgram(memMap, cmdLineParser_.getBoolean("dry-run"));
+            } else {
+                ccp = null;
             }
+            
+            /* Clock the state machine, which runs the CCP communication. */
+            while(success && !ccp.step()) {
+                /* Here, we could do other, non-blocking things, e.g., print some progress
+                   information. */
+            }
+            
+            /* Close CAN device; release the PCAN-USB CAN device for other applications. */
+            canDev.close();
 }
     }
-// Lesen SREC:
-// - Nur aufsteigende Adressen zulassen. Das ist die einfachste und
-//   speichersparendste Loesung zum Vermeiden von Doppelprogrammierungen und
-//   Suche nach Ueberlappungen bei den Segmenten und macht wahrscheinlich kein
-//   praktisches Problem mit real existiereden srec Dateien. Kann spaeter
-//   ausserdem ohne Doppelaufwaende fallengelassen werden.
-// - Zustandsautomat: Bei 0xFF Byte wird angefangen, diese zu zaehlen. Bei
-//   Erreichen der naechsten Alignmentgrenze endet ein Segment und ein neues
-//   beginnt. Dieses enthaelt nur 0xFF und hat die Eigenschaft Erase-only.
-//   Seine Laenge ist ein Vielfaches des Alignments. Sind zu wenige 0xFF da,
-//   um einen Alignment-Block zu ergeben, wird das Segment wieder
-//   fallengelassen und das zuvor beendete Programmiersegment geht weiter,
-//   enthaelt alle aufgefundenen 0xFF. Beim ersten Nicht-0xFF faengt dann, ab
-//   der letzten zurueckliegenden Alignmentgrenze, das naechste
-//   Programmiersegment an.
-// - Das erste und das letzte Programmiersegment werden vorn und hinten mit
-//   0xFF auf Alignment ergaenzt.
-// - Alignment ist Applikationsparameter? Oder gibt es eine feststehende HW
-//   Vorgabe? 
-// - Brauchen wir Alignment, bzw. wenn ja, macht der Flashtreiber das selbst?
-// - Nach Ende der Segmentsuche, werden die Segmentgrenzen mit den
-//   (bekannten) Erase-Bloecken des C55 verglichen und die Liste der
-//   Erasekommandos erstellt.
-// - Aus Flashtreiber-Implementierung geht hervor, ob die gefundenen
-//   Clear-Bloecke bei hintereinanderliegenden Bloecken gemergt werden koennen.
-//   Bzw. ob sich das ueberhaupt lohnt, weil sie durch Sammeln im Flashtreiber
-//   implizit gemergt werden. Oder loescht der Treiber unmittelbar nach jedem
-//   CCP Clear?
   
 // Application code goes here.
 //            String generatedCode = null;

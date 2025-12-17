@@ -2,10 +2,10 @@
  * @file CCP.java
  * CAN Calibration Protocol for download of binary and flashing. This module implements the
  * needed subset of CCP. The needed processes are decomposed into sequences of required CCP
- * commands and these commands are then sequentially executed. 
+ * commands and these commands are then sequentially executed.
  *
  * Neuer Gedanke: Die Programmsequenz ist im Wesentlichen eine Liste von
- * Kommandoprozessoren.\n 
+ * Kommandoprozessoren.\n
  *   CCP hat als API die Vorgabe der verschiedenen Aufgaben, jeweils mit allen Parametern.
  * Z.B. würde eine API "Erase" nur die von..bis Adressen als Parameter haben und sie würde
  * eine Programmsequenz aus vier Kommandoprozessoren aufbauen, Connect, SetMta, Erase,
@@ -39,10 +39,9 @@
  */
 /* Interface of class CCP
  *   CCP
- *   openCanDevice
- *   closeCanDevice
- *   setStateConnecting
- *   setStateDisconnecting
+ *   stateConnectToTarget
+ *   stateDisconnectFromTarget
+ *   stateProcessCcpCmdSequence
  *   step
  */
 
@@ -51,11 +50,10 @@ package winFlashTool.ccp;
 import java.util.*;
 import org.apache.logging.log4j.*;
 import winFlashTool.basics.ErrorCounter;
-import peak.can.basic.*;
-import java.util.concurrent.ThreadLocalRandom;
 import winFlashTool.can.CanId;
 import winFlashTool.can.CanDevice;
 import winFlashTool.can.PCANBasicEx;
+import winFlashTool.srecParser.MemoryMap;
 
 /**
  * State machine for the subset of CCP, whichis require for the flash tool.
@@ -72,12 +70,12 @@ public class CCP
     public enum StateFlashProcess
     {
         UNDEFINED,
-        DISCONNECTED,
+        START,
         CONNECTING,
-        SETTING_MTA,
-        ERASING,
-        DOWNLOADING,
-        DISCONNECTING;
+        WAITING_FOR_RECONNECT,
+        COMMUNICATING_WITH_TARGET,
+        DISCONNECTING,
+        COMPLETED;
 
         /** String to enum conversion. Illegal strings are translated into enumeration
             value UNDEFINED. */
@@ -94,28 +92,48 @@ public class CCP
             {
                 return UNDEFINED;
             }
-        }
-    }
+        } /* fromString */
+    } /* enum StateFlashProcess */
 
     /** The current state of the communication process. */
     private StateFlashProcess state_ = StateFlashProcess.UNDEFINED;
 
-    /** The 16 Bit station address of the connected ECU. */
-    // TODO Needs to become an application parameter
-    private final int stationAddr_ = 0x0000;
+    /** A general purpose counter variable for counting states. The meaning of the counter
+        depends on the state, which applies it. */
+    private int cntState_;
 
-    /** The currently processed CCP command. */
-    CcpCommandBase currentCcpCmd_ = null;
+    /** The 16 Bit station address of the connected ECU. */
+    private final int stationAddr_;
+
+    /** The maximum number of retries for CCP CONNECT. */
+    private static final int MAX_NO_RETRIES_CONNECT = 10;
+
+    /** The time between two CCP CONNECT attempty in Milliseconds. */
+    private static final int TIME_BETWEEN_CONNECT_IN_MS = 1000;
+
+    /* If true, then most CCP commands are not really executed; the CRO is not sent out and
+       we don't wait for a DTO. */
+    boolean isDryRun_;
+     
+    /** If CCP command CONNECT fails, it can be repeated a number of time, with a second of
+        pause in between. This is the demanded number of attempts. Value 1 would mean no
+        retry. */
+    private final int noAttemptsToConnect_;
+
+    /** The down-counter of CONNECT attempts. */
+    private int cntAttemptsToConnect_;
 
     /** The currently processed CCP command sequence. */
-    CcpCmdSequence ccpCmdSequence_ = null;
+    CcpCmdSequence ccpCmdSequence_;
+
+    /** The currently processed CCP command. */
+    CcpCommandBase currentCcpCmd_;
+
+    /** A general purpose timeout counter to measure some state dependent time span. */
+    private TimeoutTimer timerState_;
 
     /** The CCP command object factory used by this CCP object. */
     final CcpCommandFactory ccpCmdFactory_;
-
-    /* Temporary test code: We generate some random code for flashing. */
-    final byte[] progData_;
-
 
     /**
      * A new instance of CCP is created. It represents a CCP connection with a ECU.
@@ -126,14 +144,47 @@ public class CCP
      * The CAN ID of the CCP CRO Tx messages.
      *   @param canIdDto
      * The CAN ID of the CCP DTO Rx messages.
+     *   @param stationAddr
+     * The 16 Bit station address of the connected ECU. If the supplied value exceeds the
+     * 16 Bit range, then the more significant bits are ignored.
+     *   @param noRetriesConnect
+     * If CCP command CONNECT fails, it can be repeated a number of time, with a second of
+     * pause in between. This is the demanded number of retries. Range is
+     * 0..MAX_NO_RETRIES_CONNECT.
      *   @param errCnt
      * The error counter to be used for problem reporting.
      */
-    public CCP(CanDevice canDev, CanId canIdCro, CanId canIdDto, ErrorCounter errCnt) {
+    public CCP( CanDevice canDev
+              , CanId canIdCro
+              , CanId canIdDto
+              , int stationAddr
+              , int noRetriesConnect
+              , ErrorCounter errCnt ) {
+        stationAddr_ = stationAddr & 0xFFFF;
+
+        if (noRetriesConnect < 0  ||  noRetriesConnect > MAX_NO_RETRIES_CONNECT) {
+            if (noRetriesConnect < 0) {
+                noRetriesConnect = 0;
+            } else {
+                noRetriesConnect = MAX_NO_RETRIES_CONNECT;
+            }
+            errCnt.warning();
+            _logger.warn( "The number of retries of the CCP command CONNECT is out of the"
+                          + " permitted range [0, {}]. The value has been corrected to {}."
+                        , MAX_NO_RETRIES_CONNECT
+                        , noRetriesConnect
+                        );
+        }
+        noAttemptsToConnect_ = noRetriesConnect + 1;
+        cntAttemptsToConnect_ = 0;
+
         errCnt_ = errCnt;
-        state_ = StateFlashProcess.DISCONNECTED;
+        state_ = StateFlashProcess.COMPLETED;
+        cntState_ = 0;
         ccpCmdSequence_ = null;
-        
+        currentCcpCmd_ = null;
+        timerState_ = null;
+
         // TODO CLEAR_MEMORY requires a timeout of at least 10s. All other commands
         // don't. We can add an API to CroTransmitter to temporarily select another
         // timeout.
@@ -147,190 +198,243 @@ public class CCP
         final CcpCommandToolbox toolbox = new CcpCommandToolbox(croTransmitter, errCnt);
         ccpCmdFactory_ = new CcpCommandFactory(toolbox);
 
-        /* Temporary test code: We generate some random code for flashing. */
-        final int noBytesToProgram = (ThreadLocalRandom.current().nextInt(12, 66) + 7) & ~0x7;
-        progData_ = new byte[noBytesToProgram];
-        for(int i=0; i<noBytesToProgram; ++i)
-            progData_[i] = (byte)ThreadLocalRandom.current().nextInt(0, 256);
-        _logger.info("Dummy program assembled with {} Byte", noBytesToProgram);
-
-        /* Initiate the state machine, which steps through the CCP protocol. The next
-           command sends the first CRO for session connect. */
-        setStateConnecting();
-
     } /* CCP.CCP */
 
+    ///**
+    // * Get the current state of the flash process.
+    // *   @return
+    // * The state of the state machine.
+    // */
+    //public StateFlashProcess getProcessState()
+    //{
+    //    return state_;
+    //}
+
     /**
-     * Enter state connecting.<p>
-     *   Execute state entry actions and update the state variable.
+     * Test the application configuration and the current CCP command to see if the command
+     * should be executed or; if we are in "dry run" then it may be required to skipp the
+     * command.
      */
-    private void setStateConnecting()
-    {
-        /* On entry: Send CAN CRO message with command CONNECT. */
-        final CcpCommandArgs.Connect args = new CcpCommandArgs.Connect(stationAddr_);
-        currentCcpCmd_ = ccpCmdFactory_.create(args);
-        currentCcpCmd_.start();
-        state_ = StateFlashProcess.CONNECTING;
+    private boolean executeCcpCmd() {
+        return !isDryRun_ || !currentCcpCmd_.isSkippedInDryRun();
     }
 
     /**
-     * Enter state disconnecting.<p>
-     *   Execute state entry actions and update the state variable.
+     * Initiate the CCP protocol sequence, which is required to programm a new binary into
+     * the target.
+     *   @param program
+     * The representation of the memory area(s) to erase and (re-)program.
+     *   @param isDryRun
+     * If true, then most CCP commands are not really executed; the CRO is not sent out and
+     * we don't wait for a DTO. The success of the suppressed CCP is assumed true. However,
+     * the complete state machine is stepped through.
      */
-    private void setStateDisconnecting()
-    {
-        /* On entry: Send CAN CRO message with command DISCONNECT. */
-        final CcpCommandArgs.Disconnect args = 
-                        new CcpCommandArgs.Disconnect(stationAddr_, /*isEndOfSession*/ true);
-        currentCcpCmd_ = ccpCmdFactory_.create(args);
-        currentCcpCmd_.start();
-        state_ = StateFlashProcess.DISCONNECTING;
+    public void eraseAndProgram(MemoryMap program, boolean isDryRun) {
+        assert ccpCmdSequence_ == null  &&  state_ == StateFlashProcess.COMPLETED
+             : "Can't start a new CCP communication if there is still one running";
+        isDryRun_ = isDryRun;
+        ccpCmdSequence_ = new CcpCmdSequence(ccpCmdFactory_);
+        ccpCmdSequence_.eraseAndProgram(program);
+        state_ = StateFlashProcess.START;
     }
+
+    /**
+     * This function implements the activities while we are in state CONNECTING.<p>
+     *   The CCP CONNECT command is sent once or repeatedly, until we get a valid response
+     * or the number of allowed retries is exhausted.<p>
+     *   The success and error conditions are directly evaluated and the next state is
+     * accordingly set by side-effect.
+     */
+    private void stateConnectToTarget() {
+
+        /* Do we require a new CCP CONNECT command? This will happen at the beginning and
+           on every retry. */
+        if (currentCcpCmd_ == null) {
+            assert cntAttemptsToConnect_ > 0;
+            -- cntAttemptsToConnect_;
+
+            final CcpCommandArgs.Connect args = new CcpCommandArgs.Connect(stationAddr_);
+            currentCcpCmd_ = ccpCmdFactory_.create(args);
+            assert executeCcpCmd(): "CONNECT is assumed to be always executed";
+            currentCcpCmd_.start();
+        }
+
+        final CcpCroTransmitter.ResultTransmission resultTxRx = currentCcpCmd_.step();
+        if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
+        {
+            currentCcpCmd_ = null;
+            state_ = StateFlashProcess.COMMUNICATING_WITH_TARGET;
+        }
+        else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)
+        {
+            /* The connect CRO/DTO exchange failed. The reason has been logged. We can
+               retry after a while. */
+            currentCcpCmd_ = null;
+            if (cntAttemptsToConnect_ > 0) {
+                timerState_ = new TimeoutTimer(TIME_BETWEEN_CONNECT_IN_MS);
+                _logger.info( "CCP CONNECT failed. Waiting {} ms until next attempt to"
+                              + " connect."
+                            , TIME_BETWEEN_CONNECT_IN_MS
+                            );
+                state_ = StateFlashProcess.WAITING_FOR_RECONNECT;
+            } else {
+                /* All retries are exhausted. Nothing else to do. */
+                state_ = StateFlashProcess.COMPLETED;
+            }
+        }
+        else
+        {
+            /* DTO has not been received yet. We remain in this state. */
+        }
+    } /* stateConnectToTarget */
+
+    /**
+     * This function implements the activities while we are in state DISCONNECTING.<p>
+     *   The CCP DISCONNECT command is sent to terminate the session.<p>
+     *   The success and error conditions are directly evaluated and the next state is
+     * accordingly set by side-effect.
+     */
+    private void stateDisconnectFromTarget() {
+
+        /* Do we require a new CCP CONNECT command? This will happen once on entry into
+           state DISCONNECTING. */
+        if (currentCcpCmd_ == null) {
+            final CcpCommandArgs.Disconnect args = 
+                                        new CcpCommandArgs.Disconnect( stationAddr_
+                                                                     , /*isEndOfSession*/ true
+                                                                     );
+            currentCcpCmd_ = ccpCmdFactory_.create(args);
+            assert executeCcpCmd(): "DISCONNECT is assumed to be always executed";
+            currentCcpCmd_.start();
+        }
+
+        final CcpCroTransmitter.ResultTransmission resultTxRx = currentCcpCmd_.step();
+        if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING) {
+            /* Successful termination or error doesn't make a difference any more. We did
+               all we can do. */
+            currentCcpCmd_ = null;
+            ccpCmdSequence_ = null;
+            state_ = StateFlashProcess.COMPLETED;
+        } else {
+            /* DTO has not been received yet. We remain in this state. */
+        }
+    } /* stateDisconnectFromTarget */
 
 
     /**
-     * Step function of the state machine.<p>
-     *   Once the CAN device has been acquired and initialized, the communication with the
-     * ECU can begin. The communication, the exchange of request and response CAN messages,
+     * This function implements the ongoinf communication with the target.<p>
+     *   All CCP commands in the CCP protocol sequence are executed.<p>
+     *   The success and error conditions are directly evaluated and the next state is
+     * accordingly set by side-effect.
+     */
+    private void stateProcessCcpCmdSequence() {
+
+        /* Do we require a new CCP command? This will happen every time after a new element
+           from the sequence has completed. */
+        if (currentCcpCmd_ == null) {
+            assert ccpCmdSequence_.size() > 0;
+            // TODO Consider using a list with pop instead of always get+remove.
+            currentCcpCmd_ = ccpCmdSequence_.get(0);
+            ccpCmdSequence_.remove(0);
+
+            if (executeCcpCmd()) {
+                currentCcpCmd_.start();
+            } else {
+                _logger.debug("Dry run: CCP command {} is skipped.", currentCcpCmd_);
+            }
+        }
+
+        final CcpCroTransmitter.ResultTransmission resultTxRx;
+        if (executeCcpCmd()) {
+            resultTxRx = currentCcpCmd_.step();
+        } else {
+            resultTxRx = CcpCroTransmitter.ResultTransmission.SUCCESS;
+        }
+            
+        if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
+        {
+            currentCcpCmd_ = null;
+            if (ccpCmdSequence_.size() > 0) {
+                /* There is still another CCP command to process, no state change. */
+            } else {
+                state_ = StateFlashProcess.DISCONNECTING;
+            }
+        }
+        else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)
+        {
+            /* The connect CRO/DTO exchange failed. The reason has been logged. Nothing
+               else to do. */
+            currentCcpCmd_ = null;
+            assert errCnt_.getNoErrors() > 0;
+            errCnt_.warning();
+            _logger.warn("Prematurely disconnecting after previous errors.");
+            state_ = StateFlashProcess.DISCONNECTING;
+        }
+        else
+        {
+            /* DTO has not been received yet. We remain in this state. */
+        }
+    } /* stateProcessCcpCmdSequence */
+
+
+    /**
+     * Step function of the CCP protocol state machine.<p>
+     *   The communication, the exchange of request and response CAN messages,
      * is processed in this state machine.<p>
-     *   Must be called only after openCanDevice() has been successfully called.
+     *   Once a CCP protocol sequence has been initiated (see, e.g., eraseAndProgram()),
+     * this function needs to be called regularly until it reports completion of the CCP
+     * protocol sequence.<p>
+     *   Must be called only after eraseAndProgram() has been successfully called.
      *   @return
-     * Get true if the process has completed, i.e., if the state machine has gone back to
-     * DISCONNECTED (either after flashing or because of an error).
+     * Get true if the process has completed, i.e., if the state machine has reached
+     * COMPLETED (either after successful completion of the configured CCP protocol
+     * sequence or because of an error).
      */
     public boolean step()
     {
+        assert ccpCmdSequence_ != null  ||  state_ == StateFlashProcess.COMPLETED;
         CcpCroTransmitter.ResultTransmission resultTxRx;
         switch(state_)
         {
+        case START:
+            assert currentCcpCmd_ == null;
+            cntAttemptsToConnect_ = noAttemptsToConnect_;
+            state_ = StateFlashProcess.CONNECTING;
+            break;
+
         case CONNECTING:
-            resultTxRx = currentCcpCmd_.step();
-            if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
-            {
-                state_ = StateFlashProcess.SETTING_MTA;
+            /* The state function will itself set the next state, depending on what
+               happens. Here, we just have to call it regularly. */
+            stateConnectToTarget();
+            break;
 
-                final CcpCommandArgs.SetMta args = new CcpCommandArgs.SetMta
-                                                                        ( /*address*/ 0xA00000
-                                                                        , /*addressExt*/ 0
-                                                                        , /*idxMta*/ 0
-                                                                        );
-                currentCcpCmd_ = ccpCmdFactory_.create(args);
-                currentCcpCmd_.start();
-            }
-            else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)
-            {
-                /* The connect CRO/DTO exchange failed. The reason has been logged. Nothing
-                   else to do. We return to DISCONNECTED. */
-                state_ = StateFlashProcess.DISCONNECTED;
-            }
-            else
-            {
-                /* DTO has not been received yet. We remain in this state. */
+        case WAITING_FOR_RECONNECT:
+            assert cntAttemptsToConnect_ > 0;
+            if (timerState_.hasTimedOut()) {
+                state_ = StateFlashProcess.CONNECTING;
             }
             break;
 
-        case SETTING_MTA:
-            resultTxRx = currentCcpCmd_.step();
-            if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
-            {
-_logger.warn("Test: Disconnect immediately after connect");
-setStateDisconnecting();
-//                final Integer noBytesToEraseAtMta = Integer.valueOf(progData_.length);
-//                final CcpCommandArgs.ClearMemory args = 
-//                                        new CcpCommandArgs.ClearMemory(noBytesToEraseAtMta);
-//                currentCcpCmd_ = ccpCmdFactory_.create(args);
-//                currentCcpCmd_.start();
-//                state_ = StateFlashProcess.ERASING;
-            }
-            else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)
-            {
-                /* The connect CRO/DTO exchange failed. The reason has been logged. Nothing
-                   else to do. We return to DISCONNECTED. */
-                state_ = StateFlashProcess.DISCONNECTED;
-            }
-            else
-            {
-                /* DTO has not been received yet. We remain in this state. */
-            }
-            break;
-
-        case ERASING:
-            resultTxRx = currentCcpCmd_.step();
-            if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
-            {
-                final CcpCommandArgs.Program args = new CcpCommandArgs.Program(progData_);
-                currentCcpCmd_ = ccpCmdFactory_.create(args);
-                currentCcpCmd_.start();
-                state_ = StateFlashProcess.DOWNLOADING;
-            }
-            else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)
-            {
-                /* The connect CRO/DTO exchange failed. The reason has been logged. Nothing
-                   else to do. We return to DISCONNECTED. */
-                state_ = StateFlashProcess.DISCONNECTED;
-            }
-            else
-            {
-                /* DTO has not been received yet. We remain in this state. */
-            }
-            break;
-
-        case DOWNLOADING:
-            resultTxRx = currentCcpCmd_.step();
-            if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
-            {
-                setStateDisconnecting();
-            }
-            else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)
-            {
-                /* The connect CRO/DTO exchange failed. The reason has been logged. Nothing
-                   else to do. We return to DISCONNECTED. */
-                state_ = StateFlashProcess.DISCONNECTED;
-            }
-            else
-            {
-                /* DTO has not been received yet. We remain in this state. */
-            }
-
+        case COMMUNICATING_WITH_TARGET:
+            /* The state function will itself set the next state, depending on what
+               happens. Here, we just have to call it regularly. */
+            stateProcessCcpCmdSequence();
             break;
 
         case DISCONNECTING:
-        {
-            resultTxRx = currentCcpCmd_.step();
-            if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
-            {
-                state_ = StateFlashProcess.DISCONNECTED;
-            }
-            else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)
-            {
-                /* The connect CRO/DTO exchange failed. The reason has been logged. Nothing
-                   else to do. We return to DISCONNECTED. */
-                state_ = StateFlashProcess.DISCONNECTED;
-            }
-            else
-            {
-                /* DTO has not been received yet. We remain in this state. */
-            }
+            /* The state function will itself set the next state, depending on what
+               happens. Here, we just have to call it regularly. */
+            stateDisconnectFromTarget();
             break;
-        }
-
-        default:
-            assert false;
-        }
-
-        return state_ == StateFlashProcess.DISCONNECTED;
-    }
-
-
-    /**
-     * Get the current state of the flash process.
-     *   @return
-     * The state of the state machine.
-     */
-    public StateFlashProcess getProcessState()
-    {
-        return state_;
-    }
+            
+        case COMPLETED:
+            return true;
+            
+        } /* switch(state) */
+        
+        return false;
+        
+    } /* step */
 
 } /* End of class CCP definition. */
 

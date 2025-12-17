@@ -19,6 +19,9 @@
  */
 /* Interface of class CcpCommandDicconnect
  *   CcpCommandDisconnect
+ *   isSkippedInDryRun
+ *   start
+ *   step
  */
 
 package winFlashTool.ccp;
@@ -54,6 +57,15 @@ public class CcpCommandDisconnect extends CcpCommandBase
     } /* CcpCommandDisconnect.CcpCommandDisconnect */
 
 
+    /**
+     * The CCP DISCONNECT command can be safely done even in dry-run.
+     * {@inheritDoc}
+     */
+    @Override
+    protected boolean isSkippedInDryRun() {
+        return false;
+    }
+    
     /**
      * The CCP command is started. After return from start(), the caller will repeatedly
      * call step() - until step() indicates completion of the command.

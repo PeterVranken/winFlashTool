@@ -5,23 +5,23 @@
  * This source file has been made by Copilot. Here are the requirements for Copilot:
  *
  * Input arguments are the name and path of the srec file and a callback function (aka
- * listener).
+ * listener).<p>
  *   Basic construct is a loop, which iterates the lines of the text input file. Each line
  * is checked for being a known, supported record type, probably implemented using regular
- * expression.
+ * expression.<p>
  *   For each read line, the listener is called: It receives an error/success code for this
  * line, the line number in the input stream (for error messages and progress reporting),
  * the record type as an integer number, the address as an integer number and the data
- * bytes as integers in a suitable, ordered Java Collection.
+ * bytes as integers in a suitable, ordered Java Collection.<p>
  *   All arguments of the listener, except for line number and error code may be
- * empty/null/dummy value, if an error was recognized for the line.
+ * empty/null/dummy value, if an error was recognized for the line.<p>
  *   The checksum byte doesn't need to be passed to the callback, as it has been checked
- * before calling the listener.
+ * before calling the listener.<p>
  *   Error/success codes are: Record is valid, Unknown or unsupported record type, invalid
- * checksum, wrong number of data bytes found, regular expression doesn't match the line.
+ * checksum, wrong number of data bytes found, regular expression doesn't match the line.<p>
  *   Your code should contain the Java file handling, open file, create file buffer and
  * stream, handle I/O exceptions and the loop which iterates the lines. The file should be
- * properly closed at the end or in case of errors.
+ * properly closed at the end or in case of errors.<p>
  *   Your code should contain an API to register the listener.
  *
  * Copyright (C) 2025 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)

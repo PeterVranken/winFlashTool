@@ -19,6 +19,7 @@
  */
 /* Interface of class CcpCmdSequence
  *   CcpCmdSequence
+ *   eraseAndProgram
  */
 
 package winFlashTool.ccp;
@@ -52,6 +53,7 @@ class CcpCmdSequence extends ArrayList<CcpCommandBase>
      */
     CcpCmdSequence(CcpCommandFactory ccpCmdFactory)
     {   
+        super(10);
         ccpCmdFactory_ = ccpCmdFactory;
     
     } /* CcpCmdSequence.CcpCmdSequence */

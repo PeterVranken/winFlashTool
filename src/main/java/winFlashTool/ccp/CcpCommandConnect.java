@@ -19,6 +19,9 @@
  */
 /* Interface of class CcpCommandConnect
  *   CcpCommandConnect
+ *   isSkippedInDryRun
+ *   start
+ *   step
  */
 
 package winFlashTool.ccp;
@@ -53,6 +56,15 @@ public class CcpCommandConnect extends CcpCommandBase
 
     } /* CcpCommandConnect.CcpCommandConnect */
 
+    /**
+     * The CCP CONNECT command can be safely done even in dry-run.
+     * {@inheritDoc}
+     */
+    @Override
+    protected boolean isSkippedInDryRun() {
+        return false;
+    }
+    
     /**
      * The CCP command is started. After return from start(), the caller will repeatedly
      * call step() - until step() indicates completion of the command.

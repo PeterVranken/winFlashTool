@@ -19,6 +19,10 @@
  */
 /* Interface of class CcpCommandSetMta
  *   CcpCommandSetMta
+ *   isSkippedInDryRun
+ *   start
+ *   step
+ *   toString
  */
 
 package winFlashTool.ccp;
@@ -66,6 +70,15 @@ public class CcpCommandSetMta extends CcpCommandBase
         
     } /* CcpCommandSetMta.CcpCommandSetMta */
 
+    /**
+     * The CCP SET_MTA command can be safely done even in dry-run.
+     * {@inheritDoc}
+     */
+    @Override
+    protected boolean isSkippedInDryRun() {
+        return true;//false;
+    }
+    
     /**
      * The CCP command is started. After return from start(), the caller will repeatedly
      * call step() - until step() indicates completion of the command.
@@ -125,6 +138,15 @@ public class CcpCommandSetMta extends CcpCommandBase
         
     } /* step */
 
+    /**
+     * Display name and arguments of this CCP command.
+     *   @return
+     * Get a meaningful representation of this object.
+     */
+    @Override
+    public String toString() {
+        return "SET_MTA(0x" + Long.toHexString(memoryAddr_) + ")";
+    }
 } /* End of class CcpCommandSetMta definition. */
 
 

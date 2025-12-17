@@ -201,7 +201,7 @@ public class Log4j2Configurator
             errCnt.warning();
             _logger.warn("{} is not a valid verbosity level of logging. Use --help to"
                          + " get an overview of supported values. Level INFO is used"
-                         + " instead"
+                         + " instead."
                         , badLevelStr
                         );
         }
@@ -214,17 +214,17 @@ public class Log4j2Configurator
             {
                 FileOutputStream xmlCfgFile = new FileOutputStream(xmlCfgFileName);
                 cfgBuilder.writeXmlConfiguration(xmlCfgFile);
-                _logger.info("The log4j configuration has been written to file "
-                             + xmlCfgFileName
+                _logger.info( "The log4j configuration has been written to file {}."
+                            , xmlCfgFileName
                             );
             }
             catch(java.io.IOException ex)
             {
                 final String excMsg = ex.getMessage();
                 errCnt.error();
-                _logger.error("Can't write log4j configuration to XML file"
-                              + xmlCfgFileName
-                              + (excMsg != null? ". " + excMsg: "")
+                _logger.error( "Can't write log4j configuration to XML file {}.{}"
+                             , xmlCfgFileName
+                             , excMsg != null? " " + excMsg: ""
                              );
             }
         }
@@ -275,7 +275,7 @@ public class Log4j2Configurator
                 /* The standard configuration is wanted - just confirm it. The user should
                    know, what to do. */
                 _logger.debug( "No user specified log settings are applied. The log4j 2"
-                               + " standard configuration process is used"
+                               + " standard configuration process is used."
                              );
             }
             else
@@ -312,17 +312,17 @@ public class Log4j2Configurator
                             + " for details."
                             + " If given then no programmatic configuration of"
                             + " logging is done and the other arguments log-level, log-file"
-                            + " and log4j2-pattern are ignored"
-                            + ".\nOptional. By default the programmatic configuration takes"
-                            + " place"
+                            + " and log4j2-pattern are ignored."
+                            + "\nOptional. By default the programmatic configuration takes"
+                            + " place."
                           );
         clp.defineArgument( "v"
                           , "log-level"
                           , /* cntMin, cntMax */ 0, 1
                           , /* defaultValue */ "INFO"
                           , "Verbosity of all logging. Specify one out of OFF,"
-                            + " FATAL, ERROR, WARN, or INFO"
-                            + ".\nOptional, default is INFO"
+                            + " FATAL, ERROR, WARN, or INFO."
+                            + "\nOptional, default is INFO."
                           );
         clp.defineArgument( "l"
                           , "log-file"
@@ -330,20 +330,20 @@ public class Log4j2Configurator
                           , /* defaultValue */ null
                           , "If given, a log file is written containing general"
                             + " program flow messages."
-                            + ".\nOptional. By default logging output only goes to the"
-                            + " console"
+                            + "\nOptional. By default logging output only goes to the"
+                            + " console."
                           );
         clp.defineArgument( "p"
                           , "log4j2-pattern"
                           , /* cntMin, cntMax */ 0, 1
                           , /* defaultValue */ null
                           , "A pattern for the log file entries may be specified,"
-                            + " e.g. \"%d %C %p: %m%n\". See"
+                            + " e.g., \"%d %C %p: %m%n\". See"
                             + " http://logging.apache.org/log4j/2.x/manual/layouts.html"
                                                                          + "#PatternLayout"
-                            + " for details"
-                            + ".\nOptional; the default will be most often sufficient"
-                            + ".\nPlease note, the console output is not affected"
+                            + " for details."
+                            + "\nOptional; the default will be most often sufficient."
+                            + "\nPlease note, the console output is not affected."
                           );
     } /* End of Log4j2Configurator.defineArguments */
 

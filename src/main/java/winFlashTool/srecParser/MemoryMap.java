@@ -113,6 +113,17 @@ public class MemoryMap {
                                  , Long.toHexString(address)
                                  , Arrays.toString(dataBytes)
                                  );
+                    // TODO We should offer the option to not program sequences of 0xFF.
+                    // Perfectly filtering all such sequences with a minimum length would
+                    // require some state machine or concatenation logic for SREcords
+                    // reported to the listener. Very simple would be dropping SRerords,
+                    // which consist entirely of 0xFF. Not so nice: The result would depend
+                    // on the representation of the binary in an srec file (the number of
+                    // bytes per line, thus SRecord is undefined), but it would be
+                    // effective, as the only use case are large areas of 0xFF, which often
+                    // occur due to some filling of address gaps. For this use case, it
+                    // doesn't matter if we have a few 0xFF left at the beginning and the
+                    // end of such an area.
                     if(!srecSequence_.add(new SRecord(address, dataBytes))) {
                         parseErrCnt_.error();
                         abortImmediately = false;
