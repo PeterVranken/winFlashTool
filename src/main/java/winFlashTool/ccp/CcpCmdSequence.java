@@ -20,6 +20,7 @@
 /* Interface of class CcpCmdSequence
  *   CcpCmdSequence
  *   eraseAndProgram
+ *   upload
  */
 
 package winFlashTool.ccp;
@@ -28,6 +29,7 @@ import java.util.*;
 import org.apache.logging.log4j.*;
 import winFlashTool.basics.Range;
 import winFlashTool.srecParser.SRecord;
+import winFlashTool.srecParser.SRecordSequence;
 import winFlashTool.srecParser.MemoryMap;
 
 /**
@@ -62,12 +64,12 @@ class CcpCmdSequence extends ArrayList<CcpCommandBase>
      * Add the CCP command sequence needed for erasing the flash and re-programming a given
      * binary.
      *   @param program
-     * The representation of the memory area(s) to earse and program.
+     * The representation of the memory area(s) to erase and program.
      */
     void eraseAndProgram(MemoryMap program) {
         /* CCP Connect and disconnect are handled outside of the command sequence. */
         
-        /* Add an CCP erase command sequence for each sector in the list. */
+        /* Add a CCP erase command to the sequence for each sector in the list. */
         for (Range eraseRange: program.eraseSectorSequence()) {
             /* CCP's CLEAR_MEMORY operates at the bytes from MTA0. */
             final CcpCommandArgs.SetMta argsSetMta =
@@ -99,9 +101,9 @@ class CcpCmdSequence extends ArrayList<CcpCommandBase>
         
         /* Here, we can add a blank test. */
         
-        /* Add an CCP erase command sequence for each sector in the list. */
+        /* Add a CCP erase command to the sequence for each sector in the list. */
         for (SRecord section: program.srecSequence()) {
-            /* The CCP PROGRAM an PROGRAM_6 commands operate sequentially at the initially
+            /* The CCP PROGRAM and PROGRAM_6 commands operate sequentially at the initially
                set MTA0. We need to refresh the MTA0 for each sector, because different
                sectors typically have a gap in between them. */
             final CcpCommandArgs.SetMta argsSetMta =
@@ -116,6 +118,33 @@ class CcpCmdSequence extends ArrayList<CcpCommandBase>
 
         } /* for (All programm sections to download and program) */
     }
+    
+    /**
+     * Add the CCP command sequence needed for uploading data from the flash.
+     *   @param memAreas
+     * The representation of the memory area(s) to upload.
+     */
+    void upload(SRecordSequence memAreas) {
+        /* CCP Connect and disconnect are handled outside of the command sequence. */
+        
+        /* Add a CCP upload command to the sequence for each sector in the list. */
+        for (SRecord section: memAreas) {
+            /* The CCP UPLOAD commands operate sequentially at the initially set MTA0. We
+               need to refresh the MTA0 for each sector, because different sectors
+               typically have a gap in between them. */
+            final CcpCommandArgs.SetMta argsSetMta =
+                                    new CcpCommandArgs.SetMta( /*address*/ section.from()
+                                                             , /*addressExt*/ 0
+                                                             , /*idxMta*/ 0
+                                                             );
+            add(ccpCmdFactory_.create(argsSetMta));
+            
+            final CcpCommandArgs.Upload argsPrg = new CcpCommandArgs.Upload(section.data());
+            add(ccpCmdFactory_.create(argsPrg));
+
+        } /* for (All programm sections to download and program) */
+    } /* upload */
+    
 } /* End of class CcpCmdSequence definition. */
 
 

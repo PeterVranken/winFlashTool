@@ -39,6 +39,8 @@
  */
 /* Interface of class CCP
  *   CCP
+ *   eraseAndProgram
+ *   upload
  *   stateConnectToTarget
  *   stateDisconnectFromTarget
  *   stateProcessCcpCmdSequence
@@ -53,6 +55,7 @@ import winFlashTool.basics.ErrorCounter;
 import winFlashTool.can.CanId;
 import winFlashTool.can.CanDevice;
 import winFlashTool.can.PCANBasicEx;
+import winFlashTool.srecParser.SRecordSequence;
 import winFlashTool.srecParser.MemoryMap;
 
 /**
@@ -221,7 +224,27 @@ public class CCP
         ccpCmdSequence_ = new CcpCmdSequence(ccpCmdFactory_);
         ccpCmdSequence_.eraseAndProgram(program);
         state_ = StateFlashProcess.START;
-    }
+        
+    } /* eraseAndProgram */
+
+    /**
+     * Add the CCP command sequence needed for uploading data from the flash.
+     *   @param memAreas
+     * The representation of the memory area(s) to upload.
+     *   @param isDryRun
+     * If true, then most CCP commands are not really executed; the CRO is not sent out and
+     * we don't wait for a DTO. The success of the suppressed CCP is assumed true. However,
+     * the complete state machine is stepped through.
+     */
+    public void upload(SRecordSequence memAreas, boolean isDryRun) {
+        assert ccpCmdSequence_ == null  &&  state_ == StateFlashProcess.COMPLETED
+             : "Can't start a new CCP communication if there is still one running";
+        isDryRun_ = isDryRun;
+        ccpCmdSequence_ = new CcpCmdSequence(ccpCmdFactory_);
+        ccpCmdSequence_.upload(memAreas);
+        state_ = StateFlashProcess.START;
+        
+    } /* upload */
 
     /**
      * This function implements the activities while we are in state CONNECTING.<p>

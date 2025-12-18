@@ -100,6 +100,16 @@ sealed interface CcpCommandArgs {
     }
     
     /**
+     * The arguments of CCP command UPLOAD.
+     *   @param data
+     * A result buffer for the bytes to upload from current MTA0. The length of the array
+     * is the number of bytes to upload. A length of zero is not supported. The
+     * implementation of the command will break it down into a series of #UPLOAD commands.
+     */
+    record Upload(byte[] data) implements CcpCommandArgs {
+    }
+    
+    /**
      * The arguments of CCP command PROGRAM.
      *   @param data
      * The bytes to program at current MTA0. Any number of bytes can be specified. The
@@ -107,14 +117,6 @@ sealed interface CcpCommandArgs {
      * #PROGRAM_6 commands.
      */
     record Program(byte[] data) implements CcpCommandArgs {
-    }
-    
-    /**
-     * The arguments of CCP command UPLOAD.
-     *   @param noBytes
-     * The number of bytes to upload from current MTA0.
-     */
-    record Upload(int noBytes) implements CcpCommandArgs {
     }
     
 } /* End of interface CcpCommandArgs definition. */

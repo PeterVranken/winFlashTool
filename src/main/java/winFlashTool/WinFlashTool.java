@@ -42,6 +42,8 @@ import winFlashTool.ccp.CCP;
 //import winFlashTool.ccp.CcpCroTransmitter;
 import winFlashTool.basics.ErrorCounter;
 import winFlashTool.srecParser.MemoryMap;
+import winFlashTool.srecParser.SRecord;
+import winFlashTool.srecParser.SRecordSequence;
 import winFlashTool.can.CanDevice;
 import winFlashTool.can.CanId;
 import peak.can.basic.TPCANHandle;
@@ -420,7 +422,17 @@ public class WinFlashTool
                              );
                              
                 /* Prepare a CCP communication thread for erase and program. */
-                ccp.eraseAndProgram(memMap, cmdLineParser_.getBoolean("dry-run"));
+errCnt_.warning();
+_logger.warn( "Application mode is switched from Erase and Program to Upload! File is"
+              + " \"upload.txt\""
+            );
+//                ccp.eraseAndProgram(memMap, cmdLineParser_.getBoolean("dry-run"));
+// TODO srecSequence_ hijacked for test
+/* Set all bytes to a pattern to prove the effect of uploading. */
+for (SRecord srec: memMap.srecSequence_) {
+    Arrays.fill(srec.data(), (byte)0xA5);
+}
+                ccp.upload(memMap.srecSequence_, cmdLineParser_.getBoolean("dry-run"));
             } else {
                 ccp = null;
             }
@@ -433,6 +445,17 @@ public class WinFlashTool
             
             /* Close CAN device; release the PCAN-USB CAN device for other applications. */
             canDev.close();
+int idx = 0;
+for (SRecord srec: memMap.srecSequence_) {
+    try {
+        HexDumpUtil.writeBytesAsHexLines( "upload" + (idx > 0? ("-"+idx): "") + ".txt"
+                                        , srec.data()
+                                        );
+    } catch(IOException e) {
+        errCnt_.error();
+        _logger.error("Can't write uploaded data to file. {}", e.getMessage());
+    }
+}
     }
   
 // Application code goes here.

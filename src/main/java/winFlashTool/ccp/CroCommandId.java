@@ -41,6 +41,7 @@ enum CroCommandId
     SET_MTA((byte)0x02),
     CLEAR_MEMORY((byte)0x10),
     DOWNLOAD((byte)0x03),
+    UPLOAD((byte)0x04),
     DOWNLOAD_6((byte)0x23),
     PROGRAM((byte)0x18),
     PROGRAM_6((byte)0x22),

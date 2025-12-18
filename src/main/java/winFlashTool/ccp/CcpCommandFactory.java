@@ -77,6 +77,7 @@ final class CcpCommandFactory {
         register(CcpCommandArgs.SetMta.class, CcpCommandSetMta::new);
         register(CcpCommandArgs.ClearMemory.class, CcpCommandClearMemory::new);
         register(CcpCommandArgs.Download.class, CcpCommandsDownloadProgram::new);
+        register(CcpCommandArgs.Upload.class, CcpCommandUpload::new);
         register(CcpCommandArgs.Program.class, CcpCommandsDownloadProgram::new);
     }
 

@@ -47,7 +47,7 @@ public class MemoryMap {
     private final EraseSectorSequence eraseSectorSequence_;
 
     /** The list of memory sections to program. */
-    private final SRecordSequence srecSequence_;
+   /*private*/public final SRecordSequence srecSequence_;
 
     /** The error counter to be used for all problem reporting. */
     private final ErrorCounter errCnt_;
