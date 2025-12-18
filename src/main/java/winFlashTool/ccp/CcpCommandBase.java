@@ -23,6 +23,7 @@
  *   sendCro
  *   checkRxDto
  *   myCcpCmdIds
+ *   getRequiredTimeoutCroTillDto
  *   start
  *   step
  */
@@ -221,10 +222,43 @@ abstract class CcpCommandBase
     }
     
     /**
+     * Get the timeout value for the time span between sending CRO and receiving DTO, that
+     * is required by the CCP command.<p>
+     *   The data streaming commands like DOWNLOAD and PROGRAM may reuire a short timeout,
+     * CONNECT could be more tolerant and selected commands like CLEAR_MEMORY may even
+     * require very high timeouts. (Which depends unfortuantely on the behavior of the
+     * flash bootloader on the target MCU.)
+     *   @return
+     * The maximum time, which may elapse after sending the CRO until the DTO arrives. Unit
+     * is Milliseconds.
+     *   @note
+     * The method is intended for being overridden by the actual commands. The default
+     * implementation in the base class requests a timeout of 500 ms.
+     */
+    int getRequiredTimeoutCroTillDto() {
+        return 500;
+
+    } /* CcpCroTransmitter.CcpCroTransmitter */
+
+    /**
      * The CCP command is started. After return from start(), the caller will repeatedly
      * call step() - until step() indicates completion of the command.
      */
-    public abstract void start();
+    public final void start() {
+        /* Call the initialization routine of the actual, derived CCP command. */
+        setup();
+        
+        /* Configure the CCP timeout as required by the actual, derived CCP command. */
+        toolbox_.croTransmitter_.setTimeoutCroTillDto(getRequiredTimeoutCroTillDto());
+    }
+
+    /**
+     * The actual, derived CCP command is initialized.<p>
+     *   On return from this method, the CCP command is ready for the first call of
+     * step().<p>
+     *   This method is called from the base class method start().
+     */
+    public abstract void setup();
 
     /**
      * All CCP commands are implemented as state machines. This method implements a single

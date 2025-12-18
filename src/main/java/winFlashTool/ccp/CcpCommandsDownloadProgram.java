@@ -19,7 +19,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 /* Interface of class CcpCommandsDownloadProgram
- *   CcpCommandsDownloadProgram
+ *   CcpCommandsDownloadProgram (2 variants)
+ *   fillPayloadCro
+ *   setup
+ *   step
+ *   toString
  */
 
 package winFlashTool.ccp;
@@ -140,10 +144,10 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
 
 
     /**
-     * The CCP command is started. After return from start(), the caller will repeatedly
+     * The CCP command is initiated. After return from setup(), the caller will repeatedly
      * call step() - until step() indicates completion of the command.
      */
-    public void start()
+    public void setup()
     {
         assert dataToDownload_ != null;
         noBytesToDownload_ = dataToDownload_.length;
@@ -161,7 +165,7 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
                       , isDownload_? "to": "at"
                       , mta0()
                       );
-    } /* start */
+    } /* setup */
 
 
     /**
@@ -170,7 +174,7 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
      *   @return
      * The method returns "pending" until the command has completed. The first time this
      * method returns anything other than "pending" needs to be the last time this method
-     * is called -- until the command is re-started and executed again.
+     * is called -- until the command is reinitiated with setup() and executed again.
      */
     public CcpCroTransmitter.ResultTransmission step()
     {
@@ -240,6 +244,17 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
 
     } /* step */
 
+
+    /**
+     * Display name and arguments of this CCP command.
+     *   @return
+     * Get a meaningful representation of this object.
+     */
+    @Override
+    public String toString() {
+        final String cmdName = isDownload_? "DOWNLOAD": "PROGRAM";
+        return cmdName + "(noBytes=" + dataToDownload_.length + ")";
+    }
 } /* End of class CcpCommandsDownloadProgram definition. */
 
 

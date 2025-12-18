@@ -20,8 +20,10 @@
 /* Interface of class CcpCommandConnect
  *   CcpCommandConnect
  *   isSkippedInDryRun
- *   start
+ *   getRequiredTimeoutCroTillDto
+ *   setup
  *   step
+ *   toString
  */
 
 package winFlashTool.ccp;
@@ -66,10 +68,29 @@ public class CcpCommandConnect extends CcpCommandBase
     }
     
     /**
-     * The CCP command is started. After return from start(), the caller will repeatedly
+     * Get the timeout value for the time span between sending CRO and receiving DTO, that
+     * is required by CCP command CONNECT.
+     *   @return
+     * The maximum time, which may elapse after sending the CRO until the DTO arrives. Unit
+     * is Milliseconds.
+     */
+    @Override
+    int getRequiredTimeoutCroTillDto() {
+    
+        /* Connect should not have a long timeout. In the quite normal situation, that
+           there is not MCU waiting for a CCP CONNECT, the blocking states resulting from a
+           long timeout are annoying. Delayed powering of the target board is better
+           handled by repeated connect attempts than by a single one with very long
+           blocking timeout. */
+        return 250;
+
+    } /* CcpCroTransmitter.CcpCroTransmitter */
+
+    /**
+     * The CCP command is initiated. After return from setup(), the caller will repeatedly
      * call step() - until step() indicates completion of the command.
      */
-    public void start()
+    public void setup()
     {
         /* Send CAN CRO message with command CONNECT. */
         final byte[] payloadCroAry = payloadCroAry();
@@ -86,7 +107,7 @@ public class CcpCommandConnect extends CcpCommandBase
      *   @return
      * The method returns "pending" until the command has completed. The first time this
      * method returns anything other than "pending" needs to be the last time this method
-     * is called -- until the command is re-started and executed again.
+     * is called -- until the command is reinitiated with setup() and executed again.
      */
     public CcpCroTransmitter.ResultTransmission step()
     {
@@ -113,6 +134,15 @@ public class CcpCommandConnect extends CcpCommandBase
         
     } /* step */
 
+    /**
+     * Display name and arguments of this CCP command.
+     *   @return
+     * Get a meaningful representation of this object.
+     */
+    @Override
+    public String toString() {
+        return "CONNECT(stationAddress=" + args_.stationAddr() + ")";
+    }
 } /* End of class CcpCommandConnect definition. */
 
 

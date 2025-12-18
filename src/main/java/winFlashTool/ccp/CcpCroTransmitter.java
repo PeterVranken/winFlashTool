@@ -24,6 +24,7 @@
  */
 /* Interface of class CcpCroTransmitter
  *   CcpCroTransmitter
+ *   setTimeoutCroTillDto
  *   sendCro
  *   getDto
  */
@@ -137,8 +138,12 @@ class CcpCroTransmitter
     private final CanId ccpCanIdDto_;
     
     /** The length of all CRO and DTO messages. */
-    private final int MSG_LEN = 8;
+    private final static int MSG_LEN = 8;
     
+    /** The maximum time, which may elapse after sending the CRO until the DTO arrives. Unit
+        is Milliseconds. */
+    private int timeoutTillRxDtoInMs_;
+
     /**
      * A new instance of CcpCroTransmitter is created.
      *   @param canDev
@@ -157,20 +162,32 @@ class CcpCroTransmitter
      * The error counter to be used for problem reporting.
      */
     CcpCroTransmitter( CanDevice canDev
-                     , int timeoutTillRxDtoInMs
                      , CanId ccpCanIdCro
                      , CanId ccpCanIdDto
-                     , ErrorCounter errCnt
-                     )
-    {
+                     , ErrorCounter errCnt ) {
         errCnt_ = errCnt;
         canDev_ = canDev;
         ccpCanIdCro_ = ccpCanIdCro;
         ccpCanIdDto_ = ccpCanIdDto; 
-
-        timerRxDtoTO_ = new TimeoutTimer((long)timeoutTillRxDtoInMs);
+        timeoutTillRxDtoInMs_ = 1000;
+        timerRxDtoTO_ = new TimeoutTimer(timeoutTillRxDtoInMs_);
 
         state_ = StateTransmission.IDLE;
+
+    } /* CcpCroTransmitter.CcpCroTransmitter */
+
+    
+    /**
+     * Set the timeout for time span between sending CRO and receiving DTO.
+     *   @param timeoutTillRxDtoInMs
+     * The maximum time, which may elapse after sending the CRO until the DTO arrives. Unit
+     * is Milliseconds.
+     *   @note
+     * The method can be used at any time, but it takes effect only with transmitting the
+     * next CRO. A currently pending CRO/DTO exchange is not affected.
+     */
+    void setTimeoutCroTillDto(int timeoutTillRxDtoInMs) {
+        timeoutTillRxDtoInMs_ = timeoutTillRxDtoInMs;
 
     } /* CcpCroTransmitter.CcpCroTransmitter */
 
@@ -207,7 +224,7 @@ class CcpCroTransmitter
         if(PCANBasicEx.checkReturnCode(errCode))
         {
             /* Start timeout measurement till Rx of DTO. */
-            timerRxDtoTO_.restart();
+            timerRxDtoTO_.restart(timeoutTillRxDtoInMs_);
             _logger.trace( "Command {} with {} Byte payload send in CRO no {}."
                          , PCANBasicEx.b2i(payloadAry[0])
                          , noContentBytes

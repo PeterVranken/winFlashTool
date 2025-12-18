@@ -20,7 +20,7 @@
 /* Interface of class CcpCommandSetMta
  *   CcpCommandSetMta
  *   isSkippedInDryRun
- *   start
+ *   setup
  *   step
  *   toString
  */
@@ -80,10 +80,10 @@ public class CcpCommandSetMta extends CcpCommandBase
     }
     
     /**
-     * The CCP command is started. After return from start(), the caller will repeatedly
+     * The CCP command is initiated. After return from setup(), the caller will repeatedly
      * call step() - until step() indicates completion of the command.
      */
-    public void start()
+    public void setup()
     {
         final byte idxMta = (byte)idxMta_;
         
@@ -100,7 +100,8 @@ public class CcpCommandSetMta extends CcpCommandBase
         payloadCroAry[7] = (byte)((memoryAddr_ >>  0) & 0xFF);
         sendCro(/*noContentBytes*/ 8);
         _logger.printf(Level.DEBUG, "CRO message SET_MTA(0x%06X) sent to ECU.", memoryAddr_);
-    }
+        
+    } /* setup */
 
     /**
      * All CCP commands are implemented as state machines. This method implements a single
@@ -108,7 +109,7 @@ public class CcpCommandSetMta extends CcpCommandBase
      *   @return
      * The method returns "pending" until the command has completed. The first time this
      * method returns anything other than "pending" needs to be the last time this method
-     * is called -- until the command is re-started and executed again.
+     * is called -- until the command is reinitiated with setup() and executed again.
      */
     public CcpCroTransmitter.ResultTransmission step()
     {
@@ -145,7 +146,7 @@ public class CcpCommandSetMta extends CcpCommandBase
      */
     @Override
     public String toString() {
-        return "SET_MTA(0x" + Long.toHexString(memoryAddr_) + ")";
+        return "SET_MTA(mta" + idxMta_ + "=0x" + Long.toHexString(memoryAddr_) + ")";
     }
 } /* End of class CcpCommandSetMta definition. */
 

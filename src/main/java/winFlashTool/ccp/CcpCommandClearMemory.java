@@ -19,6 +19,10 @@
  */
 /* Interface of class CcpCommandClearMemory
  *   CcpCommandClearMemory
+ *   getRequiredTimeoutCroTillDto
+ *   setup
+ *   step
+ *   toString
  */
 
 package winFlashTool.ccp;
@@ -54,12 +58,27 @@ public class CcpCommandClearMemory extends CcpCommandBase
         
     } /* CcpCommandClearMemory.CcpCommandClearMemory */
 
+    /**
+     * Get the timeout value for the time span between sending CRO and receiving DTO, that
+     * is required by the CLEAR_MEMORY command.
+     *   @return
+     * The maximum time, which may elapse after sending the CRO until the DTO arrives. Unit
+     * is Milliseconds.
+     */
+    @Override
+    int getRequiredTimeoutCroTillDto() {
+    
+        /* CLEAR_MEMORY is a blocking operation in our flash bootloader. The DTO is sent
+           only on completion. This requires a timeout of several seconds. */
+        return 20/*s*/ * 1000;
+
+    } /* CcpCroTransmitter.CcpCroTransmitter */
 
     /**
-     * The CCP command is started. After return from start(), the caller will repeatedly
+     * The CCP command is initiated. After return from setup(), the caller will repeatedly
      * call step() - until step() indicates completion of the command.
      */
-    public void start()
+    public void setup()
     {
         final byte[] payloadCroAry = payloadCroAry();
         
@@ -85,7 +104,7 @@ public class CcpCommandClearMemory extends CcpCommandBase
      *   @return
      * The method returns "pending" until the command has completed. The first time this
      * method returns anything other than "pending" needs to be the last time this method
-     * is called -- until the command is re-started and executed again.
+     * is called -- until the command is reinitiated with setup() and executed again.
      */
     public CcpCroTransmitter.ResultTransmission step()
     {
@@ -112,7 +131,6 @@ public class CcpCommandClearMemory extends CcpCommandBase
         
     } /* step */
 
-
     /**
      * Display name and arguments of this CCP command.
      *   @return
@@ -120,7 +138,7 @@ public class CcpCommandClearMemory extends CcpCommandBase
      */
     @Override
     public String toString() {
-        return "CLEAR_MEMORY(0x" + Integer.toHexString(args_.noBytesToErase()) + ")";
+        return "CLEAR_MEMORY(noBytes=0x" + Integer.toHexString(args_.noBytesToErase()) + ")";
     }
 } /* End of class CcpCommandClearMemory definition. */
 

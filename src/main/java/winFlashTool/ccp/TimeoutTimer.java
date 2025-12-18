@@ -28,8 +28,8 @@ public class TimeoutTimer {
     private long timeoutNs;
     private long startTime;
 
-    public TimeoutTimer(long timeoutMillis) {
-        this.timeoutNs = timeoutMillis * 1_000_000;
+    public TimeoutTimer(int timeoutMillis) {
+        this.timeoutNs = (long)timeoutMillis * 1_000_000;
         this.startTime = System.nanoTime();
     }
 
@@ -37,8 +37,8 @@ public class TimeoutTimer {
         this.startTime = System.nanoTime();
     }
 
-    public void restart(long timeoutMillis) {
-        this.timeoutNs = timeoutMillis * 1_000_000;
+    public void restart(int timeoutMillis) {
+        this.timeoutNs = (long)timeoutMillis * 1_000_000;
         this.startTime = System.nanoTime();
     }
 

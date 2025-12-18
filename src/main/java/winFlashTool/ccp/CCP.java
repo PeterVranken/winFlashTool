@@ -185,30 +185,15 @@ public class CCP
         currentCcpCmd_ = null;
         timerState_ = null;
 
-        // TODO CLEAR_MEMORY requires a timeout of at least 10s. All other commands
-        // don't. We can add an API to CroTransmitter to temporarily select another
-        // timeout.
-        final CcpCroTransmitter croTransmitter = new CcpCroTransmitter
-                                                        ( canDev
-                                                        , /*timeoutTillRxDtoInMs*/ 1000 * 20
-                                                        , canIdCro
-                                                        , canIdDto
-                                                        , errCnt
-                                                        );
+        final CcpCroTransmitter croTransmitter = new CcpCroTransmitter( canDev
+                                                                      , canIdCro
+                                                                      , canIdDto
+                                                                      , errCnt
+                                                                      );
         final CcpCommandToolbox toolbox = new CcpCommandToolbox(croTransmitter, errCnt);
         ccpCmdFactory_ = new CcpCommandFactory(toolbox);
 
     } /* CCP.CCP */
-
-    ///**
-    // * Get the current state of the flash process.
-    // *   @return
-    // * The state of the state machine.
-    // */
-    //public StateFlashProcess getProcessState()
-    //{
-    //    return state_;
-    //}
 
     /**
      * Test the application configuration and the current CCP command to see if the command
@@ -256,6 +241,7 @@ public class CCP
             final CcpCommandArgs.Connect args = new CcpCommandArgs.Connect(stationAddr_);
             currentCcpCmd_ = ccpCmdFactory_.create(args);
             assert executeCcpCmd(): "CONNECT is assumed to be always executed";
+            _logger.debug("Next executed CCP command: {}", currentCcpCmd_);
             currentCcpCmd_.start();
         }
 
@@ -305,6 +291,7 @@ public class CCP
                                                                      );
             currentCcpCmd_ = ccpCmdFactory_.create(args);
             assert executeCcpCmd(): "DISCONNECT is assumed to be always executed";
+            _logger.debug("Next executed CCP command: {}", currentCcpCmd_);
             currentCcpCmd_.start();
         }
 
@@ -322,7 +309,7 @@ public class CCP
 
 
     /**
-     * This function implements the ongoinf communication with the target.<p>
+     * This function implements the ongoing communication with the target.<p>
      *   All CCP commands in the CCP protocol sequence are executed.<p>
      *   The success and error conditions are directly evaluated and the next state is
      * accordingly set by side-effect.
@@ -338,9 +325,10 @@ public class CCP
             ccpCmdSequence_.remove(0);
 
             if (executeCcpCmd()) {
+                _logger.debug("Next executed CCP command: {}", currentCcpCmd_);
                 currentCcpCmd_.start();
             } else {
-                _logger.debug("Dry run: CCP command {} is skipped.", currentCcpCmd_);
+                _logger.info("Dry run: CCP command {} is skipped.", currentCcpCmd_);
             }
         }
 

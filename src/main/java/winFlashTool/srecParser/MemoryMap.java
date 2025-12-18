@@ -157,10 +157,7 @@ public class MemoryMap {
                     }
                 } else {
                     assert recordType == 0;
-                    _logger.info( "SREC info at address 0x{}: \"{}\""
-                                , Long.toHexString(address)
-                                , new String(dataBytes)
-                                );
+                    _logger.info("SREC info: \"{}\"", new String(dataBytes));
 
                 }
             } else if (errCode == SrecParserError.WARN_EMPTY_LINE) {

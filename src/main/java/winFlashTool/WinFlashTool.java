@@ -31,6 +31,7 @@ package winFlashTool;
 import java.util.*;
 import java.io.*;
 import java.text.*;
+import winFlashTool.mcu.Flash;
 import winFlashTool.mcu.Mpc5775BE_C55FMC;
 
 import org.apache.logging.log4j.*;
@@ -58,7 +59,7 @@ public class WinFlashTool
     public static final String _applicationName = "winFlashTool";
 
     /** Version designation as four numeric parts. */
-    private static int[] _versionAry = {0, 1, 0, GitRevision.getProjectRevision()};
+    private static int[] _versionAry = {0, 5, 0, GitRevision.getProjectRevision()};
 
     /** The first three parts of the version of the tool, which relate to functional
         changes of the application.
@@ -117,9 +118,6 @@ public class WinFlashTool
 
     } /* End of WinFlashTool.createDir. */
 
-
-
-
     /**
      * The nested directories required for file creation are created.
      * The method extracts the path from the given file name and creates all directories
@@ -171,6 +169,16 @@ public class WinFlashTool
         Log4j2Configurator.defineArguments(clp);
 
         /* Define all command line arguments, which are not logging related. */
+        clp.defineArgument
+            ( "m", "mcu-target"
+            , /*cntMax, cntMax*/ 0, 1
+            , /*defaultValue*/ null
+            , "The MCU target to program. Supported targets are:"
+              + "\n  MPC5775B"
+              + "\n  MPC5775E"
+              + "\nThis argument is mandatory for normal operation but it is not required"
+              + " if --enumerate-CAN-devices is used to check the hardware setup."
+            );
         clp.defineArgument
             ( "s", "srec-input-file"
             , /*cntMax, cntMax*/ 0, 1
@@ -313,23 +321,6 @@ public class WinFlashTool
     public boolean run() {
         boolean success = true;
 
-        final String srecFileName = cmdLineParser_.getString("srec-input-file");
-        if (srecFileName == null) {
-            success = false;
-            errCnt_.error();
-            _logger.error( "No srec file is specified on the command line. Please use -h"
-                           + " for help."
-                         );
-        }
-        
-        final Mpc5775BE_C55FMC flashROM = Mpc5775BE_C55FMC.getFlashRomDescription();
-        MemoryMap memMap = new MemoryMap(flashROM, errCnt_);
-        if (success && !memMap.readSrecFile(srecFileName)) {
-            success = false;
-            errCnt_.error();
-            _logger.error("Can't read srec input file. Application terminates.");
-        }
-        
         if (success) {
             success = PCANBasicEx.initClass(errCnt_)
                       &&  CanDevice.initClass(errCnt_);
@@ -344,10 +335,59 @@ public class WinFlashTool
                 success = PCANBasicEx.identifyChannel(canDeviceName);
             }
         } else {
-if(false) {
-errCnt_.warning();
-_logger.warn("Test: Application terminates after parser test.");
-} else {        
+            /* Normal application run. */
+            
+            final String srecFileName = cmdLineParser_.getString("srec-input-file");
+            if (srecFileName == null) {
+                success = false;
+                errCnt_.error();
+                _logger.error( "No srec file is specified on the command line. Please use -h"
+                               + " for help."
+                             );
+            }
+
+            final String targetMcuName = cmdLineParser_.getString("mcu-target");
+            if (targetMcuName == null) {
+                success = false;
+                errCnt_.error();
+                _logger.error( "No MCU target is specified on the command line. Please use -h"
+                               + " for help."
+                             );
+            }
+            
+            final Flash flashROM;
+            if (success) {
+                switch(targetMcuName) {
+                case "MPC5775B":
+                case "MPC5775E":
+                    flashROM = Mpc5775BE_C55FMC.getFlashRomDescription();
+                    break;
+                    
+                default:
+                    flashROM = null;
+                    success = false;
+                    errCnt_.error();
+                    _logger.error( "MCU target {} is either unknown or not supported. Please"
+                                   + " use -h to get a list of all supported targets."
+                                 , targetMcuName
+                                 );
+                }
+            } else {      
+                flashROM = null;
+            }
+            
+            final MemoryMap memMap;
+            if (success) {
+                memMap = new MemoryMap(flashROM, errCnt_);
+                if (!memMap.readSrecFile(srecFileName)) {
+                    success = false;
+                    errCnt_.error();
+                    _logger.error("Can't read srec input file. Application terminates.");
+                }
+            } else {      
+                memMap = null;
+            }
+
             /* Set the CN IDs to use for CCP communication. */
             final CanId canIdCro = new CanId( cmdLineParser_.getInteger("CAN-ID-CRO") & 0x7FF
                                             , /*isExtId*/ false
@@ -393,7 +433,6 @@ _logger.warn("Test: Application terminates after parser test.");
             
             /* Close CAN device; release the PCAN-USB CAN device for other applications. */
             canDev.close();
-}
     }
   
 // Application code goes here.

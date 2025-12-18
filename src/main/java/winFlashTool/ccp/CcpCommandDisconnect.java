@@ -20,8 +20,9 @@
 /* Interface of class CcpCommandDicconnect
  *   CcpCommandDisconnect
  *   isSkippedInDryRun
- *   start
+ *   setup
  *   step
+ *   toString
  */
 
 package winFlashTool.ccp;
@@ -67,10 +68,10 @@ public class CcpCommandDisconnect extends CcpCommandBase
     }
     
     /**
-     * The CCP command is started. After return from start(), the caller will repeatedly
+     * The CCP command is initiated. After return from setup(), the caller will repeatedly
      * call step() - until step() indicates completion of the command.
      */
-    public void start()
+    public void setup()
     {
         final byte[] payloadCroAry = payloadCroAry();
         
@@ -93,7 +94,7 @@ public class CcpCommandDisconnect extends CcpCommandBase
      *   @return
      * The method returns "pending" until the command has completed. The first time this
      * method returns anything other than "pending" needs to be the last time this method
-     * is called -- until the command is re-started and executed again.
+     * is called -- until the command is reinitiated with setup() and executed again.
      */
     public CcpCroTransmitter.ResultTransmission step()
     {
@@ -120,6 +121,16 @@ public class CcpCommandDisconnect extends CcpCommandBase
 
     } /* step */
 
+    /**
+     * Display name and arguments of this CCP command.
+     *   @return
+     * Get a meaningful representation of this object.
+     */
+    @Override
+    public String toString() {
+        return "DISCONNECT(stationAddress=" + args_.stationAddr() + ", isEndOfSession="
+               + args_.isEndOfSession() + ")";
+    }
 } /* End of class CcpCommandDisconnect definition. */
 
 
