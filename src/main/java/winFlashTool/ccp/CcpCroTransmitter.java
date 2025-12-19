@@ -49,6 +49,7 @@ import winFlashTool.can.PCANBasicEx;
  *   Derived classes can implement specific CRO messages and add command related response
  * evaluation.
  */
+/*tmp only*/ public
 class CcpCroTransmitter
 {
     /** The global logger object for all progress and error reporting. */
@@ -191,7 +192,9 @@ class CcpCroTransmitter
 
     } /* CcpCroTransmitter.CcpCroTransmitter */
 
-    
+public static int _maxNoPolls = 0, _noCro = 0, _totalNoPolls = 0;
+private int noPolls_ = 0;
+
     /**
      * Initiate a CRO Tx and DTO Rx exchange with the connected ECU.<p>
      *   This function sends the CRO and initailizes the state machine to handle the later
@@ -220,6 +223,8 @@ class CcpCroTransmitter
                                             , payloadAry
                                             );
         final TPCANStatus errCode = canDev_.Write(canMsg);
+noPolls_ = 0;
+++ _noCro;
         tiResponseEcuInNs_ = System.nanoTime();
         if(PCANBasicEx.checkReturnCode(errCode))
         {
@@ -285,6 +290,8 @@ class CcpCroTransmitter
             assert state_ == StateTransmission.WAITING_FOR_DTO: "Bad use of class interface";
              
             /* Check PCANBasic API for Rx event. */
+++_totalNoPolls;
+if (++noPolls_ > _maxNoPolls) {_maxNoPolls = noPolls_;}
             final TPCANStatus errCode = canDev_.Read(canMsg, /*TimestampBuffer*/null);
             if(errCode != TPCANStatus.PCAN_ERROR_QRCVEMPTY)
             {
@@ -383,6 +390,15 @@ class CcpCroTransmitter
             else
             {
                 result = ResultTransmission.PENDING;
+                
+                /* Preliminary solution to avoid busy-wait with high CPU load. By
+                   experience, it reduces the maximum achievable throughput from 30%
+                   busload at 500 kBd to about 20%. */
+                try {
+                    Thread.sleep(1);
+                } catch (InterruptedException e) {
+                }
+
                 /* We remain in state WAITING_FOR_DTO. */
 
             } /* if(CAN message received since last invokation?) */

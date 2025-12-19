@@ -20,6 +20,8 @@
  */
 /* Interface of class CCP
  *   CanDevice
+ *   closeWinRxHandle
+ *   createAndSetRxEvent
  *   listPeakPcanDevices
  *   open (2 variants)
  *   close
@@ -32,6 +34,11 @@ import java.io.IOException;
 import org.apache.logging.log4j.*;
 import winFlashTool.basics.ErrorCounter;
 import peak.can.basic.*;
+import com.sun.jna.platform.win32.*;
+import com.sun.jna.platform.win32.WinNT.HANDLE;
+import com.sun.jna.platform.win32.Kernel32;
+import com.sun.jna.platform.win32.Kernel32Util;
+import com.sun.jna.Pointer;
 
 /**
  * Support of using a PEAK PCAN device, mainly open and close device and setting the
@@ -52,6 +59,9 @@ public class CanDevice
 
     /** The handle of the CAN device or channel, which we are going to use. */
     private TPCANHandle canDev_;
+
+    /** A Windows event, used for optimizing the responsiveness on CAN Rx. */
+    private HANDLE hWinRxEvent_;
 
     /**
      * Initialization of module. Needs to be successfully called prior to using any other
@@ -85,10 +95,102 @@ public class CanDevice
     {
         assert _pcanApi != null: "Class not initialized";
         canDev_ = null;
+        hWinRxEvent_ = null;
         
     } /* CanDevice.CanDevice */
 
 
+    /**
+     * Destroy/cleanup: Close the Windows CAN Rx handle, if it had been created.
+     */
+    private void closeWinRxHandle() {
+        if (hWinRxEvent_ != null) {
+            if (!Kernel32.INSTANCE.CloseHandle(hWinRxEvent_)) {
+                _errCnt.error();
+                final String errMsg = Kernel32Util.getLastErrorMessage();
+                _logger.error( "Can't close Windows event for optimal CAN Rx performance"
+                               + " after use. {}"
+                             , errMsg
+                             );
+            }
+            hWinRxEvent_ = null;
+        }
+    } /* closeWinRxHandle */
+    
+    /**
+     * Create and add a Windows event to a CAN channel.<p>
+     *   Using an event allows high speed response to Rx events without busy wait in a
+     * polling loop.
+     *   @return
+     * Get true if the event could be created and passed to the CAN device for use. False
+     * otherwise. An error message has been logged in this case.
+     */
+    private boolean createAndSetRxEvent() {
+        boolean success = true;
+        
+        /* We create a Windows event with automatic reset. Security attributes aren't used.
+           The automatic reset avoids race conditions. It may happen, that we get awoken
+           without finding an Rx message in the queue but we won't ever remain suspended
+           although there is a message available. */
+        hWinRxEvent_ = Kernel32.INSTANCE.CreateEvent( /*securityAttributes*/ null
+                                                    , /*manualReset*/ false
+                                                    , /*initialState*/ false
+                                                    , /*name*/ null
+                                                    );
+        if (hWinRxEvent_ == null || WinBase.INVALID_HANDLE_VALUE.equals(hWinRxEvent_)) {
+            hWinRxEvent_ = null;
+            success = false;
+            _errCnt.error();
+            //final int winErr = Kernel32.INSTANCE.GetLastError();
+            //final String errMsg = Kernel32Util.formatMessage(code);
+            final String errMsg = Kernel32Util.getLastErrorMessage();
+            _logger.error( "Can't create Windows event for optimal CAN Rx performance. {}"
+                         , errMsg
+                         );
+        } else {
+            _logger.debug( "Windows event for optimal CAN Rx performance sucessfully"
+                           + " created. Handle is {}, handle as Pointer object is {},"
+                           + " address is {}."
+                         , hWinRxEvent_.toString() 
+                         , hWinRxEvent_.getPointer().toString()
+                         , Pointer.nativeValue(hWinRxEvent_.getPointer())
+                         );
+        }
+
+        /* Make this CAN device use the new event for Rx notification. */
+        if (success) {
+            /* Convert HANDLE to pointer-sized integer. handleValue is the address of the
+               Windows handle object, which is wrapped in
+               com.sun.jna.platform.win32.WinNT.HANDLE. */
+            final long handleValue = Pointer.nativeValue(hWinRxEvent_.getPointer());
+            
+            /* The Windows handle is a 32 Bit value. */
+            final int sizeOfParameter = 4;
+            final int handleDWORD = (int)(handleValue & 0x00000000FFFFFFFF);
+            
+            TPCANStatus status = _pcanApi.SetValue
+                                            ( canDev_
+                                            , TPCANParameter.PCAN_RECEIVE_EVENT
+                                            , Integer.valueOf(handleDWORD)
+                                            , sizeOfParameter
+                                            );
+            if (!PCANBasicEx.checkReturnCode( status
+                                            , "Error providing the Windows CAN Rx event to"
+                                              + " the PEAK PCAN-USB CAN device."
+                                            )
+               ) {
+                success = false;
+            }
+        }
+
+        if (!success) {
+            closeWinRxHandle();
+        }
+        
+        return success;
+        
+    } /* createAndSetRxEvent */
+    
     /**
      * Try to connect to a PEAK CAN device in classic CAN mode. The device is identified by
      * name. (See openCanDeviceFd() for opening the device in CAN FD mode.)
@@ -248,6 +350,21 @@ public class CanDevice
                 close();
             }
         }        
+        
+        /* If we got a CAN device, we configure it to notify a Windows event in case of CAN
+           Rx events. Note, the operation returns an error code if this fails. We don't
+           react on the error as CAN reception is possible even without the event, we will
+           just loose some time when needlessy poll for messages. */
+        if (success) {
+            if (!createAndSetRxEvent()) {
+                _errCnt.warning();
+                _logger.warn( "CAN Rx operation is not possible with Rx event notification."
+                              + " The appication will continue to work with degraded"
+                              + " performance."
+                            );
+            }
+        }
+        
         return success;
         
     } /* open (by handle) */

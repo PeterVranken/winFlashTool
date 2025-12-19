@@ -368,7 +368,8 @@ public class PCANBasicEx
                                         );
         if (!PCANBasicEx.checkReturnCode( status
                                         , "Error enabling the PEAK PCAN-USB CAN device"
-                                          + " identification.")
+                                          + " identification."
+                                        )
            ) {
             return;
         }

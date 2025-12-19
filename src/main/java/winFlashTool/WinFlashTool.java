@@ -445,17 +445,21 @@ for (SRecord srec: memMap.srecSequence_) {
             
             /* Close CAN device; release the PCAN-USB CAN device for other applications. */
             canDev.close();
-int idx = 0;
 for (SRecord srec: memMap.srecSequence_) {
+    final String fileName = "upload-" + Long.toHexString(srec.from())
+                            + "-" + Long.toHexString(srec.till()) + ".txt";
     try {
-        HexDumpUtil.writeBytesAsHexLines( "upload" + (idx > 0? ("-"+idx): "") + ".txt"
-                                        , srec.data()
-                                        );
+        HexDumpUtil.writeBytesAsHexLines(fileName , srec.data());
+        _logger.info("Uploaded data written to file {}.", fileName);
+
     } catch(IOException e) {
         errCnt_.error();
-        _logger.error("Can't write uploaded data to file. {}", e.getMessage());
+        _logger.error("Can't write uploaded data to file {}. {}", fileName, e.getMessage());
     }
 }
+_logger.info("Number of needed CRO/DTO: {}", winFlashTool.ccp.CcpCroTransmitter._noCro);
+_logger.info("Maximum polling cycles per CRO/DTO: {}", winFlashTool.ccp.CcpCroTransmitter._maxNoPolls);
+_logger.info("Average polling cycles per CRO/DTO: {}", (double)winFlashTool.ccp.CcpCroTransmitter._totalNoPolls/(double)winFlashTool.ccp.CcpCroTransmitter._noCro);
     }
   
 // Application code goes here.

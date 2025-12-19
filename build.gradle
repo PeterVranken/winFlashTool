@@ -4,6 +4,7 @@ plugins {
     id 'eclipse' // optional (to generate Eclipse project files)
 }
 
+
 // Working with expressions, providing feedback:
 //println "Hello ${name}!"
 //println "Project directory: ${projectDir}"
@@ -31,6 +32,13 @@ dependencies {
 
     // https://mvnrepository.com/artifact/com.google.guava/guava
     //implementation("com.google.guava:guava:33.0.0")
+
+    // JNA core + platform mappings (Kernel32, User32, etc.)
+    implementation 'net.java.dev.jna:jna:5.14.0'
+    implementation 'net.java.dev.jna:jna-platform:5.14.0'
+
+    // PCAN Basic Java wrapper
+    //implementation files('lib/PCANBasic.jar')
 }
 
 
