@@ -32,8 +32,9 @@ package winFlashTool.can;
 import java.util.*;
 import java.io.IOException;
 import org.apache.logging.log4j.*;
-import winFlashTool.basics.ErrorCounter;
 import peak.can.basic.*;
+import winFlashTool.basics.ErrorCounter;
+import winFlashTool.basics.SignalWithAutoReset;
 import com.sun.jna.platform.win32.*;
 import com.sun.jna.platform.win32.WinNT.HANDLE;
 import com.sun.jna.platform.win32.Kernel32;
@@ -46,7 +47,7 @@ import com.sun.jna.Pointer;
  *   Reading and writing of CAN messages is not element of this file; having an opened and
  * configured device, this can directly be done with the PCANBasics API.
  */
-public class CanDevice
+public class CanDevice implements peak.can.basic.IRcvEventProcessor
 {
     /** The global logger object for all progress and error reporting. */
     private static final Logger _logger = LogManager.getLogger(CanDevice.class);
@@ -62,6 +63,10 @@ public class CanDevice
 
     /** A Windows event, used for optimizing the responsiveness on CAN Rx. */
     private HANDLE hWinRxEvent_;
+
+/** A signal, which is set by the PCAN driver when a new CAN message is received. */
+public static SignalWithAutoReset _rxNotification = new SignalWithAutoReset();
+    
 
     /**
      * Initialization of module. Needs to be successfully called prior to using any other
@@ -350,21 +355,30 @@ public class CanDevice
                 close();
             }
         }        
-        
-        /* If we got a CAN device, we configure it to notify a Windows event in case of CAN
-           Rx events. Note, the operation returns an error code if this fails. We don't
-           react on the error as CAN reception is possible even without the event, we will
-           just loose some time when needlessy poll for messages. */
+
+// The event mode seems to not be supported by the Java wrapper around the PCAN Basic DLL.
+// The Java  version seems to support only the callback based notification.
+//        /* If we got a CAN device, we configure it to notify a Windows event in case of CAN
+//           Rx events. Note, the operation returns an error code if this fails. We don't
+//           react on the error as CAN reception is possible even without the event, we will
+//           just loose some time when needlessy poll for messages. */
+//        if (success) {
+//            if (!createAndSetRxEvent()) {
+//                _errCnt.warning();
+//                _logger.warn( "CAN Rx operation is not possible with Rx event notification."
+//                              + " The appication will continue to work with degraded"
+//                              + " performance."
+//                            );
+//            }
+//        }
         if (success) {
-            if (!createAndSetRxEvent()) {
-                _errCnt.warning();
-                _logger.warn( "CAN Rx operation is not possible with Rx event notification."
-                              + " The appication will continue to work with degraded"
-                              + " performance."
-                            );
-            }
+            /* Register the listener for CAN Rx events at the PCAN basic library. Caution:
+               Only a single listener can be registered. */
+            RcvEventDispatcher.setListener(this);  // [1](https://github.com/Mobility-Services-Lab/AutomotiveServiceBus/blob/master/pcan-library/src/main/java/peak/can/basic/RcvEventDispatcher.java)
+            /* Enable CAN Rx events for this device. */
+            _pcanApi.SetRcvEvent(canDev_);
         }
-        
+
         return success;
         
     } /* open (by handle) */
@@ -379,6 +393,9 @@ public class CanDevice
         assert _pcanApi != null: "Class not initialized";
         boolean success = true;
         if (canDev_ != null) {
+            /* Don't send more CAN Rx notifications to this device. */
+            RcvEventDispatcher.setListener(null);
+            
             final TPCANStatus errCode = _pcanApi.Uninitialize(canDev_);
             if(!PCANBasicEx.checkReturnCode(errCode))
             {
@@ -387,6 +404,7 @@ public class CanDevice
                 _logger.error("Can't close PEAK PCAN-USB CAN device. Error in PCANBasic API");
             }
             canDev_ = null;
+
         } else {
             _logger.debug("Can't close PEAK PCAN-USB CAN device because it is not opened");
         }
@@ -453,6 +471,19 @@ public class CanDevice
         return _pcanApi.WriteFD(canDev_, messageBuffer);
     }
     
+    /**
+     * This method is called by the RcvEventDispatcher to process the CAN Receive-Event
+     * by the current implementor.<p>
+     *   Note, exerimental implementation only to investiate the possibilities of the
+     * callback notification.
+     * @param channel CAN channel to process event
+     */
+    public void processRcvEvent(TPCANHandle channel) {
+        final long now = System.nanoTime();
+        _rxNotification.signal();
+        _logger.trace("CAN device {} received a message at {}.", channel, now);
+    }
+
 } /* End of class CanDevice definition. */
 
 

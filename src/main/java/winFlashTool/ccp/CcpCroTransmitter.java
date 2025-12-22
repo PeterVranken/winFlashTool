@@ -35,6 +35,7 @@ import java.util.*;
 import org.apache.logging.log4j.*;
 import peak.can.basic.*;
 import winFlashTool.basics.ErrorCounter;
+import winFlashTool.basics.SignalWithAutoReset;
 import winFlashTool.can.CanId;
 import winFlashTool.can.CanDevice;
 import winFlashTool.can.PCANBasicEx;
@@ -292,9 +293,17 @@ noPolls_ = 0;
             /* Check PCANBasic API for Rx event. */
 ++_totalNoPolls;
 if (++noPolls_ > _maxNoPolls) {_maxNoPolls = noPolls_;}
+try {
+    CanDevice._rxNotification.await(/*timeoutInMs*/ 10);
+} catch(InterruptedException e) {
+    /* Would be just fine to get here, but will never happen. */
+    assert false: "Unexpected interruption of main task";
+}
             final TPCANStatus errCode = canDev_.Read(canMsg, /*TimestampBuffer*/null);
             if(errCode != TPCANStatus.PCAN_ERROR_QRCVEMPTY)
             {
+_logger.trace("Fetched message from queue at {}.", System.nanoTime());
+
                 tiResponseEcuInNs_ = System.nanoTime() - tiResponseEcuInNs_;
                 if(PCANBasicEx.checkReturnCode(errCode))
                 {
@@ -338,7 +347,8 @@ if (++noPolls_ > _maxNoPolls) {_maxNoPolls = noPolls_;}
                         else
                         {
                             /* We received a proper DTO. It is returned to the caller. */
-                            _logger.trace( "DTO for CRO no {} received after {}ns."
+//                            _logger.trace( "DTO for CRO no {} received after {}ns."
+_logger.debug( "DTO for CRO no {} received after {}ns."
                                          , PCANBasicEx.b2i(cmdCntrExpected)
                                          , tiResponseEcuInNs_
                                          );
@@ -391,13 +401,211 @@ if (++noPolls_ > _maxNoPolls) {_maxNoPolls = noPolls_;}
             {
                 result = ResultTransmission.PENDING;
                 
-                /* Preliminary solution to avoid busy-wait with high CPU load. By
-                   experience, it reduces the maximum achievable throughput from 30%
-                   busload at 500 kBd to about 20%. */
-                try {
-                    Thread.sleep(1);
-                } catch (InterruptedException e) {
-                }
+//                /* Preliminary solution to avoid busy-wait with high CPU load. By
+//                   experience, it reduces the maximum achievable throughput from 30%
+//                   busload at 500 kBd to about 20%. */
+//                try {
+//                    Thread.sleep(1);
+//                } catch (InterruptedException e) {
+//                }
+
+// Pattern 1, counting semaphore:
+// 
+// import java.util.concurrent.Semaphore;
+// import java.util.concurrent.TimeUnit;
+// 
+// public class RxSignal {
+//     // 0 permits => A will block until B releases
+//     private final Semaphore sem = new Semaphore(0 /*initialPermits*/, false /*fairness*/);
+// 
+//     // Called by your PCAN callback thread (B). KEEP THIS LIGHT!
+//     public void signalRx() {
+//         sem.release();            // wake exactly one waiter; multiple signals accumulate
+//     }
+// 
+//     // Called by your main thread (A), repeatedly in its loop
+//     public boolean waitForRx(long timeout, TimeUnit unit) throws InterruptedException {
+//         return sem.tryAcquire(1, timeout, unit);  // returns true if signaled, false on timeout
+//     }
+// }
+// 
+// 
+// Main Thread, when waiting for DTO:
+// RxSignal rx = new RxSignal();
+// 
+// while (!shutdown) {
+//     if (rx.waitForRx(5, TimeUnit.MILLISECONDS)) {
+//         // -> got the signal: drain CAN receive queue until empty
+//         // (read-until-empty pattern)
+//     }
+//     // -> housekeeping work here when timed out
+// }
+// 
+// Callback thread, in PCAN BAsic context:
+// @Override
+// public void processRcvEvent(TPCANHandle ch) {
+//     // DO NOT block here; just signal and return:
+//     // rx is a counting event. Each tryAcquire will consume just one count. Main thread
+//     // knowns number of CAN Rx
+//     //   Consider using a java.util.concurrent.atomic.AtomicBoolean; to implement a
+// max-count of 1: Semaphore is is incremented only if Boolean not yet set.
+//     rx.signalRx();
+// }
+// 
+// Patter 1a: Using a Boolean to overcome the accumulating semaphore.
+// 
+// import java.util.concurrent.Semaphore;
+// import java.util.concurrent.TimeUnit;
+// import java.util.concurrent.atomic.AtomicBoolean;
+// 
+// /** Auto-reset signal with max=1 outstanding permit. */
+// public final class OneShotSignal {
+//     private final Semaphore sem = new Semaphore(0, false);
+//     private final AtomicBoolean armed = new AtomicBoolean(false);
+// 
+//     /** B: called from your PCAN Rx callback - wake A if not already armed. */
+//     public void signal() {
+//         // If we transition false -> true, release a single permit.
+//         if (armed.compareAndSet(false, true)) {
+//             sem.release();
+//         }
+//         // If already armed, do nothing: we keep exactly one outstanding signal.
+//     }
+// 
+//     /** A: wait with timeout; returns true if signaled, false if timed out. */
+//     public boolean await(long timeout, TimeUnit unit) throws InterruptedException {
+//         if (!sem.tryAcquire(1, timeout, unit)) {
+//             return false;                 // timeout: no signal
+//         }
+//         // We consumed the single signal; clear "armed" for next cycle.
+//         armed.set(false);
+//         return true;
+//     }
+// }
+// 
+// Pattern 2: Main thread suspends, signalling is implemented by release from callback thread.
+// Advantage: No complexity due to counting.
+// 
+// Key properties you should know:
+// 
+// There is at most one permit per thread; extra unpark calls before park can be lost if you
+// don't guard with an atomic flag. 
+// park may return for no reason -> always loop and recheck
+// the condition. [docs.oracle.com]
+// 
+// Use this if you want the absolute lowest overhead and you're comfortable with a small
+// amount of bespoke concurrency code.
+// 
+// import java.util.concurrent.locks.LockSupport;
+// import java.util.concurrent.atomic.AtomicBoolean;
+// 
+// class AutoResetSignal {
+//     private final AtomicBoolean signaled = new AtomicBoolean(false);
+//     private volatile Thread waiter;  // the thread that will park
+// 
+//     // A (main thread):
+//     boolean awaitNanos(long timeoutNanos) {
+//         final long deadline = System.nanoTime() + timeoutNanos;
+//         waiter = Thread.currentThread();
+//         while (true) {
+//             // fast-path: consume signal if present
+//             if (signaled.compareAndSet(true, false)) return true;
+// 
+//             long remaining = deadline - System.nanoTime();
+//             if (remaining <= 0) return false;
+// 
+//             LockSupport.parkNanos(this, remaining); // may wake spuriously
+// 
+//             // parkNanos can return for multiple reasons:
+//             //   the signal arrived (unpark),
+//             //   the timeout expired,
+//             //   or the thread was interrupted,
+//             //   or even spuriously (no reason).
+//             // Did someone interrupt me? If yes, I noted it, but I'll put the flag back so upstream code can also see it.
+//             if (Thread.interrupted()) Thread.currentThread().interrupt();
+//         }
+//     }
+// 
+//     // B (callback):
+//     void signal() {
+//         signaled.set(true);                // publish signal
+//         Thread w = waiter;
+//         if (w != null) LockSupport.unpark(w);  // wake the parked thread quickly
+//     }
+// }
+// 
+// Pattern 3:
+// 
+// 
+// 
+// import java.util.concurrent.TimeUnit;
+// import java.util.concurrent.locks.Condition;
+// import java.util.concurrent.locks.ReentrantLock;
+// 
+// /**
+//  * Auto-Reset-Event auf Basis von ReentrantLock + Condition.
+//  * Maximal ein "offenes" Signal; A verbraucht es beim erfolgreichen Warten.
+//  */
+// public final class AutoResetEventCondition {
+// 
+//     private final ReentrantLock lock = new ReentrantLock(false); // non-fair fuer geringe Latenz
+//     private final Condition condition = lock.newCondition();
+//     private boolean signaled = false;  // "bewaffnetes" Signal
+// 
+//     /** B (Callback): loest das Ereignis aus und weckt einen Wartenden. */
+//     public void signal() {
+//         lock.lock();
+//         try {
+//             // Edge-Trigger: setze auf true (mehrere Signals bleiben true; es wird nur einmal konsumiert)
+//             signaled = true;
+//             condition.signal();  // weckt genau einen Wartenden
+//         } finally {
+//             lock.unlock();
+//         }
+//     }
+// 
+//     /**
+//      * A (Main-Thread): wartet bis zu timeout auf ein Signal.
+//      * @return true, wenn Signal erhalten und konsumiert, false bei Timeout.
+//      */
+//     public boolean await(long timeout, TimeUnit unit) throws InterruptedException {
+//         long nanos = unit.toNanos(timeout);
+//         lock.lock();
+//         try {
+//             // Solange kein Signal ansteht, warten mit Timeout
+//             while (!signaled) {
+//                 if (nanos <= 0L) {
+//                     return false;  // Timeout erreicht
+//                 }
+//                 nanos = condition.awaitNanos(nanos); // kann spurios aufwachen -> Schleife
+//             }
+//             // Ereignis konsumieren -> Auto-Reset
+//             signaled = false;
+//             return true;
+//         } finally {
+//             lock.unlock();
+//         }
+//     }
+// 
+//     /** Optional: sofortige Nicht-blockierende Abfrage */
+//     public boolean tryConsume() {
+//         lock.lock();
+//         try {
+//             if (!signaled) return false;
+//             signaled = false;
+//             return true;
+//         } finally {
+//             lock.unlock();
+//         }
+//     }
+// }
+// 
+// Practical advice:
+// 
+// Set A to Thread.MAX_PRIORITY and B to Thread.NORM_PRIORITY (or lower).
+// Keep the callback very short (just signalRx()), so the OS can schedule A immediately when
+// unblocked. 
+// Prefer Semaphore or LockSupport; both unblock A quickly without heavy locking.
 
                 /* We remain in state WAITING_FOR_DTO. */
 
