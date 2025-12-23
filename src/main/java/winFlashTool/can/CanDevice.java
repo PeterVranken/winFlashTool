@@ -42,12 +42,119 @@ import com.sun.jna.platform.win32.Kernel32Util;
 import com.sun.jna.Pointer;
 
 /**
+ * The listener class for the CAN Rx events.<p>
+ *   The class has a single method, which receives the notifications. The mechanism in the
+ * PCAN Basic API is static, not CAN channel related. This eans that we need a singlton
+ * object of this class for cooperating with the PCAN Basic APIa and that this class
+ * needs to implement the needed dispatching code for delegation of the notifications to
+ * the affected CAN devices.
+ */
+class CanRxNotificationDispatcher implements peak.can.basic.IRcvEventProcessor {
+    
+    /** The global logger object for all progress and error reporting. */
+    private static final Logger _logger = 
+                                    LogManager.getLogger(CanRxNotificationDispatcher.class);
+    
+    /** A map of PCAN Basic CAN channels onto registered CAN devices, which require the
+        notification from the given PCAN Basic CAN channel. */
+    private static Map<TPCANHandle, CanDevice> _mapPcanApiHandleToCanDevice;
+    
+    /** The reference to the listener object. */
+    private static CanRxNotificationDispatcher _theListener = null;
+    
+    /**
+     * One-time initialization; the one and only listener object is created and registered
+     * at the PCAN Basic API.
+     */
+    static void initClass() {
+        assert _theListener == null: "Re-initialization of class is not intended";  
+        _theListener = new CanRxNotificationDispatcher();
+        _mapPcanApiHandleToCanDevice = new HashMap<TPCANHandle, CanDevice>();
+        RcvEventDispatcher.setListener(_theListener);
+    }
+    
+    /**
+     * Constructor for the one and only object of this class, which is registered as
+     * listener at the PCAN Basic API.
+     */
+    private CanRxNotificationDispatcher() {
+    }
+    
+    /**
+     * Register a particular CAN device for receiving Rx notifications.
+     *   @param pcanChnHandle
+     * The representation of the CAN device, which wants to get Rx notifications, at the
+     * PCAN Basic API.
+     *   @param canDev
+     * The CAN device object, which wants to get Rx notifications.
+     */
+    static void registerCanDevForRxNotifications(TPCANHandle pcanChnHandle, CanDevice canDev) {
+        /* Add the CAN device to the dispatching map. */
+        final CanDevice prevSetting = _mapPcanApiHandleToCanDevice.put(pcanChnHandle, canDev);
+        
+        /* It's just a coding error if one registers the same CAN device twice without
+           un-registering intermediately. */
+        assert prevSetting == null: "CAN device doubly registered for Rx notifications";
+        
+        /* Enable CAN Rx events for this device at the PCAN Basic API. */
+        PCANBasicEx.getPcanBasicApi().SetRcvEvent(pcanChnHandle);
+
+    } /* registerCanDevForRxNotifications */
+
+    /**
+     * Unregister a particular CAN device from further receiving Rx notifications.
+     *   @param pcanChnHandle
+     * The representation of the CAN device, which wants to get Rx notifications, at the
+     * PCAN Basic API.
+     */
+    static void unregisterCanDevFromRxNotifications(TPCANHandle pcanChnHandle) {
+        /* Check if call is valid: Had the device been registered? */
+        assert _mapPcanApiHandleToCanDevice.containsKey(pcanChnHandle)
+             : "Unregistered CAN device had not been registered before";
+        
+        /* Disable CAN Rx events for this device at the PCAN Basic API. */
+        PCANBasicEx.getPcanBasicApi().ResetRcvEvent(pcanChnHandle);
+        
+        /* Remove the CAN device from the dispatching map. */
+        _mapPcanApiHandleToCanDevice.remove(pcanChnHandle);
+        
+    } /* unregisterCanDevFromRxNotifications */
+
+    /**
+     * This method is called by the RcvEventDispatcher to process the CAN Receive-Event
+     * by the current implementor.
+     *   @param pcanChnHandle
+     * The representation of the CAN device, which received a CAN message, at the
+     * PCAN Basic API.
+     */
+    public void processRcvEvent(TPCANHandle pcanChnHandle) {
+        _logger.trace( "CAN device {} received a message at {}."
+                     , pcanChnHandle
+                     , System.nanoTime()
+                     );
+        
+        /* Fetch the CAN device object, which wraps the PCAN Basic channel. */
+        final CanDevice canDev = _mapPcanApiHandleToCanDevice.get(pcanChnHandle);
+        
+        /* It's just a coding error if Rx notifications had been enabled for a channel with
+           registering a CAN device object at the same time. */
+        assert canDev != null: "CAN device not properly registered for Rx notifications";
+        
+        /* Delegate the notification to the affected CAN device object. */
+        canDev.onCanMsgRx();
+        
+    } /* processRcvEvent */
+
+} /* class CanRxNotificationDispatcher */
+
+
+/**
  * Support of using a PEAK PCAN device, mainly open and close device and setting the
  * configuration parameters.<p>
  *   Reading and writing of CAN messages is not element of this file; having an opened and
  * configured device, this can directly be done with the PCANBasics API.
  */
-public class CanDevice implements peak.can.basic.IRcvEventProcessor
+public class CanDevice
 {
     /** The global logger object for all progress and error reporting. */
     private static final Logger _logger = LogManager.getLogger(CanDevice.class);
@@ -59,7 +166,7 @@ public class CanDevice implements peak.can.basic.IRcvEventProcessor
     private static PCANBasic _pcanApi;
 
     /** The handle of the CAN device or channel, which we are going to use. */
-    private TPCANHandle canDev_;
+    private TPCANHandle pcanDevHandle_;
 
     /** A Windows event, used for optimizing the responsiveness on CAN Rx. */
     private HANDLE hWinRxEvent_;
@@ -79,14 +186,15 @@ public static SignalWithAutoReset _rxNotification = new SignalWithAutoReset();
      */
     public static boolean initClass(ErrorCounter errCnt)
     {
-        boolean success = false;
-        
         _errCnt = errCnt;
         
-        /* Initialize the API opject, which connects us to the PEAK DLLs. */
+        /* Get the reference to the API object, which connects us to the PEAK DLLs. */
         assert _pcanApi == null;
         _pcanApi = PCANBasicEx.getPcanBasicApi();
         assert _pcanApi != null: "PCANBasicEx used prior to initialization";
+
+        /* Register the CAN Rx event dispatcher at the PCAN Basic API. */
+        CanRxNotificationDispatcher.initClass();
 
         return true;
 
@@ -99,7 +207,7 @@ public static SignalWithAutoReset _rxNotification = new SignalWithAutoReset();
     public CanDevice()
     {
         assert _pcanApi != null: "Class not initialized";
-        canDev_ = null;
+        pcanDevHandle_ = null;
         hWinRxEvent_ = null;
         
     } /* CanDevice.CanDevice */
@@ -122,79 +230,79 @@ public static SignalWithAutoReset _rxNotification = new SignalWithAutoReset();
         }
     } /* closeWinRxHandle */
     
-    /**
-     * Create and add a Windows event to a CAN channel.<p>
-     *   Using an event allows high speed response to Rx events without busy wait in a
-     * polling loop.
-     *   @return
-     * Get true if the event could be created and passed to the CAN device for use. False
-     * otherwise. An error message has been logged in this case.
-     */
-    private boolean createAndSetRxEvent() {
-        boolean success = true;
-        
-        /* We create a Windows event with automatic reset. Security attributes aren't used.
-           The automatic reset avoids race conditions. It may happen, that we get awoken
-           without finding an Rx message in the queue but we won't ever remain suspended
-           although there is a message available. */
-        hWinRxEvent_ = Kernel32.INSTANCE.CreateEvent( /*securityAttributes*/ null
-                                                    , /*manualReset*/ false
-                                                    , /*initialState*/ false
-                                                    , /*name*/ null
-                                                    );
-        if (hWinRxEvent_ == null || WinBase.INVALID_HANDLE_VALUE.equals(hWinRxEvent_)) {
-            hWinRxEvent_ = null;
-            success = false;
-            _errCnt.error();
-            //final int winErr = Kernel32.INSTANCE.GetLastError();
-            //final String errMsg = Kernel32Util.formatMessage(code);
-            final String errMsg = Kernel32Util.getLastErrorMessage();
-            _logger.error( "Can't create Windows event for optimal CAN Rx performance. {}"
-                         , errMsg
-                         );
-        } else {
-            _logger.debug( "Windows event for optimal CAN Rx performance sucessfully"
-                           + " created. Handle is {}, handle as Pointer object is {},"
-                           + " address is {}."
-                         , hWinRxEvent_.toString() 
-                         , hWinRxEvent_.getPointer().toString()
-                         , Pointer.nativeValue(hWinRxEvent_.getPointer())
-                         );
-        }
-
-        /* Make this CAN device use the new event for Rx notification. */
-        if (success) {
-            /* Convert HANDLE to pointer-sized integer. handleValue is the address of the
-               Windows handle object, which is wrapped in
-               com.sun.jna.platform.win32.WinNT.HANDLE. */
-            final long handleValue = Pointer.nativeValue(hWinRxEvent_.getPointer());
-            
-            /* The Windows handle is a 32 Bit value. */
-            final int sizeOfParameter = 4;
-            final int handleDWORD = (int)(handleValue & 0x00000000FFFFFFFF);
-            
-            TPCANStatus status = _pcanApi.SetValue
-                                            ( canDev_
-                                            , TPCANParameter.PCAN_RECEIVE_EVENT
-                                            , Integer.valueOf(handleDWORD)
-                                            , sizeOfParameter
-                                            );
-            if (!PCANBasicEx.checkReturnCode( status
-                                            , "Error providing the Windows CAN Rx event to"
-                                              + " the PEAK PCAN-USB CAN device."
-                                            )
-               ) {
-                success = false;
-            }
-        }
-
-        if (!success) {
-            closeWinRxHandle();
-        }
-        
-        return success;
-        
-    } /* createAndSetRxEvent */
+//    /**
+//     * Create and add a Windows event to a CAN channel.<p>
+//     *   Using an event allows high speed response to Rx events without busy wait in a
+//     * polling loop.
+//     *   @return
+//     * Get true if the event could be created and passed to the CAN device for use. False
+//     * otherwise. An error message has been logged in this case.
+//     */
+//    private boolean createAndSetRxEvent() {
+//        boolean success = true;
+//        
+//        /* We create a Windows event with automatic reset. Security attributes aren't used.
+//           The automatic reset avoids race conditions. It may happen, that we get awoken
+//           without finding an Rx message in the queue but we won't ever remain suspended
+//           although there is a message available. */
+//        hWinRxEvent_ = Kernel32.INSTANCE.CreateEvent( /*securityAttributes*/ null
+//                                                    , /*manualReset*/ false
+//                                                    , /*initialState*/ false
+//                                                    , /*name*/ null
+//                                                    );
+//        if (hWinRxEvent_ == null || WinBase.INVALID_HANDLE_VALUE.equals(hWinRxEvent_)) {
+//            hWinRxEvent_ = null;
+//            success = false;
+//            _errCnt.error();
+//            //final int winErr = Kernel32.INSTANCE.GetLastError();
+//            //final String errMsg = Kernel32Util.formatMessage(code);
+//            final String errMsg = Kernel32Util.getLastErrorMessage();
+//            _logger.error( "Can't create Windows event for optimal CAN Rx performance. {}"
+//                         , errMsg
+//                         );
+//        } else {
+//            _logger.debug( "Windows event for optimal CAN Rx performance sucessfully"
+//                           + " created. Handle is {}, handle as Pointer object is {},"
+//                           + " address is {}."
+//                         , hWinRxEvent_.toString() 
+//                         , hWinRxEvent_.getPointer().toString()
+//                         , Pointer.nativeValue(hWinRxEvent_.getPointer())
+//                         );
+//        }
+//
+//        /* Make this CAN device use the new event for Rx notification. */
+//        if (success) {
+//            /* Convert HANDLE to pointer-sized integer. handleValue is the address of the
+//               Windows handle object, which is wrapped in
+//               com.sun.jna.platform.win32.WinNT.HANDLE. */
+//            final long handleValue = Pointer.nativeValue(hWinRxEvent_.getPointer());
+//            
+//            /* The Windows handle is a 32 Bit value. */
+//            final int sizeOfParameter = 4;
+//            final int handleDWORD = (int)(handleValue & 0x00000000FFFFFFFF);
+//            
+//            TPCANStatus status = _pcanApi.SetValue
+//                                            ( pcanDevHandle_
+//                                            , TPCANParameter.PCAN_RECEIVE_EVENT
+//                                            , Integer.valueOf(handleDWORD)
+//                                            , sizeOfParameter
+//                                            );
+//            if (!PCANBasicEx.checkReturnCode( status
+//                                            , "Error providing the Windows CAN Rx event to"
+//                                              + " the PEAK PCAN-USB CAN device."
+//                                            )
+//               ) {
+//                success = false;
+//            }
+//        }
+//
+//        if (!success) {
+//            closeWinRxHandle();
+//        }
+//        
+//        return success;
+//        
+//    } /* createAndSetRxEvent */
     
     /**
      * Try to connect to a PEAK CAN device in classic CAN mode. The device is identified by
@@ -243,7 +351,7 @@ public static SignalWithAutoReset _rxNotification = new SignalWithAutoReset();
     /**
      * Try to connect to a PEAK PEAK PCAN-USB CAN device in classic CAN mode. (See
      * openCanDeviceFd() for opening the device in CAN FD mode.)
-     *   @param canDev
+     *   @param pcanDevHandle
      * CAN communication will be done with this PEAK PCAN-USB CAN device.<p>
      *   If null is passed then the first found available PEAK PCAN-USB device is selected
      * and opened.
@@ -255,7 +363,7 @@ public static SignalWithAutoReset _rxNotification = new SignalWithAutoReset();
      * or a solid range of those, from..till. All of the IDs in the list will be configured
      * as accetance filters. (It's unclear, how many messages can be registered.)
      */
-    public boolean open( TPCANHandle canDev
+    public boolean open( TPCANHandle pcanDevHandle
                        , TPCANBaudrate baudRate
                        , List<CanId> listOfRxCanIds
                        )
@@ -263,24 +371,24 @@ public static SignalWithAutoReset _rxNotification = new SignalWithAutoReset();
         assert _pcanApi != null: "Class not initialized";
 
         boolean success = true;
-        if (canDev_ != null) {
+        if (pcanDevHandle_ != null) {
             success = false;
             _errCnt.error();
             _logger.error( "Can't open PEAK PCAN-USB CAN device {} while another device ({})"
                            + " is still opened"
-                         , canDev
-                         , canDev_
+                         , pcanDevHandle
+                         , pcanDevHandle_
                          );
         }
         
         /* No particular device is specified. Use the first available in the iteration of
            all PEAK devices. */
-        if (success &&  canDev == null) {
-            canDev = PCANBasicEx.getFirstAvailableChannel();
-            if (canDev != null) {
+        if (success &&  pcanDevHandle == null) {
+            pcanDevHandle = PCANBasicEx.getFirstAvailableChannel();
+            if (pcanDevHandle != null) {
                 _logger.info( "PEAK PCAN-USB device {} has been automatically chosen for"
                               + " operation."
-                            , canDev
+                            , pcanDevHandle
                             );
             } else {
                 success = false;
@@ -298,14 +406,14 @@ public static SignalWithAutoReset _rxNotification = new SignalWithAutoReset();
             /* Arguments 3..5 are not used for the Plug&Play device PEAK-USB and
                PEAK-USB-FD. We set them to "don't care". */
             final TPCANStatus errCode = _pcanApi.Initialize
-                                                    ( canDev
+                                                    ( pcanDevHandle
                                                     , baudRate
                                                     , /*HwType*/ TPCANType.PCAN_TYPE_NONE
                                                     , /*IOPort*/ 0
                                                     , /*Interrupt*/ (short)0
                                                     );
             if(PCANBasicEx.checkReturnCode(errCode))
-                _logger.debug("PCANBasic device {} successfully initialized.", canDev);
+                _logger.debug("PCANBasic device {} successfully initialized.", pcanDevHandle);
             else
             {
                 success = false;
@@ -314,7 +422,7 @@ public static SignalWithAutoReset _rxNotification = new SignalWithAutoReset();
                                + " expects a PCAN-USB or PCAN-USB FD device connected to"
                                + " a USB port. The device must not be allocated to another"
                                + " application, e.g., the PCAN Explorer."
-                             , canDev
+                             , pcanDevHandle
                              );
             }
         }
@@ -322,11 +430,11 @@ public static SignalWithAutoReset _rxNotification = new SignalWithAutoReset();
         /* Set the CAN acceptance filter for Rx messages. */
         if (success) {
             /* Can device is acquired. */
-            canDev_ = canDev;
+            pcanDevHandle_ = pcanDevHandle;
             
             for (CanId canId: listOfRxCanIds) {
                 final TPCANStatus errCode = _pcanApi.FilterMessages
-                                                        ( canDev
+                                                        ( pcanDevHandle
                                                         , /*FromID*/ canId.getCanIdFirst()
                                                         , /*ToID*/ canId.getCanIdLast()
                                                         , /*Mode*/ canId.getMsgMode()
@@ -344,7 +452,7 @@ public static SignalWithAutoReset _rxNotification = new SignalWithAutoReset();
                     _errCnt.error();
                     _logger.fatal( "Configuring the CAN acceptance filter for PEAK PCAN-USB"
                                    + " CAN device {} failed."
-                                 , canDev
+                                 , pcanDevHandle
                                  );
                     break;
                 }
@@ -371,12 +479,10 @@ public static SignalWithAutoReset _rxNotification = new SignalWithAutoReset();
 //                            );
 //            }
 //        }
+
         if (success) {
-            /* Register the listener for CAN Rx events at the PCAN basic library. Caution:
-               Only a single listener can be registered. */
-            RcvEventDispatcher.setListener(this);  // [1](https://github.com/Mobility-Services-Lab/AutomotiveServiceBus/blob/master/pcan-library/src/main/java/peak/can/basic/RcvEventDispatcher.java)
-            /* Enable CAN Rx events for this device. */
-            _pcanApi.SetRcvEvent(canDev_);
+            /* Register the listener for CAN Rx events at the PCAN basic library. */
+            CanRxNotificationDispatcher.registerCanDevForRxNotifications(pcanDevHandle, this);
         }
 
         return success;
@@ -392,18 +498,18 @@ public static SignalWithAutoReset _rxNotification = new SignalWithAutoReset();
     {
         assert _pcanApi != null: "Class not initialized";
         boolean success = true;
-        if (canDev_ != null) {
+        if (pcanDevHandle_ != null) {
             /* Don't send more CAN Rx notifications to this device. */
-            RcvEventDispatcher.setListener(null);
+            CanRxNotificationDispatcher.unregisterCanDevFromRxNotifications(pcanDevHandle_);
             
-            final TPCANStatus errCode = _pcanApi.Uninitialize(canDev_);
+            final TPCANStatus errCode = _pcanApi.Uninitialize(pcanDevHandle_);
             if(!PCANBasicEx.checkReturnCode(errCode))
             {
                 success = false;
                 _errCnt.error();
                 _logger.error("Can't close PEAK PCAN-USB CAN device. Error in PCANBasic API");
             }
-            canDev_ = null;
+            pcanDevHandle_ = null;
 
         } else {
             _logger.debug("Can't close PEAK PCAN-USB CAN device because it is not opened");
@@ -425,8 +531,8 @@ public static SignalWithAutoReset _rxNotification = new SignalWithAutoReset();
      */
     public TPCANStatus Read(TPCANMsg messageBuffer, TPCANTimestamp timestampBuffer) {
         assert _pcanApi != null: "Class not initialized";
-        assert canDev_ != null: "No device opened";
-        return _pcanApi.Read(canDev_, messageBuffer, timestampBuffer);
+        assert pcanDevHandle_ != null: "No device opened";
+        return _pcanApi.Read(pcanDevHandle_, messageBuffer, timestampBuffer);
     }
     
     /**
@@ -441,8 +547,8 @@ public static SignalWithAutoReset _rxNotification = new SignalWithAutoReset();
      */
     public TPCANStatus ReadFD(TPCANMsgFD messageBuffer, TPCANTimestampFD timestampBuffer) {
         assert _pcanApi != null: "Class not initialized";
-        assert canDev_ != null: "No device opened";
-        return _pcanApi.ReadFD(canDev_, messageBuffer, timestampBuffer);
+        assert pcanDevHandle_ != null: "No device opened";
+        return _pcanApi.ReadFD(pcanDevHandle_, messageBuffer, timestampBuffer);
     }
     
     /**
@@ -454,8 +560,8 @@ public static SignalWithAutoReset _rxNotification = new SignalWithAutoReset();
      */
     public TPCANStatus Write(TPCANMsg messageBuffer) {
         assert _pcanApi != null: "Class not initialized";
-        assert canDev_ != null: "No device opened";
-        return _pcanApi.Write(canDev_, messageBuffer);
+        assert pcanDevHandle_ != null: "No device opened";
+        return _pcanApi.Write(pcanDevHandle_, messageBuffer);
     }
     
     /**
@@ -467,23 +573,17 @@ public static SignalWithAutoReset _rxNotification = new SignalWithAutoReset();
      */
     public TPCANStatus WriteFD(TPCANMsgFD messageBuffer) {
         assert _pcanApi != null: "Class not initialized";
-        assert canDev_ != null: "No device opened";
-        return _pcanApi.WriteFD(canDev_, messageBuffer);
+        assert pcanDevHandle_ != null: "No device opened";
+        return _pcanApi.WriteFD(pcanDevHandle_, messageBuffer);
     }
     
     /**
-     * This method is called by the RcvEventDispatcher to process the CAN Receive-Event
-     * by the current implementor.<p>
-     *   Note, exerimental implementation only to investiate the possibilities of the
-     * callback notification.
-     * @param channel CAN channel to process event
+     * On every CAN message received by this CAN device, this method is called by the PCAN
+     * Basic API via class RcvEventDispatcher and via the there registered listener object.
      */
-    public void processRcvEvent(TPCANHandle channel) {
-        final long now = System.nanoTime();
+    public void onCanMsgRx() {
         _rxNotification.signal();
-        _logger.trace("CAN device {} received a message at {}.", channel, now);
     }
-
 } /* End of class CanDevice definition. */
 
 
