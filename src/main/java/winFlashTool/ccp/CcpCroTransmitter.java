@@ -223,7 +223,7 @@ private int noPolls_ = 0;
                                             , (byte)MSG_LEN
                                             , payloadAry
                                             );
-        final TPCANStatus errCode = canDev_.Write(canMsg);
+        final TPCANStatus errCode = canDev_.write(canMsg);
 noPolls_ = 0;
 ++ _noCro;
         tiResponseEcuInNs_ = System.nanoTime();
@@ -293,13 +293,10 @@ noPolls_ = 0;
             /* Check PCANBasic API for Rx event. */
 ++_totalNoPolls;
 if (++noPolls_ > _maxNoPolls) {_maxNoPolls = noPolls_;}
-try {
-    CanDevice._rxNotification.await(/*timeoutInMs*/ 10);
-} catch(InterruptedException e) {
-    /* Would be just fine to get here, but will never happen. */
-    assert false: "Unexpected interruption of main task";
-}
-            final TPCANStatus errCode = canDev_.Read(canMsg, /*TimestampBuffer*/null);
+            final TPCANStatus errCode = canDev_.read( canMsg
+                                                    , /*TimestampBuffer*/ null
+                                                    , /*timeoutInMs*/ 10
+                                                    );
             if(errCode != TPCANStatus.PCAN_ERROR_QRCVEMPTY)
             {
 _logger.trace("Fetched message from queue at {}.", System.nanoTime());

@@ -81,7 +81,7 @@ public final class SignalWithAutoReset {
      * indicates the situation. Interruption can be done by calling Thread.interrupt() for
      * the waiting thread. Note, the signal has not been received in this case.
      *   @return
-     * Get true is the signal has been received, regardless wether with or without waiting
+     * Get true if the signal has been received, regardless whether with or without waiting
      * for it.<p>
      *   Get false if the timeout elapsed without receiving the signal.
      *   @param timeoutInMs

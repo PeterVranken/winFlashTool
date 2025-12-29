@@ -156,7 +156,15 @@ public enum TPCANStatus {
      *
      * Note: Value was changed from 0x80000 to 0x8000000
      */
-    PCAN_ERROR_ILLOPERATION(0x8000000);
+    PCAN_ERROR_ILLOPERATION(0x8000000),
+
+    /**
+     * Timeout. 
+     *
+     * This value can be returned by the CAN read functions, when no message is received
+     * before the specified timeout elapses.
+     */
+    PCAN_ERROR_TIMEOUT(0x10000000);
 
     private TPCANStatus(int value) {
         this.value = value;
