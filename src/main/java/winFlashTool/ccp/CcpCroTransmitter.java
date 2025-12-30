@@ -58,7 +58,7 @@ class CcpCroTransmitter
 
     /* The error counter to be used for error reporting. */
     final ErrorCounter errCnt_;
-    
+
     /** The states of the processing. */
     private enum StateTransmission
     {
@@ -84,7 +84,7 @@ class CcpCroTransmitter
             }
         }
     };
-    
+
     /** The results of the processing. */
     public enum ResultTransmission
     {
@@ -116,32 +116,36 @@ class CcpCroTransmitter
             }
         }
     };
-    
+
     /** The state of the state machine. */
     private StateTransmission state_ = StateTransmission.UNDEFINED;
-    
+
     /** The CAN device, which is used for CAN Tx and Rx. */
     private final CanDevice canDev_;
-    
+
     /** The command counter. It cycles from 0 till 255. */
     private byte cmdCntr_ = 0;
-    
+
     /** Timeout counter to measure the time it may take to receive the DTO message. */
     private TimeoutTimer timerRxDtoTO_;
-    
+
     /** Debugging: A time variable to measure the response time of the ECU. It is the time
         from sending the CRO until reception of DTO. */
     public long tiResponseEcuInNs_;
-    
+
     /** The CAN ID of all CRO messages. */
     private final CanId ccpCanIdCro_;
-    
+
     /** The CAN ID of all DTO messages. */
     private final CanId ccpCanIdDto_;
-    
+
+    /** A dummy message object, just needed to flush the Rx queue in case of protocol
+        errors. */
+    private final TPCANMsg tmpCanMsg_;
+            
     /** The length of all CRO and DTO messages. */
     private final static int MSG_LEN = 8;
-    
+
     /** The maximum time, which may elapse after sending the CRO until the DTO arrives. Unit
         is Milliseconds. */
     private int timeoutTillRxDtoInMs_;
@@ -170,7 +174,8 @@ class CcpCroTransmitter
         errCnt_ = errCnt;
         canDev_ = canDev;
         ccpCanIdCro_ = ccpCanIdCro;
-        ccpCanIdDto_ = ccpCanIdDto; 
+        ccpCanIdDto_ = ccpCanIdDto;
+        tmpCanMsg_ = new TPCANMsg();
         timeoutTillRxDtoInMs_ = 1000;
         timerRxDtoTO_ = new TimeoutTimer(timeoutTillRxDtoInMs_);
 
@@ -178,7 +183,7 @@ class CcpCroTransmitter
 
     } /* CcpCroTransmitter.CcpCroTransmitter */
 
-    
+
     /**
      * Set the timeout for time span between sending CRO and receiving DTO.
      *   @param timeoutTillRxDtoInMs
@@ -243,9 +248,9 @@ noPolls_ = 0;
             errCnt_.error();
             _logger.error( "Error sending CRO message {} with {} Byte payload."
                          , payloadAry[0]
-                         , noContentBytes 
+                         , noContentBytes
                          );
-            
+
             /* By design, we do not return the error message immediately. Instead, we
                return it like all later Rx related errors in method getDto(). This makes
                the usage of this class simpler. At the caller side, on entry into a CCP
@@ -255,8 +260,8 @@ noPolls_ = 0;
             state_ = StateTransmission.ERROR_TX_CRO;
         }
     } /* sendCro */
-    
-    
+
+
     /**
      * Main function of state machine.<p>
      *   Regularly call this method after sending a CRO until the DTO is received.
@@ -275,21 +280,18 @@ noPolls_ = 0;
      * A CAN message is provided to the method. It must be evaluated as result only if the
      * method returns ResultTransmission.SUCCESS.
      */
-    public ResultTransmission getDto(TPCANMsg canMsg)
-    {
+    public ResultTransmission getDto(TPCANMsg canMsg) {
         ResultTransmission result;
-        if(state_ == StateTransmission.ERROR_TX_CRO)
-        {
+        if(state_ == StateTransmission.ERROR_TX_CRO) {
             /* Here, we have the delayed reporting of the error in sendCro(). */
             result = ResultTransmission.ERROR_CAN_RX_TRANSMISSION_FAILED;
-            
+
             /* After error reporting, we return to IDLE to allow a repeated attempt. */
             state_ = StateTransmission.IDLE;
-        }
-        else
-        {
+
+        } else {
             assert state_ == StateTransmission.WAITING_FOR_DTO: "Bad use of class interface";
-             
+
             /* Check PCANBasic API for Rx event. */
 ++_totalNoPolls;
 if (++noPolls_ > _maxNoPolls) {_maxNoPolls = noPolls_;}
@@ -297,13 +299,13 @@ if (++noPolls_ > _maxNoPolls) {_maxNoPolls = noPolls_;}
                                                     , /*TimestampBuffer*/ null
                                                     , /*timeoutInMs*/ 10
                                                     );
-            if(errCode != TPCANStatus.PCAN_ERROR_QRCVEMPTY)
-            {
+            if (errCode != TPCANStatus.PCAN_ERROR_QRCVEMPTY 
+                &&  errCode != TPCANStatus.PCAN_ERROR_TIMEOUT
+               ) {
 _logger.trace("Fetched message from queue at {}.", System.nanoTime());
 
                 tiResponseEcuInNs_ = System.nanoTime() - tiResponseEcuInNs_;
-                if(PCANBasicEx.checkReturnCode(errCode))
-                {
+                if (PCANBasicEx.checkReturnCode(errCode)) {
                     /* Checking the CAN ID is actually useless as the reception filter
                        should hinder that we ever see a wrong one, but this is external
                        code and we don't have a guarantee how it behaves. Better to
@@ -321,8 +323,7 @@ _logger.trace("Fetched message from queue at {}.", System.nanoTime());
                         if(payloadAry[0] != (byte)0xFF /* PACKET_ID of CRM */
                            ||  payloadAry[1] != (byte)0 /* 0: CMD_RET_CODE_ACKNOWLEDGE */
                            ||  payloadAry[2] != cmdCntrExpected
-                          )
-                        {
+                          ) {
                             /* Report error and return to IDLE for a repeated attempt. */
                             errCnt_.error();
                             _logger.error( "Invalid DTO message received. Expected packed"
@@ -335,17 +336,15 @@ _logger.trace("Fetched message from queue at {}.", System.nanoTime());
                                          , PCANBasicEx.b2i(payloadAry[1])
                                          , PCANBasicEx.b2i(payloadAry[2])
                                          );
-                                  
+
                             result = payloadAry[1] != (byte)0
                                      ? ResultTransmission.ERROR_NEGATIVE_RESPONSE
                                      : ResultTransmission.ERROR_BAD_DTO_HDR;
                             state_ = StateTransmission.IDLE;
-                        }
-                        else
-                        {
+
+                        } else {
                             /* We received a proper DTO. It is returned to the caller. */
-//                            _logger.trace( "DTO for CRO no {} received after {}ns."
-_logger.debug( "DTO for CRO no {} received after {}ns."
+                            _logger.trace( "DTO for CRO no {} received after {}ns."
                                          , PCANBasicEx.b2i(cmdCntrExpected)
                                          , tiResponseEcuInNs_
                                          );
@@ -353,9 +352,7 @@ _logger.debug( "DTO for CRO no {} received after {}ns."
                             state_ = StateTransmission.IDLE;
 
                         } /* if(CAN message is expected DTO?) */
-                    }
-                    else
-                    {
+                    } else {
                         /* Report error and return to IDLE for a repeated attempt. */
                         errCnt_.error();
                         _logger.error( "Invalid DTO message received. Expected CAN"
@@ -363,7 +360,7 @@ _logger.debug( "DTO for CRO no {} received after {}ns."
                                        + " ID {} and length {}."
                                      , ccpCanIdDto_
                                      , MSG_LEN
-                                     , canMsg.getType() 
+                                     , canMsg.getType()
                                        == TPCANMessageType.PCAN_MESSAGE_EXTENDED.getValue()
                                        ? " extended"
                                        : ""
@@ -372,19 +369,37 @@ _logger.debug( "DTO for CRO no {} received after {}ns."
                                      );
                         result = ResultTransmission.ERROR_WRONG_CAN_MSG;
                         state_ = StateTransmission.IDLE;
-                        
+
                     } /* if(CAN message is expected DTO?) */
-                }
-                else
-                {
+
+                    /* As long as both communication endpoints act correct and nobody else
+                       barges in, we will never have any other message in the queue until
+                       we actively request for it with the next CRO message. However, we
+                       should be prepared for bad environments and not silently suffer from
+                       exceeding queues. Eliminate unexpected Rx messages. Safe
+                       continuation of the protocol can't be granted. */
+                    while (true) {
+                        TPCANStatus err = canDev_.read(tmpCanMsg_, /*TimestampBuffer*/ null);
+                        if (err != TPCANStatus.PCAN_ERROR_OK) {
+                            break;
+                        } else {
+                            errCnt_.error();
+                            _logger.error( "CCP protocol error. Unexpected CAN message with"
+                                           + " ID {} and length {} received."
+                                         , tmpCanMsg_.getID()
+                                         , (int)tmpCanMsg_.getLength()
+                                         );
+                            result = ResultTransmission.ERROR_WRONG_CAN_MSG;
+                        }
+                    }
+                } else {
                     /* Report error and return to IDLE for a repeated attempt. */
                     result = ResultTransmission.ERROR_CAN_RX_TRANSMISSION_FAILED;
                     state_ = StateTransmission.IDLE;
-                     
+
                 } /* if(CAN message reception without errors?) */
-            }
-            else if(timerRxDtoTO_.hasTimedOut())
-            {
+                
+            } else if(timerRxDtoTO_.hasTimedOut()) {
                 /* It took too long to receive the DTO. Report error and return to IDLE for
                    a repeated attempt. */
                 final int cmdCntrExpected = (PCANBasicEx.b2i(cmdCntr_) - 1) & 0xFF;
@@ -393,43 +408,34 @@ _logger.debug( "DTO for CRO no {} received after {}ns."
                              );
                 result = ResultTransmission.ERROR_TIMEOUT;
                 state_ = StateTransmission.IDLE;
-            }
-            else
-            {
-                result = ResultTransmission.PENDING;
                 
-//                /* Preliminary solution to avoid busy-wait with high CPU load. By
-//                   experience, it reduces the maximum achievable throughput from 30%
-//                   busload at 500 kBd to about 20%. */
-//                try {
-//                    Thread.sleep(1);
-//                } catch (InterruptedException e) {
-//                }
+            } else {
+                result = ResultTransmission.PENDING;
 
 // Pattern 1, counting semaphore:
-// 
+//
 // import java.util.concurrent.Semaphore;
 // import java.util.concurrent.TimeUnit;
-// 
+//
 // public class RxSignal {
 //     // 0 permits => A will block until B releases
 //     private final Semaphore sem = new Semaphore(0 /*initialPermits*/, false /*fairness*/);
-// 
+//
 //     // Called by your PCAN callback thread (B). KEEP THIS LIGHT!
 //     public void signalRx() {
 //         sem.release();            // wake exactly one waiter; multiple signals accumulate
 //     }
-// 
+//
 //     // Called by your main thread (A), repeatedly in its loop
 //     public boolean waitForRx(long timeout, TimeUnit unit) throws InterruptedException {
 //         return sem.tryAcquire(1, timeout, unit);  // returns true if signaled, false on timeout
 //     }
 // }
-// 
-// 
+//
+//
 // Main Thread, when waiting for DTO:
 // RxSignal rx = new RxSignal();
-// 
+//
 // while (!shutdown) {
 //     if (rx.waitForRx(5, TimeUnit.MILLISECONDS)) {
 //         // -> got the signal: drain CAN receive queue until empty
@@ -437,7 +443,7 @@ _logger.debug( "DTO for CRO no {} received after {}ns."
 //     }
 //     // -> housekeeping work here when timed out
 // }
-// 
+//
 // Callback thread, in PCAN BAsic context:
 // @Override
 // public void processRcvEvent(TPCANHandle ch) {
@@ -448,18 +454,18 @@ _logger.debug( "DTO for CRO no {} received after {}ns."
 // max-count of 1: Semaphore is is incremented only if Boolean not yet set.
 //     rx.signalRx();
 // }
-// 
+//
 // Patter 1a: Using a Boolean to overcome the accumulating semaphore.
-// 
+//
 // import java.util.concurrent.Semaphore;
 // import java.util.concurrent.TimeUnit;
 // import java.util.concurrent.atomic.AtomicBoolean;
-// 
+//
 // /** Auto-reset signal with max=1 outstanding permit. */
 // public final class OneShotSignal {
 //     private final Semaphore sem = new Semaphore(0, false);
 //     private final AtomicBoolean armed = new AtomicBoolean(false);
-// 
+//
 //     /** B: called from your PCAN Rx callback - wake A if not already armed. */
 //     public void signal() {
 //         // If we transition false -> true, release a single permit.
@@ -468,7 +474,7 @@ _logger.debug( "DTO for CRO no {} received after {}ns."
 //         }
 //         // If already armed, do nothing: we keep exactly one outstanding signal.
 //     }
-// 
+//
 //     /** A: wait with timeout; returns true if signaled, false if timed out. */
 //     public boolean await(long timeout, TimeUnit unit) throws InterruptedException {
 //         if (!sem.tryAcquire(1, timeout, unit)) {
@@ -479,27 +485,27 @@ _logger.debug( "DTO for CRO no {} received after {}ns."
 //         return true;
 //     }
 // }
-// 
+//
 // Pattern 2: Main thread suspends, signalling is implemented by release from callback thread.
 // Advantage: No complexity due to counting.
-// 
+//
 // Key properties you should know:
-// 
+//
 // There is at most one permit per thread; extra unpark calls before park can be lost if you
-// don't guard with an atomic flag. 
+// don't guard with an atomic flag.
 // park may return for no reason -> always loop and recheck
 // the condition. [docs.oracle.com]
-// 
+//
 // Use this if you want the absolute lowest overhead and you're comfortable with a small
 // amount of bespoke concurrency code.
-// 
+//
 // import java.util.concurrent.locks.LockSupport;
 // import java.util.concurrent.atomic.AtomicBoolean;
-// 
+//
 // class AutoResetSignal {
 //     private final AtomicBoolean signaled = new AtomicBoolean(false);
 //     private volatile Thread waiter;  // the thread that will park
-// 
+//
 //     // A (main thread):
 //     boolean awaitNanos(long timeoutNanos) {
 //         final long deadline = System.nanoTime() + timeoutNanos;
@@ -507,12 +513,12 @@ _logger.debug( "DTO for CRO no {} received after {}ns."
 //         while (true) {
 //             // fast-path: consume signal if present
 //             if (signaled.compareAndSet(true, false)) return true;
-// 
+//
 //             long remaining = deadline - System.nanoTime();
 //             if (remaining <= 0) return false;
-// 
+//
 //             LockSupport.parkNanos(this, remaining); // may wake spuriously
-// 
+//
 //             // parkNanos can return for multiple reasons:
 //             //   the signal arrived (unpark),
 //             //   the timeout expired,
@@ -522,7 +528,7 @@ _logger.debug( "DTO for CRO no {} received after {}ns."
 //             if (Thread.interrupted()) Thread.currentThread().interrupt();
 //         }
 //     }
-// 
+//
 //     // B (callback):
 //     void signal() {
 //         signaled.set(true);                // publish signal
@@ -530,25 +536,25 @@ _logger.debug( "DTO for CRO no {} received after {}ns."
 //         if (w != null) LockSupport.unpark(w);  // wake the parked thread quickly
 //     }
 // }
-// 
+//
 // Pattern 3:
-// 
-// 
-// 
+//
+//
+//
 // import java.util.concurrent.TimeUnit;
 // import java.util.concurrent.locks.Condition;
 // import java.util.concurrent.locks.ReentrantLock;
-// 
+//
 // /**
 //  * Auto-Reset-Event auf Basis von ReentrantLock + Condition.
 //  * Maximal ein "offenes" Signal; A verbraucht es beim erfolgreichen Warten.
 //  */
 // public final class AutoResetEventCondition {
-// 
+//
 //     private final ReentrantLock lock = new ReentrantLock(false); // non-fair fuer geringe Latenz
 //     private final Condition condition = lock.newCondition();
 //     private boolean signaled = false;  // "bewaffnetes" Signal
-// 
+//
 //     /** B (Callback): loest das Ereignis aus und weckt einen Wartenden. */
 //     public void signal() {
 //         lock.lock();
@@ -560,7 +566,7 @@ _logger.debug( "DTO for CRO no {} received after {}ns."
 //             lock.unlock();
 //         }
 //     }
-// 
+//
 //     /**
 //      * A (Main-Thread): wartet bis zu timeout auf ein Signal.
 //      * @return true, wenn Signal erhalten und konsumiert, false bei Timeout.
@@ -583,7 +589,7 @@ _logger.debug( "DTO for CRO no {} received after {}ns."
 //             lock.unlock();
 //         }
 //     }
-// 
+//
 //     /** Optional: sofortige Nicht-blockierende Abfrage */
 //     public boolean tryConsume() {
 //         lock.lock();
@@ -596,24 +602,24 @@ _logger.debug( "DTO for CRO no {} received after {}ns."
 //         }
 //     }
 // }
-// 
+//
 // Practical advice:
-// 
+//
 // Set A to Thread.MAX_PRIORITY and B to Thread.NORM_PRIORITY (or lower).
 // Keep the callback very short (just signalRx()), so the OS can schedule A immediately when
-// unblocked. 
+// unblocked.
 // Prefer Semaphore or LockSupport; both unblock A quickly without heavy locking.
 
                 /* We remain in state WAITING_FOR_DTO. */
 
             } /* if(CAN message received since last invokation?) */
-            
-        } /* if(CRO could be sent without failures?) */   
-        
+
+        } /* if(CRO could be sent without failures?) */
+
         return result;
-        
+
     } /* getDto */
-    
+
 } /* End of class CcpCroTransmitter definition. */
 
 

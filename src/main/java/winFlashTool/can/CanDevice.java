@@ -490,8 +490,28 @@ public class CanDevice
                events will notify the signal-with-auto-reset. */
             rxNotification_ = new SignalWithAutoReset();
             CanRxNotificationDispatcher.registerCanDevForRxNotifications(pcanDevHandle, this);
-        }
 
+            /* Pop all messages from the queue, which could have been received during
+               configuration of the device. In particular, there can be message with unexpected
+               CAN IDs, if they had been received between acquisition of device and setting the
+               acceptance filters. */
+            final TPCANMsg tmpCanMsg = new TPCANMsg();
+            TPCANStatus errCode;
+            int noDroppedMsgs = -1;
+            do {
+                errCode = read(tmpCanMsg, /*TimestampBuffer*/ null, /*timeoutInMs*/ 0);
+                ++ noDroppedMsgs;
+            } while (errCode == TPCANStatus.PCAN_ERROR_OK);
+            
+            if (noDroppedMsgs > 0) {
+                _logger.debug( "Open CAN device {}: Discard {} prematurely received CAN"
+                               + " messages"
+                             , pcanDevHandle_
+                             , noDroppedMsgs
+                             );
+            }
+        }
+        
         return success;
 
     } /* open (by handle) */
