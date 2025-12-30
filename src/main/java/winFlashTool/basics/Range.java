@@ -19,7 +19,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 /* Interface of class Range
- *   Range
+ *   Range (2variants)
+ *   from
+ *   till
+ *   size
+ *   isBefore
+ *   connectsBefore
+ *   connectsBehind
+ *   isBehind
+ *   connectsTo
+ *   overlaps
+ *   intersect (2 variants)
+ *   isSubtractable
+ *   subtract
+ *   join (2 variants)
+ *   compareTo
+ *   toString
  */
 
 package winFlashTool.basics;
@@ -127,37 +142,6 @@ public class Range implements Comparable<Range>
      * The second, subtracted range.
      */
     public static Range subtract(Range a, Range b) {
-        // @todo Can be simplified. Re-order the conditions.
-        //assert a.isSubtractable(b);
-        //if (a.till_ > b.from_  &&  b.till_ >= a.till_) {
-        //    /* Result is first part of a, until where b begins. */
-        //    if (b.from_ > a.from_) {
-        //        return new Range(a.from_, b.from_);
-        //    } else {
-        //        /* Result is the empty range. This is represented by null. */
-        //        return null;
-        //    }
-        //} else if (a.from_ >= b.from_) {
-        //    if (b.till_ >= a.till_) {
-        //        /* a is entirely inside b. This is not representable as Range object but -
-        //           at least for a static method - as null. */
-        //        return null;
-        //    } else if(b.till_ > a.from_) {
-        //        /* Result is last part of a, from where b ends. */
-        //        if (a.till_ > b.till_) {
-        //            return new Range(b.till_, a.till_);
-        //        } else {
-        //           /* Result is the empty range. This is represented by null. */
-        //            return null;
-        //        }
-        //    } else {
-        //        assert a.isBehind(b);
-        //        return a;
-        //    }
-        //} else {
-        //    assert a.isBefore(b);
-        //    return a;
-        //}
         if (b.from_ <= a.from_) {
             if (b.till_ <= a.from_) {
                 /* b is entirely before a. Result is a unmodified. */

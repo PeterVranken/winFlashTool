@@ -48,6 +48,7 @@ import winFlashTool.can.CanDevice;
 import winFlashTool.can.CanId;
 import peak.can.basic.TPCANHandle;
 import peak.can.basic.TPCANBaudrate;
+import winFlashTool.applicationInterface.AddressRangeSequence;
 
 /**
  * This class has a main function, which implements the excel exporter application.
@@ -61,7 +62,7 @@ public class WinFlashTool
     public static final String _applicationName = "winFlashTool";
 
     /** Version designation as four numeric parts. */
-    private static int[] _versionAry = {0, 5, 0, GitRevision.getProjectRevision()};
+    private static int[] _versionAry = {0, 8, 0, GitRevision.getProjectRevision()};
 
     /** The first three parts of the version of the tool, which relate to functional
         changes of the application.
@@ -182,12 +183,20 @@ public class WinFlashTool
               + " if --enumerate-CAN-devices is used to check the hardware setup."
             );
         clp.defineArgument
+            ( "o", "srec-output-file"
+            , /*cntMax, cntMax*/ 0, 1
+            , /*defaultValue*/ null
+            , "The srec file with the uploaded memory contents."
+              + "\nIf this argument is used then an upload of memory contents from the target"
+              + " device is commanded."
+            );
+        clp.defineArgument
             ( "s", "srec-input-file"
             , /*cntMax, cntMax*/ 0, 1
             , /*defaultValue*/ null
             , "The srec file with the memory contents to flash."
-              + "\nThis argument is mandatory for normal operation but it is not required"
-              + " if --enumerate-CAN-devices is used to check the hardware setup."
+              + "\nIf this argument is used then a download of the file to the target"
+              + " device is commanded."
             );
         clp.defineArgument
             ( "e", "enumerate-CAN-devices"
@@ -249,6 +258,16 @@ public class WinFlashTool
             , "The number of re-tries (after short delay) if the initial CCP connect fails."
               + " The supported range is [0, 10]"
               + "\nOptional, default is 2."
+            );
+        clp.defineArgument
+            ( "u", "address-range"
+            , /*cntMin, cntMax*/ 0, Integer.MAX_VALUE
+            , /*defaultValue*/ ""
+            , "Address range for upload. A colon-separated pair of two hexadecimal"
+              + " addresses, from:to, e.g., 00800000:008E0000. This argument can be used"
+              + " any number of times."
+              + "\nThis argument is mandatory if the other argument srec-output-file is used"
+              + "to command an upload."
             );
 //        clp.defineArgument
 //            ( "$(point)", ""
@@ -329,67 +348,31 @@ public class WinFlashTool
         }
             
         final String canDeviceName = cmdLineParser_.getString("CAN-device");
-        if(success && cmdLineParser_.getBoolean("enumerate-CAN-devices"))
+        
+        /* Check command line to find out, which tasks are commanded. */
+        final String srecInputFileName = cmdLineParser_.getString("srec-input-file")
+                   , srecOutputFileName = cmdLineParser_.getString("srec-output-file");
+        final boolean taskEnumCanDevices = cmdLineParser_.getBoolean("enumerate-CAN-devices")
+                    , taskUpload = srecOutputFileName != null
+                    , taskProgram = srecInputFileName != null;
+                    
+        if(success && taskEnumCanDevices)
         {
+            if (taskUpload || taskProgram) {
+                errCnt_.warning();
+                _logger.warn( "Please note, if command line argument --enumerate-CAN-devices"
+                              + " is used then no up- or download is performed. Arguments"
+                              + " --srec-output-file and --srec-input-file are ignored."
+                            );
+            }
+            
             /* Print all connected devices. */
             PCANBasicEx.printAttachedChannels();
             if (!canDeviceName.isEmpty()) {
                 success = PCANBasicEx.identifyChannel(canDeviceName);
             }
-        } else {
-            /* Normal application run. */
-            
-            final String srecFileName = cmdLineParser_.getString("srec-input-file");
-            if (srecFileName == null) {
-                success = false;
-                errCnt_.error();
-                _logger.error( "No srec file is specified on the command line. Please use -h"
-                               + " for help."
-                             );
-            }
-
-            final String targetMcuName = cmdLineParser_.getString("mcu-target");
-            if (targetMcuName == null) {
-                success = false;
-                errCnt_.error();
-                _logger.error( "No MCU target is specified on the command line. Please use -h"
-                               + " for help."
-                             );
-            }
-            
-            final Flash flashROM;
-            if (success) {
-                switch(targetMcuName) {
-                case "MPC5775B":
-                case "MPC5775E":
-                    flashROM = Mpc5775BE_C55FMC.getFlashRomDescription();
-                    break;
-                    
-                default:
-                    flashROM = null;
-                    success = false;
-                    errCnt_.error();
-                    _logger.error( "MCU target {} is either unknown or not supported. Please"
-                                   + " use -h to get a list of all supported targets."
-                                 , targetMcuName
-                                 );
-                }
-            } else {      
-                flashROM = null;
-            }
-            
-            final MemoryMap memMap;
-            if (success) {
-                memMap = new MemoryMap(flashROM, errCnt_);
-                if (!memMap.readSrecFile(srecFileName)) {
-                    success = false;
-                    errCnt_.error();
-                    _logger.error("Can't read srec input file. Application terminates.");
-                }
-            } else {      
-                memMap = null;
-            }
-
+        } else if (taskUpload || taskProgram) {
+        
             /* Set the CN IDs to use for CCP communication. */
             final CanId canIdCro = new CanId( cmdLineParser_.getInteger("CAN-ID-CRO") & 0x7FF
                                             , /*isExtId*/ false
@@ -402,12 +385,15 @@ public class WinFlashTool
             listOfRxCanIds.add(canIdDto);
 
             /* Try to open the PCAN-USB CAN device. */
-            final CanDevice canDev = new CanDevice();
+            final CanDevice canDev;
             if (success) {
+                canDev = new CanDevice();
                 success = canDev.open( canDeviceName
                                      , TPCANBaudrate.PCAN_BAUD_500K
                                      , listOfRxCanIds
                                      );
+            } else {
+                canDev = null;
             }
             
             /* Setup the CCP communication. */
@@ -420,47 +406,137 @@ public class WinFlashTool
                              , cmdLineParser_.getInteger("no-retries-ccp-connect")
                              , errCnt_
                              );
-                             
-                /* Prepare a CCP communication thread for erase and program. */
-errCnt_.warning();
-_logger.warn( "Application mode is switched from Erase and Program to Upload! File is"
-              + " \"upload.txt\""
-            );
-//                ccp.eraseAndProgram(memMap, cmdLineParser_.getBoolean("dry-run"));
-// TODO srecSequence_ hijacked for test
-/* Set all bytes to a pattern to prove the effect of uploading. */
-for (SRecord srec: memMap.srecSequence_) {
-    Arrays.fill(srec.data(), (byte)0xA5);
-}
-                ccp.upload(memMap.srecSequence_, cmdLineParser_.getBoolean("dry-run"));
             } else {
                 ccp = null;
             }
-            
-            /* Clock the state machine, which runs the CCP communication. */
-            while(success && !ccp.step()) {
-                /* Here, we could do other, non-blocking things, e.g., print some progress
-                   information. */
-            }
-            
-            /* Close CAN device; release the PCAN-USB CAN device for other applications. */
-            canDev.close();
-for (SRecord srec: memMap.srecSequence_) {
-    final String fileName = "upload-" + Long.toHexString(srec.from())
-                            + "-" + Long.toHexString(srec.till()) + ".txt";
-    try {
-        HexDumpUtil.writeBytesAsHexLines(fileName , srec.data());
-        _logger.info("Uploaded data written to file {}.", fileName);
 
-    } catch(IOException e) {
-        errCnt_.error();
-        _logger.error("Can't write uploaded data to file {}. {}", fileName, e.getMessage());
+            if (success && taskUpload) {
+                /* Prepare a CCP communication thread for uploading memory contents. */
+                _logger.info("Now uploading memory contents from target.");
+                
+                AddressRangeSequence addrRangeSeqForUpload = new AddressRangeSequence(errCnt_);
+                if (!addrRangeSeqForUpload.parseCmdLine(cmdLineParser_)) {
+                    success = false;
+                }
+                if (addrRangeSeqForUpload.size() <= 0) {
+                    success = false;
+                    errCnt_.error();
+                    _logger.error("No address range has been specified for upload of"
+                                  + " memory contents from the target device. Please use"
+                                  + " --address-range to do so or use -h for help."
+                                 );
+                }
+
+                /* Check specified address ranges for (unsupported) overlap and allocate
+                   memory buffers of required size for the upload. */
+                final SRecordSequence srecSeq;
+                if (success) {
+                    srecSeq = addrRangeSeqForUpload.toSRecordSequence();
+                    success = srecSeq != null;
+                } else {
+                    srecSeq = null;
+                }
+
+                if (success) {
+                    srecSeq.logSections();
+                    ccp.upload(srecSeq, cmdLineParser_.getBoolean("dry-run"));
+                
+                    /* Clock the state machine, which runs the CCP communication. */
+                    while(!ccp.step()) {
+                        /* Here, we could do other, non-blocking things, e.g., print some
+                           progress information. */
+                    }
+                    success = ccp.getFinalSuccess();
+                
+if (success) {
+    for (SRecord srec: srecSeq) {
+        final String fileName = "upload-" + Long.toHexString(srec.from())
+                                + "-" + Long.toHexString(srec.till()) + ".txt";
+        try {
+            HexDumpUtil.writeBytesAsHexLines(fileName , srec.data());
+            _logger.info("Uploaded data written to file {}.", fileName);
+
+        } catch(IOException e) {
+            errCnt_.error();
+            _logger.error("Can't write uploaded data to file {}. {}", fileName, e.getMessage());
+        }
     }
 }
-_logger.info("Number of needed CRO/DTO: {}", winFlashTool.ccp.CcpCroTransmitter._noCro);
-_logger.info("Maximum polling cycles per CRO/DTO: {}", winFlashTool.ccp.CcpCroTransmitter._maxNoPolls);
-_logger.info("Average polling cycles per CRO/DTO: {}", (double)winFlashTool.ccp.CcpCroTransmitter._totalNoPolls/(double)winFlashTool.ccp.CcpCroTransmitter._noCro);
-    }
+                }        
+            } /* if(Is an upload commanded?) */ 
+            
+            if (success && taskProgram) {
+                _logger.info("Now downloading data to target for flash programming.");
+
+                final String targetMcuName = cmdLineParser_.getString("mcu-target");
+                if (targetMcuName == null) {
+                    success = false;
+                    errCnt_.error();
+                    _logger.error( "No MCU target is specified on the command line. Please"
+                                   + " use -h for help."
+                                 );
+                }
+            
+                final Flash flashROM;
+                if (success) {
+                    switch(targetMcuName) {
+                    case "MPC5775B":
+                    case "MPC5775E":
+                        flashROM = Mpc5775BE_C55FMC.getFlashRomDescription();
+                        break;
+
+                    default:
+                        flashROM = null;
+                        success = false;
+                        errCnt_.error();
+                        _logger.error( "MCU target {} is either unknown or not supported."
+                                       + " Please use -h to get a list of all supported"
+                                       + " targets."
+                                     , targetMcuName
+                                     );
+                    }
+                } else {      
+                    flashROM = null;
+                }
+            
+                final MemoryMap memMap;
+                if (success) {
+                    memMap = new MemoryMap(flashROM, errCnt_);
+                    if (!memMap.readSrecFile(srecInputFileName)) {
+                        success = false;
+                        errCnt_.error();
+                        _logger.error("Can't read srec input file. Application terminates.");
+                    }
+                } else {      
+                    memMap = null;
+                }
+
+                /* Prepare a CCP communication thread for erase and program. */
+                ccp.eraseAndProgram(memMap, cmdLineParser_.getBoolean("dry-run"));
+
+                /* Clock the state machine, which runs the CCP communication. */
+                while(success && !ccp.step()) {
+                    /* Here, we could do other, non-blocking things, e.g., print some progress
+                       information. */
+                }
+                success = ccp.getFinalSuccess();
+
+            } /* if(Is a download and program commanded?) */ 
+           
+            /* Close CAN device; release the PCAN-USB CAN device for other applications. */
+            if (canDev != null) {
+                canDev.close();
+            }
+        } else {
+            success = false;
+            errCnt_.error();
+            _logger.error( "No srec file is specified on the command line. You need to use"
+                           + " argument --srec-output-file and/or --srec-input-file to"
+                           + " command an up- or download, respectively. Please use -h for"
+                           + " help."
+                         );
+        } /* if/else if(Which task to complete?) */
+
   
 // Application code goes here.
 //            String generatedCode = null;

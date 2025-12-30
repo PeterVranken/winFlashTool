@@ -18,7 +18,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 /* Interface of class SRecord
- *   SRecord
+ *   SRecord (2 variants)
+ *   data
+ *   intersect
+ *   join
  */
 
 package winFlashTool.srecParser;
@@ -49,6 +52,22 @@ public class SRecord extends Range {
     public SRecord(long addrFrom, byte[] data) {
         super(addrFrom, addrFrom+data.length);
         data_ = data;
+
+    } /* SRecord.SRecord */
+
+    /**
+     * A new, empty instance of SRecord is created. 
+     *   @param addressRange
+     * The memory address range. The data of the SRecord is initially filled with all zeros.
+     */
+    public SRecord(Range r) {
+        super(r);
+        if (r.size() > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Memory area is too large (" + r.size()
+                                               + " Byte. Up to 2^31-1 Byte are permitted."
+                                              );
+        }
+        data_ = new byte[(int)r.size()];
 
     } /* SRecord.SRecord */
 

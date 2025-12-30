@@ -59,7 +59,7 @@ public class SRecordSequence implements Iterable<SRecord> {
      *   @param r
      * The s-record to add to the memory map.
      */
-    boolean add(SRecord r) {
+    public boolean add(SRecord r) {
     
         if (recordList_.size() == 0) {
             recordList_.addLast(r);
@@ -158,8 +158,8 @@ public class SRecordSequence implements Iterable<SRecord> {
                    the overlap can extend over one or more successors. */
                 success = false;
                 _errCnt.error();
-                _logger.error( "Overlapping s-records detected in input file."
-                               + " Reprogramming the same addresses is not supported."
+                _logger.error( "Overlapping s-records detected in input. Uploading or"
+                               + " reprogramming the same addresses is not supported."
                                + " First overlapping address is 0x{}. Number of"
                                + " overlapping bytes is at least {}."
                              , Long.toHexString(overlap.from())
@@ -195,15 +195,15 @@ public class SRecordSequence implements Iterable<SRecord> {
     /**
      * Write a summary about all found and collected memory chunks to the application log.
      */
-    void logSections() {
+    public void logSections() {
         /* Note, a warning level is less specific, if the verbosity is higher or same! */
         if (_logger.getLevel().isLessSpecificThan(Level.INFO)) {
             ListIterator<SRecord> it = recordList_.listIterator();
             if (it.hasNext()) {
-                _logger.info("{} memory sections found in input file.", recordList_.size());
+                _logger.info("{} memory sections found in input.", recordList_.size());
             } else {
                 _errCnt.warning();
-                _logger.warn("Input file contains no memory sections.");
+                _logger.warn("Input contains no memory sections.");
             }
 
             final Level logLevel = _logger.getLevel();

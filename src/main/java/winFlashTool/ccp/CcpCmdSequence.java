@@ -124,7 +124,7 @@ class CcpCmdSequence extends ArrayList<CcpCommandBase>
      *   @param memAreas
      * The representation of the memory area(s) to upload.
      */
-    void upload(SRecordSequence memAreas) {
+    void upload(Iterable<SRecord> memAreas) {
         /* CCP Connect and disconnect are handled outside of the command sequence. */
         
         /* Add a CCP upload command to the sequence for each sector in the list. */

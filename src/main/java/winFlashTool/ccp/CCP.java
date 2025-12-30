@@ -45,6 +45,7 @@
  *   stateDisconnectFromTarget
  *   stateProcessCcpCmdSequence
  *   step
+ *   getFinalSuccess
  */
 
 package winFlashTool.ccp;
@@ -55,14 +56,14 @@ import winFlashTool.basics.ErrorCounter;
 import winFlashTool.can.CanId;
 import winFlashTool.can.CanDevice;
 import winFlashTool.can.PCANBasicEx;
-import winFlashTool.srecParser.SRecordSequence;
+import winFlashTool.srecParser.SRecord;
 import winFlashTool.srecParser.MemoryMap;
 
 /**
  * State machine for the subset of CCP, whichis require for the flash tool.
  */
-public class CCP
-{
+public class CCP {
+
     /** The global logger object for all progress and error reporting. */
     private static final Logger _logger = LogManager.getLogger(CCP.class);
 
@@ -70,29 +71,26 @@ public class CCP
     final ErrorCounter errCnt_;
 
     /** The states of the processing. */
-    public enum StateFlashProcess
-    {
+    public enum StateFlashProcess {
         UNDEFINED,
         START,
         CONNECTING,
         WAITING_FOR_RECONNECT,
         COMMUNICATING_WITH_TARGET,
         DISCONNECTING,
-        COMPLETED;
+        DISCONNECTING_AFTER_ERROR,
+        COMPLETED,
+        COMPLETED_WITH_ERRORS;
 
         /** String to enum conversion. Illegal strings are translated into enumeration
             value UNDEFINED. */
-        public static StateFlashProcess fromString(String name)
-        {
-            if(name == null)
+        public static StateFlashProcess fromString(String name) {
+            if (name == null) {
                 return UNDEFINED;
-
-            try
-            {
-                return StateFlashProcess.valueOf(name.toUpperCase());
             }
-            catch(IllegalArgumentException e)
-            {
+            try {
+                return StateFlashProcess.valueOf(name.toUpperCase());
+            } catch (IllegalArgumentException e) {
                 return UNDEFINED;
             }
         } /* fromString */
@@ -236,7 +234,7 @@ public class CCP
      * we don't wait for a DTO. The success of the suppressed CCP is assumed true. However,
      * the complete state machine is stepped through.
      */
-    public void upload(SRecordSequence memAreas, boolean isDryRun) {
+    public void upload(Iterable<SRecord> memAreas, boolean isDryRun) {
         assert ccpCmdSequence_ == null  &&  state_ == StateFlashProcess.COMPLETED
              : "Can't start a new CCP communication if there is still one running";
         isDryRun_ = isDryRun;
@@ -269,13 +267,11 @@ public class CCP
         }
 
         final CcpCroTransmitter.ResultTransmission resultTxRx = currentCcpCmd_.step();
-        if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
-        {
+        if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS) {
             currentCcpCmd_ = null;
             state_ = StateFlashProcess.COMMUNICATING_WITH_TARGET;
-        }
-        else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)
-        {
+            
+        } else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING) {
             /* The connect CRO/DTO exchange failed. The reason has been logged. We can
                retry after a while. */
             currentCcpCmd_ = null;
@@ -288,11 +284,9 @@ public class CCP
                 state_ = StateFlashProcess.WAITING_FOR_RECONNECT;
             } else {
                 /* All retries are exhausted. Nothing else to do. */
-                state_ = StateFlashProcess.COMPLETED;
+                state_ = StateFlashProcess.COMPLETED_WITH_ERRORS;
             }
-        }
-        else
-        {
+        } else {
             /* DTO has not been received yet. We remain in this state. */
         }
     } /* stateConnectToTarget */
@@ -302,8 +296,12 @@ public class CCP
      *   The CCP DISCONNECT command is sent to terminate the session.<p>
      *   The success and error conditions are directly evaluated and the next state is
      * accordingly set by side-effect.
+     *   @param successful
+     * Pass true if we discoonect after sucessful operation and false otherwise. The only
+     * impact is the final result of the CCP protocol sequence, which is reported to the
+     * caller. 
      */
-    private void stateDisconnectFromTarget() {
+    private void stateDisconnectFromTarget(boolean successful) {
 
         /* Do we require a new CCP CONNECT command? This will happen once on entry into
            state DISCONNECTING. */
@@ -324,7 +322,8 @@ public class CCP
                all we can do. */
             currentCcpCmd_ = null;
             ccpCmdSequence_ = null;
-            state_ = StateFlashProcess.COMPLETED;
+            state_ = successful? StateFlashProcess.COMPLETED
+                               : StateFlashProcess.COMPLETED_WITH_ERRORS;
         } else {
             /* DTO has not been received yet. We remain in this state. */
         }
@@ -362,27 +361,22 @@ public class CCP
             resultTxRx = CcpCroTransmitter.ResultTransmission.SUCCESS;
         }
             
-        if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
-        {
+        if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS) {
             currentCcpCmd_ = null;
             if (ccpCmdSequence_.size() > 0) {
                 /* There is still another CCP command to process, no state change. */
             } else {
                 state_ = StateFlashProcess.DISCONNECTING;
             }
-        }
-        else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)
-        {
+        } else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING) {
             /* The connect CRO/DTO exchange failed. The reason has been logged. Nothing
                else to do. */
             currentCcpCmd_ = null;
             assert errCnt_.getNoErrors() > 0;
             errCnt_.warning();
             _logger.warn("Prematurely disconnecting after previous errors.");
-            state_ = StateFlashProcess.DISCONNECTING;
-        }
-        else
-        {
+            state_ = StateFlashProcess.DISCONNECTING_AFTER_ERROR;
+        } else {
             /* DTO has not been received yet. We remain in this state. */
         }
     } /* stateProcessCcpCmdSequence */
@@ -401,12 +395,11 @@ public class CCP
      * COMPLETED (either after successful completion of the configured CCP protocol
      * sequence or because of an error).
      */
-    public boolean step()
-    {
-        assert ccpCmdSequence_ != null  ||  state_ == StateFlashProcess.COMPLETED;
+    public boolean step() {
+        assert ccpCmdSequence_ != null  ||  state_ == StateFlashProcess.COMPLETED
+               ||  state_ == StateFlashProcess.COMPLETED_WITH_ERRORS;
         CcpCroTransmitter.ResultTransmission resultTxRx;
-        switch(state_)
-        {
+        switch(state_) {
         case START:
             assert currentCcpCmd_ == null;
             cntAttemptsToConnect_ = noAttemptsToConnect_;
@@ -435,10 +428,17 @@ public class CCP
         case DISCONNECTING:
             /* The state function will itself set the next state, depending on what
                happens. Here, we just have to call it regularly. */
-            stateDisconnectFromTarget();
+            stateDisconnectFromTarget(/*successful*/ true);
+            break;
+            
+        case DISCONNECTING_AFTER_ERROR:
+            /* The state function will itself set the next state, depending on what
+               happens. Here, we just have to call it regularly. */
+            stateDisconnectFromTarget(/*successful*/ false);
             break;
             
         case COMPLETED:
+        case COMPLETED_WITH_ERRORS:
             return true;
             
         } /* switch(state) */
@@ -447,6 +447,21 @@ public class CCP
         
     } /* step */
 
+    /**
+     * After termination of the iteration with step(), the owner can ask for the final
+     * result of the completed CCP protocol sequence.<p>
+     *   Note, this method must not be used before termination of the CCP protocol
+     * sequence. The result would be undefined.
+     *   @return
+     * Get true if the CCP communication succeeded and false if it had been aborted for the
+     * one or other reason. 
+     */
+    public boolean getFinalSuccess() {
+        assert state_ == StateFlashProcess.COMPLETED
+               ||  state_ == StateFlashProcess.COMPLETED_WITH_ERRORS;
+        return state_ == StateFlashProcess.COMPLETED;
+    }
+    
 } /* End of class CCP definition. */
 
 
