@@ -49,6 +49,7 @@ import winFlashTool.can.CanId;
 import peak.can.basic.TPCANHandle;
 import peak.can.basic.TPCANBaudrate;
 import winFlashTool.applicationInterface.AddressRangeSequence;
+import winFlashTool.srecParser.SrecWriter;
 
 /**
  * This class has a main function, which implements the excel exporter application.
@@ -344,7 +345,8 @@ public class WinFlashTool
 
         if (success) {
             success = PCANBasicEx.initClass(errCnt_)
-                      &&  CanDevice.initClass(errCnt_);
+                      && CanDevice.initClass(errCnt_)
+                      && SrecWriter.initClass(errCnt_);
         }
             
         final String canDeviceName = cmdLineParser_.getString("CAN-device");
@@ -448,20 +450,12 @@ public class WinFlashTool
                     }
                     success = ccp.getFinalSuccess();
                 
-if (success) {
-    for (SRecord srec: srecSeq) {
-        final String fileName = "upload-" + Long.toHexString(srec.from())
-                                + "-" + Long.toHexString(srec.till()) + ".txt";
-        try {
-            HexDumpUtil.writeBytesAsHexLines(fileName , srec.data());
-            _logger.info("Uploaded data written to file {}.", fileName);
-
-        } catch(IOException e) {
-            errCnt_.error();
-            _logger.error("Can't write uploaded data to file {}. {}", fileName, e.getMessage());
-        }
-    }
-}
+                    if (success) {
+                        success = SrecWriter.write( srecOutputFileName
+                                                  , srecSeq
+                                                  , /*noBytesPerLine*/ 32
+                                                  );
+                    }
                 }        
             } /* if(Is an upload commanded?) */ 
             

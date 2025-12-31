@@ -222,7 +222,7 @@ public class EraseSectorSequence implements Iterable<Range> {
     void logSectors() {
         ListIterator<Range> it = sectorList_.listIterator();
         if (it.hasNext()) {
-            _logger.info( "Input file requires {} flash ROM area to be erased."
+            _logger.info( "Input file requires {} flash ROM areas to be erased."
                         , sectorList_.size()
                         );
         } else {
