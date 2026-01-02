@@ -2,7 +2,7 @@
  * @file CcpCmdSequence.java
  * A sequence of of CCP commands to be executed, e.g., for flashing a program.
  *
- * Copyright (C) 2025 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
+ * Copyright (C) 2025-2026 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by the
@@ -65,8 +65,11 @@ class CcpCmdSequence extends ArrayList<CcpCommandBase>
      * binary.
      *   @param program
      * The representation of the memory area(s) to erase and program.
+     *   @param doVerify
+     * If true, then the programming is followed by an upload for verification of the
+     * programmed data. The execution time of the CCP protocol sequence is roughly doubled.
      */
-    void eraseAndProgram(MemoryMap program) {
+    void eraseAndProgram(MemoryMap program, boolean doVerify) {
         /* CCP Connect and disconnect are handled outside of the command sequence. */
         
         /* Add a CCP erase command to the sequence for each sector in the list. */
@@ -97,11 +100,11 @@ class CcpCmdSequence extends ArrayList<CcpCommandBase>
                                         new CcpCommandArgs.ClearMemory(noBytesToEraseAtMta);
             add(ccpCmdFactory_.create(argsClear));
 
-        } /* for (All flash block to erase) */
+        } /* for (All flash blocks to erase) */
         
         /* Here, we can add a blank test. */
         
-        /* Add a CCP erase command to the sequence for each sector in the list. */
+        /* Add a CCP program command to the sequence for each sector in the list. */
         for (SRecord section: program.srecSequence()) {
             /* The CCP PROGRAM and PROGRAM_6 commands operate sequentially at the initially
                set MTA0. We need to refresh the MTA0 for each sector, because different
@@ -117,6 +120,29 @@ class CcpCmdSequence extends ArrayList<CcpCommandBase>
             add(ccpCmdFactory_.create(argsPrg));
 
         } /* for (All programm sections to download and program) */
+        
+        /* If desired, add a CCP upload-and-verify command to the sequence for each sector
+           in the list. */
+        if (doVerify) {
+            for (SRecord section: program.srecSequence()) {
+                /* The CCP UPLOAD commands operate sequentially at the initially set MTA0.
+                   We need to refresh the MTA0 for each sector, because different sectors
+                   typically have a gap in between them. */
+                final CcpCommandArgs.SetMta argsSetMta =
+                                        new CcpCommandArgs.SetMta( /*address*/ section.from()
+                                                                 , /*addressExt*/ 0
+                                                                 , /*idxMta*/ 0
+                                                                 );
+                add(ccpCmdFactory_.create(argsSetMta));
+
+                final CcpCommandArgs.Upload argsPrg = new CcpCommandArgs.Upload
+                                                                            ( section.data()
+                                                                            , /*isVerify*/ true
+                                                                            );
+                add(ccpCmdFactory_.create(argsPrg));
+
+            } /* for (All memory sections to upload and verify) */
+        } /* if (Verification of programmed data demanded?) */
     }
     
     /**
@@ -139,10 +165,12 @@ class CcpCmdSequence extends ArrayList<CcpCommandBase>
                                                              );
             add(ccpCmdFactory_.create(argsSetMta));
             
-            final CcpCommandArgs.Upload argsPrg = new CcpCommandArgs.Upload(section.data());
+            final CcpCommandArgs.Upload argsPrg = new CcpCommandArgs.Upload( section.data()
+                                                                           , /*isVerify*/ false
+                                                                           );
             add(ccpCmdFactory_.create(argsPrg));
 
-        } /* for (All programm sections to download and program) */
+        } /* for (All memory sections to upload) */
     } /* upload */
     
 } /* End of class CcpCmdSequence definition. */

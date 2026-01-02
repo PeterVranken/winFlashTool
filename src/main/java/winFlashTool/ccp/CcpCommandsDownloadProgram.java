@@ -3,7 +3,7 @@
  * Download a number of bytes to the ECU using CCP commands DOWNLOAD, DOWNLOAD_6, PROGRAM
  * and PROGRAM_6.
  *
- * Copyright (C) 2025 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
+ * Copyright (C) 2025-2026 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by the

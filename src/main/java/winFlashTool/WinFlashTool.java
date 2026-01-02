@@ -2,7 +2,7 @@
  * @file WinFlashTool.java
  * Main entry point into the Excel exporter of the COM framework.
  *
- * Copyright (C) 2015-2025 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
+ * Copyright (C) 2015-2026 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by the
@@ -22,6 +22,7 @@
  *   createDir
  *   defineArguments
  *   parseCmdLine
+ *   getBaudRate
  *   run
  *   main
  */
@@ -184,6 +185,41 @@ public class WinFlashTool
               + " if --enumerate-CAN-devices is used to check the hardware setup."
             );
         clp.defineArgument
+            ( "d", "CAN-device"
+            , /*cntMin, cntMax*/ 0, 1
+            , /*defaultValue*/ ""
+            , "The CAN device to operate with. Consider using --enumerate-CAN-devices to"
+              + " get a list of connected and available devices."
+              + "\nOptional, default is using the first found available device, which ever"
+              + " that is."
+            );
+        clp.defineArgument
+            ( "cfg", "CAN-configuration"
+            , /*cntMin, cntMax*/ 0, 1
+            , /*defaultValue*/ "500"
+            , "The CAN device configuration. If classic CAN is used then this argument is"
+              + " a simple integral number specifying the CAN Baud rate in kBd. If CAN FD is"
+              + " used then this is the configuration string as defined by the PCAN Basic"
+              + " API. Please see PCAN dcoumentation for details."
+              + "\nOptional, default is using classic CAN with 500 kBd."
+            );
+        clp.defineArgument
+            ( "t", "CAN-ID-CRO"
+            , /*cntMin, cntMax*/ 0, 1
+            , /*defaultValue*/ 0x600
+            , "The CAN ID for all CCP CRO Tx messages. Please note, extended CAN IDs are not"
+              + " supported yet."
+              + "\nOptional, default is the 11 Bit ID 0x600."
+            );
+        clp.defineArgument
+            ( "r", "CAN-ID-DTO"
+            , /*cntMin, cntMax*/ 0, 1
+            , /*defaultValue*/ 0x650
+            , "The CAN ID for all CCP DTO Rx messages. Please note, extended CAN IDs are not"
+              + " supported yet."
+              + "\nOptional, default is the 11 Bit ID 0x650."
+            );
+        clp.defineArgument
             ( "o", "srec-output-file"
             , /*cntMax, cntMax*/ 0, 1
             , /*defaultValue*/ null
@@ -211,39 +247,14 @@ public class WinFlashTool
               + "\nOptional, default is false."
             );
         clp.defineArgument
-            ( "d", "CAN-device"
-            , /*cntMin, cntMax*/ 0, 1
-            , /*defaultValue*/ ""
-            , "The CAN device to operate with. Consider using --enumerate-CAN-devices to"
-              + " get a list of connected and available devices."
-              + "\nOptional, default is using the first found available device, which ever"
-              + " that is."
-            );
-        clp.defineArgument
             ( "n", "dry-run"
             , /*cntMax*/ 1
-            , "Dry-run is a means to check the hardware and flash tool setup without"
+            , "The dry-run is a means to check the hardware and flash tool setup without"
               + " impacting the target ECU. The flash tool executes as usual but all CCP"
               + " commands that could impact the flash of the target are skipped. CONNECT"
               + " and DISCONNECT are still executed. Using the dry-run, many sources of"
               + " problems can be detected without any risk for the target."
-              + "\nOptional, default is false."
-            );
-        clp.defineArgument
-            ( "t", "CAN-ID-CRO"
-            , /*cntMin, cntMax*/ 0, 1
-            , /*defaultValue*/ 0x600
-            , "The CAN ID for all CCP CRO Tx messages. Please note, extended CAN IDs are not"
-              + " supported yet."
-              + "\nOptional, default is the 11 Bit ID 0x600."
-            );
-        clp.defineArgument
-            ( "r", "CAN-ID-DTO"
-            , /*cntMin, cntMax*/ 0, 1
-            , /*defaultValue*/ 0x650
-            , "The CAN ID for all CCP DTO Rx messages. Please note, extended CAN IDs are not"
-              + " supported yet."
-              + "\nOptional, default is the 11 Bit ID 0x650."
+              + "\nOptional, default is normal operation."
             );
         clp.defineArgument
             ( "a", "station-address"
@@ -269,6 +280,16 @@ public class WinFlashTool
               + " any number of times."
               + "\nThis argument is mandatory if the other argument srec-output-file is used"
               + "to command an upload."
+            );
+        clp.defineArgument
+            ( "nv", "no-verify"
+            , /*cntMax*/ 1
+            , "Flash programming is normally followed by an upload of the programmed memory"
+              + " contents to see if all bytes have the value specified in the input"
+              + " srec file. However, this roughly doubles the duration of the complete"
+              + " programming procedure. Using option --no-verify means to skip the upload"
+              + " and data comparison to save the additional time."
+              + "\nOptional, default is doing the verification."
             );
 //        clp.defineArgument
 //            ( "$(point)", ""
@@ -334,6 +355,36 @@ public class WinFlashTool
     } /* WinFlashTool.parseCmdLine. */
 
 
+    // TODO This function belongs into the package application interface.
+    /**
+     * Check the user specified CAN configuration for the simple Baud rate needed for
+     * classic CAN.
+     *   @return
+     * Get the Baud rate or null if the user input doesn't match any supported CAN Baud
+     * rate.
+     *   @param canCfg
+     * The configuration word from the command line. If classic CAN is meant then this is a
+     * number literal meaning the Baud rate in kHz.
+     */
+    private TPCANBaudrate getBaudRate(String canCfg) {
+        /* Check if the user input is a simple integer. */
+        int baudRateInKHz;
+        try{ baudRateInKHz = Integer.valueOf(canCfg); }
+        catch(NumberFormatException e)
+        {
+            /* Substitute user input by a value, which is guaranteed to be no valid Baud
+               rate. (This is not an error, canCfg rather is the complex CAN FD
+               configuration string.) */
+            baudRateInKHz = -1;
+        }
+        
+        /* The translation value to enum returns null if the value doesn't exist in the
+           enumeration. */
+        return TPCANBaudrate.valueOfBaudRate(baudRateInKHz*1000);
+
+    } /* getBaudRate */
+    
+    
     /**
      * This method implements the application behavior. Call it once from the main function
      * run is synchronous and does not fork another task or process.
@@ -390,10 +441,19 @@ public class WinFlashTool
             final CanDevice canDev;
             if (success) {
                 canDev = new CanDevice();
-                success = canDev.open( canDeviceName
-                                     , TPCANBaudrate.PCAN_BAUD_500K
-                                     , listOfRxCanIds
-                                     );
+                final TPCANBaudrate baudRate = 
+                                getBaudRate(cmdLineParser_.getString("CAN-configuration"));
+                if (baudRate != null) {
+                    success = canDev.open(canDeviceName, baudRate, listOfRxCanIds);
+                } else {
+                    success = false;
+                    errCnt_.error();
+                    _logger.error( "\"{}\" doesn't specify a valid, supported Baud rate"
+                                   + " for classic CAN and CAN FD is not implemented yet."
+                                   + " Consider using -h for more details."
+                                 , cmdLineParser_.getString("CAN-configuration")
+                                 );
+                }
             } else {
                 canDev = null;
             }
@@ -506,7 +566,10 @@ public class WinFlashTool
                 }
 
                 /* Prepare a CCP communication thread for erase and program. */
-                ccp.eraseAndProgram(memMap, cmdLineParser_.getBoolean("dry-run"));
+                ccp.eraseAndProgram( memMap
+                                   , !cmdLineParser_.getBoolean("no-verify")
+                                   , cmdLineParser_.getBoolean("dry-run")
+                                   );
 
                 /* Clock the state machine, which runs the CCP communication. */
                 while(success && !ccp.step()) {
@@ -531,84 +594,6 @@ public class WinFlashTool
                          );
         } /* if/else if(Which task to complete?) */
 
-  
-// Application code goes here.
-//            String generatedCode = null;
-//            if(errCnt.getNoErrors() == 0)
-//            {
-//                final PrintStream out;
-//                if("stdout".equalsIgnoreCase(templateOutputPair.outputFileName))
-//                    out = System.out;
-//                else if("stderr".equalsIgnoreCase(templateOutputPair.outputFileName))
-//                    out = System.err;
-//                else
-//                    out = null;
-//
-//                if(out != null)
-//                {
-//                    /* Write generated code into a standard console stream. */
-//                    out.print(generatedCode);
-//                }
-//                else
-//                {
-//                    /* Write generated code into output file. */
-//                    File outputFile = new File(templateOutputPair.outputFileName);
-//
-//                    BufferedWriter writer = null;
-//                    try
-//                    {
-//                        /* This will output the full path where the file is written
-//                           to. */
-//                        _logger.info( "The rendered input is written into file {}"
-//                                    , outputFile /*.getCanonicalPath()*/
-//                                    );
-//                        /* Ensure that all needed parents exist for the file. */
-//                        createDir(outputFile);
-//
-//                        FileOutputStream outputFileStream = new FileOutputStream(outputFile);
-//                        writer = new BufferedWriter
-//                                        (new OutputStreamWriter( outputFileStream
-//                                                               , "UTF-8"
-//                                                               //, "ISO-8859-1"
-//                                                               //, "UTF-16"
-//                                                               )
-//                                        );
-//                        writer.write(generatedCode);
-//                    }
-//                    catch(IOException e)
-//                    {
-//                        success = false;
-//                        errCnt.error();
-//                        _logger.error( "Error writing generated file. {}"
-//                                     , e.getMessage()
-//                                     );
-//                    }
-//
-//                    /* Close the writer regardless of what happened. */
-//                    try
-//                    {
-//                        if(writer != null)
-//                            writer.close();
-//                    }
-//                    catch(IOException e)
-//                    {
-//                        success = false;
-//                        errCnt.error();
-//                        _logger.error( "Error closing generated file. {}"
-//                                     , e.getMessage()
-//                                     );
-//                    }
-//                }
-//            }
-//            else
-//            {
-//                success = false;
-//                _logger.info( "Output file {} is not generated due to previous errors."
-//                            , templateOutputPair.outputFileName
-//                            );
-//                    }
-
-
         final String logMsg = _applicationName + " terminating with {} errors and {}"
                               + " warnings.";
         final Level level;
@@ -631,7 +616,7 @@ public class WinFlashTool
     private static void greeting()
     {
         final String greeting = _applicationName + " " + _versionFull
-                                + " Copyright (C) 2025, Peter Vranken"
+                                + " Copyright (C) 2025-2026, Peter Vranken"
                                 + " (mailto:Peter_Vranken@Yahoo.de)"
                                 + "\n";
         System.out.println(greeting);

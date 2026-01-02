@@ -2,7 +2,7 @@
  * @file CcpCommandUpload.java
  * Upload a number of bytes from the ECU using CCP command UPLOAD.
  *
- * Copyright (C) 2025 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
+ * Copyright (C) 2025-2026 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by the
@@ -42,6 +42,9 @@ public class CcpCommandUpload extends CcpCommandBase
     /** The global logger object for all progress and error reporting. */
     private static final Logger _logger = LogManager.getLogger(CcpCommandUpload.class);
 
+    /** Operation mode: Save data or compare with expected data (verify). */
+    private final boolean isVerify_;
+    
     /** The buffer of required size for the uploaded data. */
     private final byte[] dataUploaded_;
 
@@ -62,6 +65,7 @@ public class CcpCommandUpload extends CcpCommandBase
      * A record with all required configuration data.
      */
     protected CcpCommandUpload(CcpCommandArgs.Upload args) {
+        isVerify_ = args.verify();
         dataUploaded_ = args.data();
         noBytesToUpload_ = 0;
         writePos_ = 0;
@@ -118,14 +122,31 @@ public class CcpCommandUpload extends CcpCommandBase
     public CcpCroTransmitter.ResultTransmission step() {
         CcpCroTransmitter.ResultTransmission resultTxRx = checkRxDto();
         if (resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS) {
-            /* The data is returned in Byte 3, 4, ... Copy it into the result buffer. */
             final byte[] payloadDtoAry = payloadDtoAry();
-            System.arraycopy( payloadDtoAry
-                            , 3
-                            , dataUploaded_
-                            , writePos_
-                            , noBytesThisTime_
-                            );
+            if (isVerify_) {
+                for (int i=0, iUpload=writePos_; i<noBytesThisTime_; ++i, ++iUpload) {
+                    if (payloadDtoAry[3+i] != dataUploaded_[iUpload]) {
+                        errCnt().error();
+                        _logger.printf( Level.ERROR
+                                      , "Verify error. First failing memory address is"
+                                        + " 0x%06X. Got 0x%02X, expect 0x%02X."
+                                      , mta0() + (long)i
+                                      , payloadDtoAry[3+i]
+                                      , dataUploaded_[writePos_]
+                                      );
+                        resultTxRx = CcpCroTransmitter.ResultTransmission.ERROR_VERIFY_ERROR;
+                        break;
+                    }
+                }
+            } else {
+                /* The data is returned in Byte 3, 4, ... Copy it into the result buffer. */
+                System.arraycopy( payloadDtoAry
+                                , 3
+                                , dataUploaded_
+                                , writePos_
+                                , noBytesThisTime_
+                                );
+            }
 
             /* Update the status, where we are with the upload. */
             noBytesToUpload_ -= noBytesThisTime_;
@@ -140,7 +161,9 @@ public class CcpCommandUpload extends CcpCommandBase
                          );
 
             /* Request next chunk of data if there are bytes left. */
-            if (noBytesToUpload_ > 0) {
+            if ( resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS
+                 &&  noBytesToUpload_ > 0
+               ) {
                 fillPayloadCro();
                 sendCro(/*noContentBytes*/ 3);
                 resultTxRx = CcpCroTransmitter.ResultTransmission.PENDING;

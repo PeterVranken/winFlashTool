@@ -22,7 +22,7 @@
  * besonderen Stellenwert eines "on-error" Zweiges des Programms, der immer ausgeführt
  * wird, auch wenn zuvor ausgeführte Programmschritte einen Fehler gemeldet haben.\n
  *
- * Copyright (C) 2025 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
+ * Copyright (C) 2025-2026 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by the
@@ -210,17 +210,20 @@ public class CCP {
      * the target.
      *   @param program
      * The representation of the memory area(s) to erase and (re-)program.
+     *   @param doVerify
+     * If true, then the programming is followed by an upload for verification of the
+     * programmed data. The execution time of the CCP protocol sequence is roughly doubled.
      *   @param isDryRun
      * If true, then most CCP commands are not really executed; the CRO is not sent out and
      * we don't wait for a DTO. The success of the suppressed CCP is assumed true. However,
      * the complete state machine is stepped through.
      */
-    public void eraseAndProgram(MemoryMap program, boolean isDryRun) {
+    public void eraseAndProgram(MemoryMap program, boolean doVerify, boolean isDryRun) {
         assert ccpCmdSequence_ == null  &&  state_ == StateFlashProcess.COMPLETED
              : "Can't start a new CCP communication if there is still one running";
         isDryRun_ = isDryRun;
         ccpCmdSequence_ = new CcpCmdSequence(ccpCmdFactory_);
-        ccpCmdSequence_.eraseAndProgram(program);
+        ccpCmdSequence_.eraseAndProgram(program, doVerify);
         state_ = StateFlashProcess.START;
         
     } /* eraseAndProgram */

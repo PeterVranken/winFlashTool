@@ -7,7 +7,7 @@
  * main function, which the client code will regularly invoke until the final result is
  * available (i.e., response or error condition).
  *
- * Copyright (C) 2025 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
+ * Copyright (C) 2025-2026 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by the
@@ -97,7 +97,8 @@ class CcpCroTransmitter
         ERROR_WRONG_CAN_MSG,
         ERROR_NEGATIVE_RESPONSE,
         ERROR_BAD_MTA_UPDATE,
-        ERROR_BAD_DTO_HDR;
+        ERROR_BAD_DTO_HDR,
+        ERROR_VERIFY_ERROR;
 
         /** String to enum conversion. Illegal strings are translated into enumeration
             value UNDEFINED. */

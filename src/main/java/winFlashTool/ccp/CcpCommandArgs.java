@@ -2,7 +2,7 @@
  * @file CcpCommandArgs.java
  * Definition of arguments for the different CCP commands.
  *
- * Copyright (C) 2025 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
+ * Copyright (C) 2025-2026 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by the
@@ -105,8 +105,14 @@ sealed interface CcpCommandArgs {
      * A result buffer for the bytes to upload from current MTA0. The length of the array
      * is the number of bytes to upload. A length of zero is not supported. The
      * implementation of the command will break it down into a series of #UPLOAD commands.
+     *   @param verify
+     * Pass false for normal upload operation. The uploaded data is stored in byte array
+     * data.<p>
+     *   If verify is true then data needs to hold the expected memory contents. The
+     * uploaded data is not stored inside data but compared to the contents of data. An
+     * error is reported and the command is aborted when the first deiviation is found.
      */
-    record Upload(byte[] data) implements CcpCommandArgs {
+    record Upload(byte[] data, boolean verify) implements CcpCommandArgs {
     }
     
     /**
