@@ -34,6 +34,7 @@ import java.io.*;
 import java.text.*;
 import winFlashTool.mcu.Flash;
 import winFlashTool.mcu.Mpc5775BE_C55FMC;
+import winFlashTool.mcu.Mpc5748G_C55FMC;
 
 import org.apache.logging.log4j.*;
 import winFlashTool.applicationInterface.cmdLineParser.CmdLineParser;
@@ -64,7 +65,7 @@ public class WinFlashTool
     public static final String _applicationName = "winFlashTool";
 
     /** Version designation as four numeric parts. */
-    private static int[] _versionAry = {0, 8, 0, GitRevision.getProjectRevision()};
+    private static int[] _versionAry = {0, 9, 0, GitRevision.getProjectRevision()};
 
     /** The first three parts of the version of the tool, which relate to functional
         changes of the application.
@@ -179,6 +180,7 @@ public class WinFlashTool
             , /*cntMax, cntMax*/ 0, 1
             , /*defaultValue*/ null
             , "The MCU target to program. Supported targets are:"
+              + "\n  MPC5748G"
               + "\n  MPC5775B"
               + "\n  MPC5775E"
               + "\nThis argument is mandatory for normal operation but it is not required"
@@ -534,6 +536,10 @@ public class WinFlashTool
                 final Flash flashROM;
                 if (success) {
                     switch(targetMcuName) {
+                    case "MPC5748G":
+                        flashROM = Mpc5748G_C55FMC.getFlashRomDescription();
+                        break;
+
                     case "MPC5775B":
                     case "MPC5775E":
                         flashROM = Mpc5775BE_C55FMC.getFlashRomDescription();
@@ -565,19 +571,20 @@ public class WinFlashTool
                     memMap = null;
                 }
 
-                /* Prepare a CCP communication thread for erase and program. */
-                ccp.eraseAndProgram( memMap
-                                   , !cmdLineParser_.getBoolean("no-verify")
-                                   , cmdLineParser_.getBoolean("dry-run")
-                                   );
+                if (success) {
+                    /* Prepare a CCP communication thread for erase and program. */
+                    ccp.eraseAndProgram( memMap
+                                       , !cmdLineParser_.getBoolean("no-verify")
+                                       , cmdLineParser_.getBoolean("dry-run")
+                                       );
 
-                /* Clock the state machine, which runs the CCP communication. */
-                while(success && !ccp.step()) {
-                    /* Here, we could do other, non-blocking things, e.g., print some progress
-                       information. */
+                    /* Clock the state machine, which runs the CCP communication. */
+                    while(!ccp.step()) {
+                        /* Here, we could do other, non-blocking things, e.g., print some
+                           progress information. */
+                    }
+                    success = ccp.getFinalSuccess();
                 }
-                success = ccp.getFinalSuccess();
-
             } /* if(Is a download and program commanded?) */ 
            
             /* Close CAN device; release the PCAN-USB CAN device for other applications. */
