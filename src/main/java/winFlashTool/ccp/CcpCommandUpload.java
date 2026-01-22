@@ -58,6 +58,13 @@ public class CcpCommandUpload extends CcpCommandBase
     /** Number of bytes transmitted with the pending CRO message. */
     private int noBytesThisTime_;
     
+    /** Progress reporting: When this number of bytes is left to download, then the next
+        progress message should be printed. */
+    private int noBytesLeftWhenProgressMsg_;
+
+    /** Progress reporting: Every this number of bytes a program message is written. */
+    private int noBytesBetweenProgressMsgs_;
+
     /**
      * A new instance of CcpCommandUpload is created and configured for a number
      * of CCP UPLOAD commands.
@@ -70,6 +77,8 @@ public class CcpCommandUpload extends CcpCommandBase
         noBytesToUpload_ = 0;
         writePos_ = 0;
         noBytesThisTime_ = 0;
+        noBytesLeftWhenProgressMsg_ = 0;
+        noBytesBetweenProgressMsgs_ = 0x8000;
 
     } /* CcpCommandUpload.CcpCommandUpload */
 
@@ -98,6 +107,15 @@ public class CcpCommandUpload extends CcpCommandBase
         noBytesToUpload_ = dataUploaded_.length;
         assert noBytesToUpload_ > 0: "Empty upload is not supported";
         writePos_ = 0;
+
+        /* Progress reporting. The next watermark can be negative, which doesn't care.
+             Note, a warning level is less specific, if the verbosity is higher or same! */
+        if (_logger.getLevel().isLessSpecificThan(Level.DEBUG)) {
+            noBytesBetweenProgressMsgs_ = 0x1000;
+        } else {
+            noBytesBetweenProgressMsgs_ = 0x8000;
+        }
+        noBytesLeftWhenProgressMsg_ = noBytesToUpload_ - noBytesBetweenProgressMsgs_;
 
         /* Send CAN CRO message. */
         fillPayloadCro();
@@ -164,6 +182,15 @@ public class CcpCommandUpload extends CcpCommandBase
             if ( resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS
                  &&  noBytesToUpload_ > 0
                ) {
+                /* Progress reporting. */
+                if (noBytesToUpload_ <= noBytesLeftWhenProgressMsg_) {
+                    _logger.printf( Level.INFO
+                                  , "0x%06X Byte uploaded."
+                                  , dataUploaded_.length - noBytesLeftWhenProgressMsg_
+                                  );
+                    noBytesLeftWhenProgressMsg_ -= noBytesBetweenProgressMsgs_;
+                }
+                    
                 fillPayloadCro();
                 sendCro(/*noContentBytes*/ 3);
                 resultTxRx = CcpCroTransmitter.ResultTransmission.PENDING;
