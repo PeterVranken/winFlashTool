@@ -45,7 +45,7 @@ public class CcpCommandClearMemory extends CcpCommandBase
 
     /** All required command arguments, provided at object creation time. */
     private final CcpCommandArgs.ClearMemory args_;
-        
+
     /**
      * A new instance of CcpCommandClearMemory is created and configured for the CCP
      * #CLEAR_MEMORY command.
@@ -55,7 +55,7 @@ public class CcpCommandClearMemory extends CcpCommandBase
     protected CcpCommandClearMemory(CcpCommandArgs.ClearMemory args)
     {
         args_ = args;
-        
+
     } /* CcpCommandClearMemory.CcpCommandClearMemory */
 
     /**
@@ -67,7 +67,7 @@ public class CcpCommandClearMemory extends CcpCommandBase
      */
     @Override
     int getRequiredTimeoutCroTillDto() {
-    
+
         /* CLEAR_MEMORY is a blocking operation in our flash bootloader. The DTO is sent
            only on completion. This requires a timeout of several seconds. */
         return 20/*s*/ * 1000;
@@ -81,16 +81,16 @@ public class CcpCommandClearMemory extends CcpCommandBase
     public void setup()
     {
         final byte[] payloadCroAry = payloadCroAry();
-        
+
         /* Send CAN CRO message with command CLEAR_MEMORY. */
         payloadCroAry[0] = CroCommandId.CLEAR_MEMORY.getCode();
-        
+
         /* Memory block size in MSB endianess. */
         payloadCroAry[2] = (byte)((args_.noBytesToErase() >> 24) & 0xFF);
         payloadCroAry[3] = (byte)((args_.noBytesToErase() >> 16) & 0xFF);
         payloadCroAry[4] = (byte)((args_.noBytesToErase() >>  8) & 0xFF);
         payloadCroAry[5] = (byte)((args_.noBytesToErase() >>  0) & 0xFF);
-        
+
         sendCro(/*noContentBytes*/ 6);
         _logger.printf( Level.DEBUG
                       , "CRO message CLEAR_MEMORY(0x%06X) sent to ECU."
@@ -126,9 +126,9 @@ public class CcpCommandClearMemory extends CcpCommandBase
         {
             /* DTO has not been received yet. We continue polling. */
         }
-        
+
         return resultTxRx;
-        
+
     } /* step */
 
     /**
@@ -141,7 +141,3 @@ public class CcpCommandClearMemory extends CcpCommandBase
         return "CLEAR_MEMORY(noBytes=0x" + Integer.toHexString(args_.noBytesToErase()) + ")";
     }
 } /* End of class CcpCommandClearMemory definition. */
-
-
-
-

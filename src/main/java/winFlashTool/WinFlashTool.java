@@ -281,7 +281,7 @@ public class WinFlashTool
               + " addresses, from:to, e.g., 00800000:008E0000. This argument can be used"
               + " any number of times."
               + "\nThis argument is mandatory if the other argument srec-output-file is used"
-              + "to command an upload."
+              + " to command an upload."
             );
         clp.defineArgument
             ( "nv", "no-verify"

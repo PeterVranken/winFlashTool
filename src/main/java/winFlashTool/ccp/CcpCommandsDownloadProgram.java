@@ -159,7 +159,7 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
         sendCro(/*noContentBytes*/ 8);
         
         _logger.printf( Level.INFO
-                      , "%s 0x%06X Byte %s memory address 0x%06X"
+                      , "%s 0x%06X Byte %s memory address 0x%06X."
                       , isDownload_? "Download": "Program"
                       , noBytesToDownload_ 
                       , isDownload_? "to": "at"

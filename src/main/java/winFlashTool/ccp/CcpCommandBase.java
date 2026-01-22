@@ -245,11 +245,13 @@ abstract class CcpCommandBase
      * call step() - until step() indicates completion of the command.
      */
     public final void start() {
+        /* Configure the CCP timeout as required by the actual, derived CCP command. */
+        final int timeoutTillRxDtoInMs = getRequiredTimeoutCroTillDto();
+        _logger.debug("Setting timeout CRO to DTO to {} ms.", timeoutTillRxDtoInMs);
+        toolbox_.croTransmitter_.setTimeoutCroTillDto(timeoutTillRxDtoInMs);
+        
         /* Call the initialization routine of the actual, derived CCP command. */
         setup();
-        
-        /* Configure the CCP timeout as required by the actual, derived CCP command. */
-        toolbox_.croTransmitter_.setTimeoutCroTillDto(getRequiredTimeoutCroTillDto());
     }
 
     /**
