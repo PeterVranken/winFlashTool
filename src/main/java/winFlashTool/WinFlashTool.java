@@ -515,7 +515,7 @@ public class WinFlashTool
                     if (success) {
                         success = SrecWriter.write( srecOutputFileName
                                                   , srecSeq
-                                                  , /*noBytesPerLine*/ 32
+                                                  , /*noBytesPerLine*/ 16
                                                   );
                     }
                 }        

@@ -42,7 +42,7 @@ $env:PATH = `
 $cp = [System.IO.Path]::GetFullPath("$PSScriptRoot\build\libs\winFlashTool-0.1.jar") `
       + ";" + [System.IO.Path]::GetFullPath("$PSScriptRoot\lib\jna\jna-5.14.0.jar") `
       + ";" + [System.IO.Path]::GetFullPath("$PSScriptRoot\lib\jna\jna-platform-5.14.0.jar") `
-      + ";" + [System.IO.Path]::GetFullPath("$PSScriptRoot\lib\Apache\log4j\*") `
+      + ";" + [System.IO.Path]::GetFullPath("$PSScriptRoot\lib\Apache\log4j\") + "*" `
       + ";" + [System.IO.Path]::GetFullPath("$PSScriptRoot\lib\Apache\commons-lang3-3.20\commons-lang3-3.20.0.jar")
 
 # Let Java run the application.

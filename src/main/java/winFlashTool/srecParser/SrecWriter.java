@@ -74,9 +74,22 @@ public class SrecWriter {
      * The binary data to be written into the file.
      */
     private static int getNoReqAddrBytes(SRecordSequence srecSequence) {
-        // TODO Implement it
-        return 3;
-    }
+        /* Find largest address to support. */
+        long largestAddr = 0;
+        for (SRecord section: srecSequence) {
+            if(section.till() > largestAddr) {
+                largestAddr = section.till();
+            }
+        }
+        if ((largestAddr & 0xFFFFFFFFFF000000l) != 0) {
+            return 4;
+        } else if ((largestAddr & 0xFFFFFFFFFFFF0000l) != 0) {
+            return 3;
+        } else {
+            return 2;
+        }
+    } /* getNoReqAddrBytes */
+
 
     /**
      * Format an S0 record with some text information inside.
@@ -98,11 +111,12 @@ public class SrecWriter {
         }
         return formatSRecord( /*kindOfRecord*/ 0
                             , /*address*/ 0
-                            , noBytes 
-                            , data
                             , noAddrBytes
+                            , data
+                            , noBytes 
                             );
-    }
+    } /* formatS0Record */
+    
 
     /**
      * Format an s-record.
@@ -112,20 +126,19 @@ public class SrecWriter {
      * The type of the s-record, a number in the range 0..9.
      *   @param address
      * The address of the first byte of the s-record.
-     *   @param noBytes
-     * The number of data bytes in the record. It is noBytes <= data.length.
+     *   @param noAddressBytes
+     * The number of bytes for the representation of address. Range is 2..4.
      *   @param data
      * The data bytes in the record. Note, not all bytes from the byte array are in
      * necessarily in use.
-     *   @param noAddressBytes
-     * The number of bytes for the representation of address. Range is 2..4.
+     *   @param noBytes
+     * The number of data bytes in the record. It is noBytes <= data.length.
      */
-// TODO Reorder argumnets noAddrByte vs. address and noBytes vs. data
     private static String formatSRecord( int kindOfRecord
                                        , long address
-                                       , int noBytes
-                                       , byte[] data
                                        , int noAddrBytes
+                                       , byte[] data
+                                       , int noBytes
                                        ) {
         assert noAddrBytes >= 2  &&  noAddrBytes <= 4: "size of address out of bounds";
         assert address >= 0  &&  address <= 0x00000000FFFFFFFFl: "Address out of bounds";
@@ -143,7 +156,7 @@ public class SrecWriter {
 
         /* Write address and accumulate byte for later checksum calculation. */
         long mask = 0x00000000000000FFl << 8*(noAddrBytes - 1);
-        for(int i=0; i<noAddrBytes; ++i) {
+        for (int i=0; i<noAddrBytes; ++i) {
             final int addrByte = (int)((address & mask) >> 8*(noAddrBytes-1-i));
             mask >>= 8;
             srec += String.format("%02X", addrByte);
@@ -151,7 +164,7 @@ public class SrecWriter {
         }
 
         /* Write the data bytes. */
-        for(int idxByte=0; idxByte<noBytes; ++idxByte) {
+        for (int idxByte=0; idxByte<noBytes; ++idxByte) {
             final int i = PCANBasicEx.b2i(data[idxByte]);
             srec += String.format("%02X", i);
             sumOfBytes += i;
@@ -173,24 +186,24 @@ public class SrecWriter {
      * Get the s-record as string.
      *   @param address
      * The address of the first byte of the s-record.
-     *   @param noBytes
-     * The number of data bytes in the record. It is noBytes <= data.length.
+     *   @param noAddressBytes
+     * The number of bytes for the representation of address. Range is 2..4.
      *   @param data
      * The data bytes in the record. Note, not all bytes from the byte array are in
      * necessarily in use.
-     *   @param noAddressBytes
-     * The number of bytes for the representation of address. Range is 2..4.
+     *   @param noBytes
+     * The number of data bytes in the record. It is noBytes <= data.length.
      */
     private static String formatSRecord( long address
-                                       , int noBytes
-                                       , byte[] data
                                        , int noAddrBytes
+                                       , byte[] data
+                                       , int noBytes
                                        ) {
         return formatSRecord( /*kindOfRecord*/ noAddrBytes - 1
                             , address
-                            , noBytes
-                            , data
                             , noAddrBytes
+                            , data
+                            , noBytes
                             );
     }
 
@@ -205,8 +218,10 @@ public class SrecWriter {
      *   @param noBytesPerLine
      * The number of data bytes, which will be outermost written into an s-record.
      */
-    public static boolean write(String fileName, SRecordSequence srecSequence, int noBytesPerLine) {
-
+    public static boolean write( String fileName
+                               , SRecordSequence srecSequence
+                               , int noBytesPerLine
+                               ) {
         boolean success = true;
 
         try (BufferedWriter bw = new BufferedWriter(new FileWriter(fileName))) {
@@ -225,7 +240,7 @@ public class SrecWriter {
 
             final byte[] data = new byte[noBytesPerLine];
 
-            for(SRecord section: srecSequence) {
+            for (SRecord section: srecSequence) {
                 long addr = section.from();
                 long noBytesToGo = section.size();
 
@@ -255,7 +270,7 @@ public class SrecWriter {
                                     , noBytesSrec
                                     );
 
-                    bw.write(formatSRecord(addr, noBytesSrec, data, noAddrBytes));
+                    bw.write(formatSRecord(addr, noAddrBytes, data, noBytesSrec));
                     addr += noBytesSrec;
                     noBytesToGo -= (long)noBytesSrec;
 
