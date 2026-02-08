@@ -19,7 +19,7 @@
  */
 /* Interface of class CcpCmdSequence
  *   CcpCmdSequence
- *   eraseAndProgram
+ *   eraseProgramAndVerify
  *   upload
  */
 
@@ -31,6 +31,7 @@ import winFlashTool.basics.Range;
 import winFlashTool.srecParser.SRecord;
 import winFlashTool.srecParser.SRecordSequence;
 import winFlashTool.srecParser.MemoryMap;
+import winFlashTool.srecParser.EraseSectorSequence;
 
 /**
  * The representation of a sequence of of CCP commands to be executed, e.g., for flashing a
@@ -61,65 +62,99 @@ class CcpCmdSequence extends ArrayList<CcpCommandBase>
     } /* CcpCmdSequence.CcpCmdSequence */
 
     /**
-     * Add the CCP command sequence needed for erasing the flash and re-programming a given
-     * binary.
-     *   @param program
-     * The representation of the memory area(s) to erase and program.
-     *   @param doVerify
-     * If true, then the programming is followed by an upload for verification of the
-     * programmed data. The execution time of the CCP protocol sequence is roughly doubled.
+     * Add the CCP command sequence needed for erasing a list of flash flash blocks.
+     *   @param eraseSectorSequence
+     * The list of address ranges to erase. Each contained range is the union of one or
+     * more flash blocks.
      */
-    void eraseAndProgram(MemoryMap program, boolean doVerify) {
+    void erase(EraseSectorSequence eraseSectorSequence) {
         /* CCP Connect and disconnect are handled outside of the command sequence. */
         
         /* Add a CCP erase command to the sequence for each sector in the list. */
-        for (Range eraseRange: program.eraseSectorSequence()) {
+        for (Range eraseRange: eraseSectorSequence) {
             /* CCP's CLEAR_MEMORY operates at the bytes from MTA0. */
             final CcpCommandArgs.SetMta argsSetMta =
-                                    new CcpCommandArgs.SetMta( /*address*/ eraseRange.from()
-                                                             , /*addressExt*/ 0
-                                                             , /*idxMta*/ 0
-                                                             );
+                                new CcpCommandArgs.SetMta( /*address*/ eraseRange.from()
+                                                         , /*addressExt*/ 0
+                                                         , /*idxMta*/ 0
+                                                         );
             add(ccpCmdFactory_.create(argsSetMta));
 
             /* Our address ranges apply long for addresses. Not to allow addresses
                outside the 32 Bit adddress range but only to make even the last address
-               0xFFFFFFFF easily handable without overflow. Ranges store the end address
-               plus one, so using "int" a Range till the end of the address space would
-               have the end address 0. Moreover, comparing addresses would suffer from the
-               signedness of int. We never use the upper 32 bits in long, with the only
-               exception of bit 32 for a Range till the end of the address space. */
+               0xFFFFFFFF easily handable without overflow. Ranges store the end
+               address plus one, so using "int" a Range till the end of the address
+               space would have the end address 0. Moreover, comparing addresses would
+               suffer from the signedness of int. We never use the upper 32 bits in
+               long, with the only exception of bit 32 for a range till the end of the
+               address space. */
             // TODO This is more complex, signedness means that we can only erase and
-            // program sectors of up to 2 GB, which is not actual a limitation but should
-            // be handled properly by error message and early rejection of the data set.
+            // program sectors of up to 2 GB, which is not actual a limitation but
+            // should be handled properly by error message and early rejection of the
+            // data set.
             assert eraseRange.size() <= Integer.MAX_VALUE
                  : "The implementation of the flash tool supports only the 32 Bit address"
                    + " range";
             final int noBytesToEraseAtMta = (int)eraseRange.size();
             final CcpCommandArgs.ClearMemory argsClear =
-                                        new CcpCommandArgs.ClearMemory(noBytesToEraseAtMta);
+                                    new CcpCommandArgs.ClearMemory(noBytesToEraseAtMta);
             add(ccpCmdFactory_.create(argsClear));
 
-        } /* for (All flash blocks to erase) */
+        } /* for (All address ranges to erase) */
+    } /* erase */
         
-        /* Here, we can add a blank test. */
+    /**
+     * Add the CCP command sequence needed for erasing the flash and re-programming a given
+     * binary.
+     *   @param doErase
+     * If true, then the task begins with erasure of those flash blocks, which are touched
+     * by the data in program.
+     *   @param doProgram
+     * If true, then the task programs the flash array with the data in program.
+     *   @param eraseAll
+     * Set this switch to true to let the FBL erase all managed flash ROM, not only the
+     * portions needed to house the program.
+     *   @param doVerify
+     * If true, then the programming is followed by an upload for verification of the
+     * programmed data. The execution time of the CCP protocol sequence is roughly
+     * doubled.\n
+     *   This flag can be used with program being false. Then only a verify step is
+     * executed. It is allowed but barely useful to have doErase set at the same time.
+     *   @param program
+     * The representation of the memory area(s) to erase and program.
+     */
+    void eraseProgramAndVerify( boolean doErase
+                              , boolean eraseAll
+                              , boolean doProgram
+                              , boolean doVerify
+                              , MemoryMap program
+                              ) {
+        /* CCP Connect and disconnect are handled outside of the command sequence. */
+        
+        /* Add a CCP erase command to the sequence for each sector in the list. */
+        if (doErase) {
+            erase(eraseAll? program.eraseAllSectorSequence(): program.eraseSectorSequence());
+        }
         
         /* Add a CCP program command to the sequence for each sector in the list. */
-        for (SRecord section: program.srecSequence()) {
-            /* The CCP PROGRAM and PROGRAM_6 commands operate sequentially at the initially
-               set MTA0. We need to refresh the MTA0 for each sector, because different
-               sectors typically have a gap in between them. */
-            final CcpCommandArgs.SetMta argsSetMta =
-                                    new CcpCommandArgs.SetMta( /*address*/ section.from()
-                                                             , /*addressExt*/ 0
-                                                             , /*idxMta*/ 0
-                                                             );
-            add(ccpCmdFactory_.create(argsSetMta));
-            
-            final CcpCommandArgs.Program argsPrg = new CcpCommandArgs.Program(section.data());
-            add(ccpCmdFactory_.create(argsPrg));
+        if (doProgram) {
+            for (SRecord section: program.srecSequence()) {
+                /* The CCP PROGRAM and PROGRAM_6 commands operate sequentially at the
+                   initially set MTA0. We need to refresh the MTA0 for each sector, because
+                   different sectors typically have a gap in between them. */
+                final CcpCommandArgs.SetMta argsSetMta =
+                                        new CcpCommandArgs.SetMta( /*address*/ section.from()
+                                                                 , /*addressExt*/ 0
+                                                                 , /*idxMta*/ 0
+                                                                 );
+                add(ccpCmdFactory_.create(argsSetMta));
 
-        } /* for (All programm sections to download and program) */
+                final CcpCommandArgs.Program argsPrg =
+                                                new CcpCommandArgs.Program(section.data());
+                add(ccpCmdFactory_.create(argsPrg));
+
+            } /* for (All programm sections to download and program) */
+        } /* if(Do we need to program the flash ROM?) */        
         
         /* If desired, add a CCP upload-and-verify command to the sequence for each sector
            in the list. */

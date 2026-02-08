@@ -146,7 +146,8 @@ public class CcpCommandSetMta extends CcpCommandBase
      */
     @Override
     public String toString() {
-        return "SET_MTA(mta" + idxMta_ + "=0x" + Long.toHexString(memoryAddr_) + ")";
+        return "SET_MTA(mta" + idxMta_ + "=0x" + Long.toHexString(memoryAddr_).toUpperCase()
+               + ")";
     }
 } /* End of class CcpCommandSetMta definition. */
 

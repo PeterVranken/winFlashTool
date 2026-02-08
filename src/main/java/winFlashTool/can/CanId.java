@@ -179,13 +179,14 @@ public class CanId
             final String x = kindOfCanId_ == TPCANMode.PCAN_MODE_EXTENDED? "x": "";
             if (canIdRange_.size() == 1) {
                 canIdAsStr_ = "" + getCanId() + x
-                              + " (0x" + Integer.toHexString(getCanId()) + x + ")";
+                              + " (0x" + Integer.toHexString(getCanId()).toUpperCase()
+                              + x + ")";
             } else {
                 final Range canIdRange = getCanIds();
                 canIdAsStr_ = "" + getCanIdFirst() + x + ".." + getCanIdLast() + x
-                              + " (0x" + Integer.toHexString(getCanIdFirst()) + x
-                              + ".." + "(0x" + Integer.toHexString(getCanIdLast()) + x
-                              + ")";
+                              + " (0x" + Integer.toHexString(getCanIdFirst()).toUpperCase()
+                              + x + ".." + "(0x"
+                              + Integer.toHexString(getCanIdLast()).toUpperCase() + x + ")";
             }
         }
         return canIdAsStr_;

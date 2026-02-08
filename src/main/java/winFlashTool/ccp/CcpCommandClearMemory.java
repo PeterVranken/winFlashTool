@@ -70,7 +70,7 @@ public class CcpCommandClearMemory extends CcpCommandBase
 
         /* CLEAR_MEMORY is a blocking operation in our flash bootloader. The DTO is sent
            only on completion. This requires a timeout of several seconds. */
-        return 20/*s*/ * 1000;
+        return 30/*s*/ * 1000;
 
     } /* CcpCroTransmitter.CcpCroTransmitter */
 
@@ -138,6 +138,8 @@ public class CcpCommandClearMemory extends CcpCommandBase
      */
     @Override
     public String toString() {
-        return "CLEAR_MEMORY(noBytes=0x" + Integer.toHexString(args_.noBytesToErase()) + ")";
+        return "CLEAR_MEMORY(noBytes=0x"
+               + Integer.toHexString(args_.noBytesToErase()).toUpperCase()
+               + ")";
     }
 } /* End of class CcpCommandClearMemory definition. */

@@ -104,7 +104,7 @@ public class TPCANChannelInformation {
 		str += "\n" + listIndent + "controller_number = " + getControllerNumber();
 		str += "\n" + listIndent + "device_features = " + getDeviceFeatures();
 		str += "\n" + listIndent + "device_name = " + getDeviceName();
-		str += "\n" + listIndent + "device_id = 0x" + Integer.toHexString(getDeviceId());
+		str += "\n" + listIndent + "device_id = 0x" + Integer.toHexString(getDeviceId()).toUpperCase();
 		str += "\n" + listIndent + "channel_condition = " + getChannelCondition();
 		return str;
 	}

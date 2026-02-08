@@ -22,6 +22,7 @@
  *   MemoryMap
  *   readSrecFile
  *   eraseSectorSequence
+ *   eraseAllSectorSequence
  *   srecSequence
  */
 
@@ -43,11 +44,16 @@ public class MemoryMap {
     /** The global logger object for all progress and error reporting. */
     private static final Logger _logger = LogManager.getLogger(MemoryMap.class);
 
-    /** The list of memory sections to erase. */
+    /** The list of memory sections to erase at least for succeesful programming of
+        srecSequence_. */
     private final EraseSectorSequence eraseSectorSequence_;
 
+    /** The list of memory sections to erase if erasing the complete managed flash ROM is
+        requested. */
+    private final EraseSectorSequence eraseAllSectorSequence_;
+
     /** The list of memory sections to program. */
-   /*private*/public final SRecordSequence srecSequence_;
+    private final SRecordSequence srecSequence_;
 
     /** The error counter to be used for all problem reporting. */
     private final ErrorCounter errCnt_;
@@ -110,7 +116,7 @@ public class MemoryMap {
 
                 if(recordType >= 1  &&  recordType <= 3) {
                     _logger.trace( "SREC data at address 0x{}: {}."
-                                 , Long.toHexString(address)
+                                 , Long.toHexString(address).toUpperCase()
                                  , Arrays.toString(dataBytes)
                                  );
                     // TODO We should offer the option to not program sequences of 0xFF.
@@ -144,15 +150,15 @@ public class MemoryMap {
                     if (programStartAddress_ == -1) {
                         programStartAddress_ = address;
                         _logger.info( "Program start address is 0x{}."
-                                    , Long.toHexString(address)
+                                    , Long.toHexString(address).toUpperCase()
                                     );
                     } else if (programStartAddress_ != address) {
                         errCnt_.error();
                         _logger.error( "Line {}: Program start address is repeatedly"
                                        + " specified. Had 0x{}, find 0x{}."
                                      , lineNumber
-                                     , programStartAddress_
-                                     , Long.toHexString(address)
+                                     , Long.toHexString(programStartAddress_).toUpperCase()
+                                     , Long.toHexString(address).toUpperCase()
                                      );
                     }
                 } else {
@@ -220,6 +226,8 @@ public class MemoryMap {
     public MemoryMap(Flash flashRom, ErrorCounter errCnt) {
         errCnt_ = errCnt;
         eraseSectorSequence_ = new EraseSectorSequence(flashRom, errCnt);
+        eraseAllSectorSequence_ = new EraseSectorSequence(flashRom, errCnt);
+        eraseAllSectorSequence_.eraseAll();
         srecSequence_ = new SRecordSequence();
             
     } /* MemoryMap.MemoryMap */
@@ -262,6 +270,13 @@ public class MemoryMap {
      */
     public EraseSectorSequence eraseSectorSequence() {
         return eraseSectorSequence_;
+    }
+
+    /**
+     * Get the @{linkplain #eraseAllSectorSequence_ list of memory sections to erase}.
+     */
+    public EraseSectorSequence eraseAllSectorSequence() {
+        return eraseAllSectorSequence_;
     }
 
     /**

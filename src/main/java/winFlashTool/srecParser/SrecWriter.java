@@ -53,7 +53,7 @@ public class SrecWriter {
      * Initialization of module. Needs to be successfully called prior to using any other
      * method.
      *   @return
-     * Get true, if initialization succeeds. If \a false is returned then operation
+     * Get true, if initialization succeeds. If false is returned then operation
      * won't be possible and the application shouldn't start up.
      *   @param errCnt
      * The error counter to be used for all problem reporting by this (static) class.

@@ -20,6 +20,7 @@
  */
 /* Interface of class EraseSectorSequence
  *   EraseSectorSequence
+ *   eraseAll
  *   findSectorsToErase
  *   iterator
  *   listIterator
@@ -70,9 +71,36 @@ public class EraseSectorSequence implements Iterable<Range> {
         errCnt_ = errCnt;
 
     } /* EraseSectorSequence.EraseSectorSequence */
+    
+    /** 
+     * Configure this list of erase sectors such that all flash ROM is erased.
+     */
+    public void eraseAll() {
+        assert sectorList_.isEmpty(): "Erase sector list needs to be initially empty.";
+        ListIterator<Sector> itBlk = flashRom_.listIterator();
+        Range rangeErase = null;
+        while (itBlk.hasNext()) {
+            Sector blk = itBlk.next();
+            
+            if (rangeErase == null) {
+                rangeErase = new Range(blk);
+            } else if(rangeErase.connectsTo(blk)) {
+                rangeErase.join(blk);
+            } else {    
+                sectorList_.add(rangeErase);
+                rangeErase = new Range(blk);
+            }
+        }
 
+        /* There's possibly a still buffered flash block, which belongs into the
+           result. */
+        if (rangeErase != null) {
+            sectorList_.add(rangeErase);
+        }
+    } /* eraseAll */
+    
     /**
-     * Find the list of sector to erase for the given program.
+     * Find the list of sectors to erase for the given program.
      *   @return
      * Get true if the program fits into the set of erasable flash ROM sectors. If the
      * method returns false, then the contents from the srec file can't be programmed.
@@ -80,6 +108,7 @@ public class EraseSectorSequence implements Iterable<Range> {
      * The program as a list of s-records with data.
      */
     boolean findSectorsToErase(SRecordSequence program) {
+        assert sectorList_.isEmpty(): "Erase sector list needs to be initially empty.";
 
         boolean success = true;
 

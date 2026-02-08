@@ -164,8 +164,8 @@ public class AddressRangeSequence extends ArrayList<Range> {
             if (addrRange != null) {
                 _logger.debug( "Add address range [0x{}, 0x{}) to the list of uploaded"
                                + " memory areas."
-                             , Long.toHexString(addrRange.from())
-                             , Long.toHexString(addrRange.till())
+                             , Long.toHexString(addrRange.from()).toUpperCase()
+                             , Long.toHexString(addrRange.till()).toUpperCase()
                              );
                 add(addrRange);
             } else {

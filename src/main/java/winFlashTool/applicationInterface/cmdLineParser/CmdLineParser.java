@@ -1153,7 +1153,7 @@ public class CmdLineParser implements Iterable<String>
             /* Don't describe the arguments as BNF. Add an ellipsis if we leave out a
                portion of text. */
             if(!helpCmdLine_.isEmpty())
-                sb.append(" ... (Arguments see below)");
+                sb.append(" ... (Arguments see below)\n");
         }
         else
         {
@@ -1209,7 +1209,7 @@ public class CmdLineParser implements Iterable<String>
 
     
     /**
-     * Get the number next of values of a given argument.
+     * Get the number of values of a given argument.
      *   Use this function prior to calling {@link #setReadIndex}.
      *   @return Get the number of vaues parsed in the command line.
      *   @param argumentName

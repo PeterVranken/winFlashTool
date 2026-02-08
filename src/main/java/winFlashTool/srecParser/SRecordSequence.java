@@ -162,7 +162,7 @@ public class SRecordSequence implements Iterable<SRecord> {
                                + " reprogramming the same addresses is not supported."
                                + " First overlapping address is 0x{}. Number of"
                                + " overlapping bytes is at least {}."
-                             , Long.toHexString(overlap.from())
+                             , Long.toHexString(overlap.from()).toUpperCase()
                              , overlap.size()
                              );
                 break;

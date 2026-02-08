@@ -210,7 +210,8 @@ public class Range implements Comparable<Range>
 
     @Override
     public String toString() {
-        return "[0x" + Long.toHexString(from_) + ", 0x" + Long.toHexString(till_) + ")";
+        return "[0x" + Long.toHexString(from_).toUpperCase() + ", 0x"
+               + Long.toHexString(till_).toUpperCase() + ")";
     }
 } /* End of class Range definition. */
 

@@ -58,7 +58,7 @@ public class PCANBasicEx
      * Initialization of module. Needs to be successfully called prior to using any other
      * method.
      *   @return
-     * Get true, if initialization succeeds. If \a false is returned then CAN operation
+     * Get true, if initialization succeeds. If false is returned then CAN operation
      * won't be possible and the application shouldn't start up.
      *   @param errCnt
      * The error counter to be used for all PCAN Basic API related problem reporting.
@@ -299,7 +299,8 @@ public class PCANBasicEx
                 _logger.log( logLevel
                            , "{} (0x{}, type: {}): {}"
                            , info.getChannelHandle().toString()
-                           , Integer.toHexString(info.getChannelHandle().getValue())
+                           , Integer.toHexString(info.getChannelHandle()
+                                                      .getValue()).toUpperCase()
                            , info.getDeviceName()
                            , availability
                            );

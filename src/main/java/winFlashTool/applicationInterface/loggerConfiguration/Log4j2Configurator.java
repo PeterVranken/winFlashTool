@@ -122,9 +122,9 @@ public class Log4j2Configurator
      * the log file will contain the same output as is written to the console.
      *   @param xmlCfgFileName
      * The resulting configuration of log4j can be dumped as an XML file. The format is as
-     * needed for an external configuration file (see \a level, value "default") and the
+     * needed for an external configuration file (see level, value "default") and the
      * dumped file can be used as starting point for a more complex configuration of log4j.
-     * If needed, this parameter may state the name and path of the XML file. If \a
+     * If needed, this parameter may state the name and path of the XML file. If
      * xmlCfgFileName is null then no XML file is written.
      *   @param errCnt
      * The error counter to be used during the operation.

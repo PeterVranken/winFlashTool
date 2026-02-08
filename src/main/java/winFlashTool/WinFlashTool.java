@@ -52,6 +52,7 @@ import peak.can.basic.TPCANHandle;
 import peak.can.basic.TPCANBaudrate;
 import winFlashTool.applicationInterface.AddressRangeSequence;
 import winFlashTool.srecParser.SrecWriter;
+import winFlashTool.srecParser.EraseSectorSequence;
 
 /**
  * This class has a main function, which implements the excel exporter application.
@@ -177,7 +178,7 @@ public class WinFlashTool
         /* Define all command line arguments, which are not logging related. */
         clp.defineArgument
             ( "m", "mcu-target"
-            , /*cntMax, cntMax*/ 0, 1
+            , /*cntMin, cntMax*/ 0, 1
             , /*defaultValue*/ null
             , "The MCU target to program. Supported targets are:"
               + "\n  MPC5748G"
@@ -223,22 +224,55 @@ public class WinFlashTool
             );
         clp.defineArgument
             ( "o", "srec-output-file"
-            , /*cntMax, cntMax*/ 0, 1
+            , /*cntMin, cntMax*/ 0, 1
             , /*defaultValue*/ null
             , "The srec file with the uploaded memory contents."
               + "\nIf this argument is used then an upload of memory contents from the target"
               + " device is commanded."
+              + "\nIf this argument is combined with a command to erase and/or program"
+              + " the flash ROM, then the upload is done first, prior to modifying the flash"
+              + " ROM contents."
             );
         clp.defineArgument
-            ( "s", "srec-input-file"
-            , /*cntMax, cntMax*/ 0, 1
+            ( "i", "srec-input-file"
+            , /*cntMin, cntMax*/ 0, 1
             , /*defaultValue*/ null
-            , "The srec file with the memory contents to flash."
-              + "\nIf this argument is used then a download of the file to the target"
-              + " device is commanded."
+            , "The srec file with the memory contents to either flash or verify."
+              + "\nIf this argument is used and --verify-only is not given then a download"
+              + " of the file to the target device is commanded."
             );
         clp.defineArgument
-            ( "e", "enumerate-CAN-devices"
+            ( "vo", "verify-only"
+            , /*cntMax*/ 1
+            , "The srec input file is loaded and compared to the memory contents of the"
+              + " target. The memories of the target are not at all modified."
+              + "\nOptional, default is programming the srec file."
+            );
+        clp.defineArgument
+            ( "nv", "no-verify"
+            , /*cntMax*/ 1
+            , "Flash programming is normally followed by an upload of the programmed memory"
+              + " contents to see if all bytes have the value specified in the input"
+              + " srec file. However, this roughly doubles the duration of the complete"
+              + " programming procedure. Using option --no-verify means to skip the upload"
+              + " and data comparison to save the additional time."
+              + "\nOptional, default is doing the verification."
+              + "\nPlease note, regardless of this switch, an immediate verify of each"
+              + " flash programming step is always performed. However, this validates only"
+              + " the physical flash programming but not potential data transmission errors." 
+            );
+        clp.defineArgument
+            ( "e", "erase-all"
+            , /*cntMin, cntMax*/ 1
+            , "If given, then all flash ROM under control of the FBL is erased. This can be"
+              + " used with or without download and programming."
+              + "\nIf not given, although"
+              + " --srec-input-file is used to command the download, then only those"
+              + " flash blocks will be erased, which are required to house the contents of"
+              + " the srec file."
+            );
+        clp.defineArgument
+            ( "dev", "enumerate-CAN-devices"
             , /*cntMax*/ 1
             , "If given, then the application will only search for connected, available"
               + " CAN devices. It stops after listing available devices."
@@ -282,16 +316,6 @@ public class WinFlashTool
               + " any number of times."
               + "\nThis argument is mandatory if the other argument srec-output-file is used"
               + " to command an upload."
-            );
-        clp.defineArgument
-            ( "nv", "no-verify"
-            , /*cntMax*/ 1
-            , "Flash programming is normally followed by an upload of the programmed memory"
-              + " contents to see if all bytes have the value specified in the input"
-              + " srec file. However, this roughly doubles the duration of the complete"
-              + " programming procedure. Using option --no-verify means to skip the upload"
-              + " and data comparison to save the additional time."
-              + "\nOptional, default is doing the verification."
             );
 //        clp.defineArgument
 //            ( "$(point)", ""
@@ -407,10 +431,38 @@ public class WinFlashTool
         /* Check command line to find out, which tasks are commanded. */
         final String srecInputFileName = cmdLineParser_.getString("srec-input-file")
                    , srecOutputFileName = cmdLineParser_.getString("srec-output-file");
-        final boolean taskEnumCanDevices = cmdLineParser_.getBoolean("enumerate-CAN-devices")
+        final boolean eraseAll = cmdLineParser_.getBoolean("erase-all")
+                    , verifyOnly = cmdLineParser_.getBoolean("verify-only")
+                    , noVerify = cmdLineParser_.getBoolean("no-verify")
+                    , dryRun = cmdLineParser_.getBoolean("dry-run")
+                    , taskEnumCanDevices = cmdLineParser_.getBoolean("enumerate-CAN-devices")
                     , taskUpload = srecOutputFileName != null
-                    , taskProgram = srecInputFileName != null;
-                    
+                    , taskProgram = srecInputFileName != null  && !verifyOnly
+                    , taskVerify = srecInputFileName != null  && verifyOnly
+                    , taskEraseOnly = eraseAll &&  srecInputFileName == null;
+
+        if (verifyOnly &&  srecInputFileName == null) {
+            success = false;
+            errCnt_.error();
+            _logger.error("Specifying --verify-only without giving an input srec file"
+                          + " is pointless. Nothing to do."
+                         );
+        }
+        if (verifyOnly && noVerify) {
+            success = false;
+            errCnt_.error();
+            _logger.error("Specifying both, --verify-only and --no-verify, is pointless."
+                          + " Nothing is done."
+                         );
+        }
+        if (!taskUpload &&  cmdLineParser_.getNoValues("address-range") > 0) {
+            success = false;
+            errCnt_.error();
+            _logger.error("Specifying an address range for upload without specifying an"
+                          + " input srec file is pointless. Upload is not performed."
+                         );
+        }
+        
         if(success && taskEnumCanDevices)
         {
             if (taskUpload || taskProgram) {
@@ -426,7 +478,7 @@ public class WinFlashTool
             if (!canDeviceName.isEmpty()) {
                 success = PCANBasicEx.identifyChannel(canDeviceName);
             }
-        } else if (taskUpload || taskProgram) {
+        } else if (taskUpload || taskEraseOnly || taskProgram || taskVerify) {
         
             /* Set the CN IDs to use for CCP communication. */
             final CanId canIdCro = new CanId( cmdLineParser_.getInteger("CAN-ID-CRO") & 0x7FF
@@ -503,7 +555,7 @@ public class WinFlashTool
 
                 if (success) {
                     srecSeq.logSections();
-                    ccp.upload(srecSeq, cmdLineParser_.getBoolean("dry-run"));
+                    ccp.upload(srecSeq, dryRun);
                 
                     /* Clock the state machine, which runs the CCP communication. */
                     while(!ccp.step()) {
@@ -521,8 +573,7 @@ public class WinFlashTool
                 }        
             } /* if(Is an upload commanded?) */ 
             
-            if (success && taskProgram) {
-                _logger.info("Now downloading data to target for flash programming.");
+            if (success && (taskProgram || taskEraseOnly || taskVerify)) {
 
                 final String targetMcuName = cmdLineParser_.getString("mcu-target");
                 if (targetMcuName == null) {
@@ -559,25 +610,53 @@ public class WinFlashTool
                     flashROM = null;
                 }
             
-                final MemoryMap memMap;
-                if (success) {
-                    memMap = new MemoryMap(flashROM, errCnt_);
-                    if (!memMap.readSrecFile(srecInputFileName)) {
-                        success = false;
-                        errCnt_.error();
-                        _logger.error("Can't read srec input file. Application terminates.");
+                String task = "";
+                if (taskProgram || taskVerify) {
+                    final MemoryMap memMap;
+                    if (success) {
+                        memMap = new MemoryMap(flashROM, errCnt_);
+                        if (!memMap.readSrecFile(srecInputFileName)) {
+                            success = false;
+                            errCnt_.error();
+                            _logger.error("Can't read srec input file. Application"
+                                          + " terminates."
+                                         );
+                        }
+                    } else {      
+                        memMap = null;
                     }
-                } else {      
-                    memMap = null;
+
+                    if (success) {
+                        if(taskProgram) {
+                            task = "Programming";
+                            _logger.info("Now downloading data to target for flash"
+                                         + " programming."
+                                        );
+
+                            /* Prepare a CCP communication thread for erase and program. */
+                            ccp.eraseAndProgram(memMap, eraseAll, !noVerify, dryRun);
+                        } else {
+                            task = "Verifying";
+                            assert taskVerify;
+                            _logger.info("Now verifying data in target flash ROM.");
+
+                            /* Prepare a CCP communication thread for erase and program. */
+                            ccp.verify(memMap, dryRun);
+                        }
+                    }
+                } else {
+                    assert taskEraseOnly;
+                    task = "Flash ROM erasure";
+                    final EraseSectorSequence eraseSectorSequence = 
+                                                    new EraseSectorSequence(flashROM, errCnt_);
+                    eraseSectorSequence.eraseAll();                                        
+                    
+                    /* Prepare a CCP communication thread for erasure. */
+                    ccp.erase(eraseSectorSequence, dryRun);
+                    _logger.info("Now erasing all flash ROM on the target.");
                 }
-
+                
                 if (success) {
-                    /* Prepare a CCP communication thread for erase and program. */
-                    ccp.eraseAndProgram( memMap
-                                       , !cmdLineParser_.getBoolean("no-verify")
-                                       , cmdLineParser_.getBoolean("dry-run")
-                                       );
-
                     /* Clock the state machine, which runs the CCP communication. */
                     while(!ccp.step()) {
                         /* Here, we could do other, non-blocking things, e.g., print some
@@ -585,7 +664,11 @@ public class WinFlashTool
                     }
                     success = ccp.getFinalSuccess();
                 }
-            } /* if(Is a download and program commanded?) */ 
+                
+                if (success) {
+                    _logger.info("{} successfully completed.", task);
+                }
+            } /* if(Is an erase all or download and program commanded?) */ 
            
             /* Close CAN device; release the PCAN-USB CAN device for other applications. */
             if (canDev != null) {
@@ -594,10 +677,11 @@ public class WinFlashTool
         } else {
             success = false;
             errCnt_.error();
-            _logger.error( "No srec file is specified on the command line. You need to use"
-                           + " argument --srec-output-file and/or --srec-input-file to"
-                           + " command an up- or download, respectively. Please use -h for"
-                           + " help."
+            _logger.error( "No srec file is specified on the command line. You normally"
+                           + " need to use argument --srec-output-file and/or"
+                           + " --srec-input-file to command an up- or download,"
+                           + " respectively. Another option is --erase-all to erase all"
+                           + " flash ROM. Please use -h for help."
                          );
         } /* if/else if(Which task to complete?) */
 

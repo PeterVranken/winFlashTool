@@ -39,7 +39,9 @@
  */
 /* Interface of class CCP
  *   CCP
+ *   erase
  *   eraseAndProgram
+ *   verify
  *   upload
  *   stateConnectToTarget
  *   stateDisconnectFromTarget
@@ -58,6 +60,7 @@ import winFlashTool.can.CanDevice;
 import winFlashTool.can.PCANBasicEx;
 import winFlashTool.srecParser.SRecord;
 import winFlashTool.srecParser.MemoryMap;
+import winFlashTool.srecParser.EraseSectorSequence;
 
 /**
  * State machine for the subset of CCP, whichis require for the flash tool.
@@ -206,10 +209,33 @@ public class CCP {
     }
 
     /**
+     * Initiate the CCP protocol sequence, which erases the flash ROM in the target.
+     *   @param eraseSectorSequence
+     * A list of flash blocks to erase.
+     *   @param isDryRun
+     * If true, then most CCP commands are not really executed; the CRO is not sent out and
+     * we don't wait for a DTO. The success of the suppressed CCP is assumed true. However,
+     * the complete state machine is stepped through.
+     */
+    public void erase(EraseSectorSequence eraseSectorSequence, boolean isDryRun) {
+        assert ccpCmdSequence_ == null  &&  state_ == StateFlashProcess.COMPLETED
+             : "Can't start a new CCP communication if there is still one running";
+        isDryRun_ = isDryRun;
+        
+        ccpCmdSequence_ = new CcpCmdSequence(ccpCmdFactory_);
+        ccpCmdSequence_.erase(eraseSectorSequence);
+        state_ = StateFlashProcess.START;
+        
+    } /* erase */
+
+    /**
      * Initiate the CCP protocol sequence, which is required to programm a new binary into
      * the target.
      *   @param program
      * The representation of the memory area(s) to erase and (re-)program.
+     *   @param eraseAll
+     * Set this switch to true to let the FBL erase all managed flash ROM, not only the
+     * portions needed to house the program.
      *   @param doVerify
      * If true, then the programming is followed by an upload for verification of the
      * programmed data. The execution time of the CCP protocol sequence is roughly doubled.
@@ -218,15 +244,50 @@ public class CCP {
      * we don't wait for a DTO. The success of the suppressed CCP is assumed true. However,
      * the complete state machine is stepped through.
      */
-    public void eraseAndProgram(MemoryMap program, boolean doVerify, boolean isDryRun) {
+    public void eraseAndProgram( MemoryMap program
+                               , boolean eraseAll
+                               , boolean doVerify
+                               , boolean isDryRun
+                               ) {
         assert ccpCmdSequence_ == null  &&  state_ == StateFlashProcess.COMPLETED
              : "Can't start a new CCP communication if there is still one running";
         isDryRun_ = isDryRun;
         ccpCmdSequence_ = new CcpCmdSequence(ccpCmdFactory_);
-        ccpCmdSequence_.eraseAndProgram(program, doVerify);
+        ccpCmdSequence_.eraseProgramAndVerify( /*doErase*/ true
+                                             , eraseAll
+                                             , /*doProgram*/ true
+                                             , doVerify
+                                             , program
+                                             );
         state_ = StateFlashProcess.START;
         
     } /* eraseAndProgram */
+
+    /**
+     * Initiate the CCP protocol sequence, which verifies by upload and data compare, if
+     * the target contains a given programm.
+     *   @param program
+     * The representation of the memory area(s), which are expected to be found in the
+     * target.
+     *   @param isDryRun
+     * If true, then most CCP commands are not really executed; the CRO is not sent out and
+     * we don't wait for a DTO. The success of the suppressed CCP is assumed true. However,
+     * the complete state machine is stepped through.
+     */
+    public void verify(MemoryMap program, boolean isDryRun) {
+        assert ccpCmdSequence_ == null  &&  state_ == StateFlashProcess.COMPLETED
+             : "Can't start a new CCP communication if there is still one running";
+        isDryRun_ = isDryRun;
+        ccpCmdSequence_ = new CcpCmdSequence(ccpCmdFactory_);
+        ccpCmdSequence_.eraseProgramAndVerify( /*doErase*/ false
+                                             , /*eraseAll*/ false
+                                             , /*doProgram*/ false
+                                             , /*doVerify*/ true
+                                             , program
+                                             );
+        state_ = StateFlashProcess.START;
+        
+    } /* verify */
 
     /**
      * Add the CCP command sequence needed for uploading data from the flash.
