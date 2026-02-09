@@ -571,6 +571,10 @@ public class WinFlashTool
                                                   );
                     }
                 }        
+                
+                if (success) {
+                    _logger.info("Data upload successfully completed.");
+                }
             } /* if(Is an upload commanded?) */ 
             
             if (success && (taskProgram || taskEraseOnly || taskVerify)) {
@@ -628,7 +632,11 @@ public class WinFlashTool
 
                     if (success) {
                         if(taskProgram) {
-                            task = "Programming";
+                            task = "Flash ROM programming";
+                            if(!noVerify) {
+                                task += " and verify";
+                            }
+
                             _logger.info("Now downloading data to target for flash"
                                          + " programming."
                                         );
@@ -636,7 +644,7 @@ public class WinFlashTool
                             /* Prepare a CCP communication thread for erase and program. */
                             ccp.eraseAndProgram(memMap, eraseAll, !noVerify, dryRun);
                         } else {
-                            task = "Verifying";
+                            task = "Verifying flash ROM contents";
                             assert taskVerify;
                             _logger.info("Now verifying data in target flash ROM.");
 
@@ -664,7 +672,7 @@ public class WinFlashTool
                     }
                     success = ccp.getFinalSuccess();
                 }
-                
+
                 if (success) {
                     _logger.info("{} successfully completed.", task);
                 }

@@ -250,6 +250,7 @@ public class MemoryMap {
         final SrecListenerForMemMap srecListener = new SrecListenerForMemMap();
         parser.registerListener(srecListener);
 
+        _logger.info("Now reading s-record file {}", srecFileName);
         boolean success = parser.parse(srecFile);
 
         if (success) {

@@ -76,7 +76,7 @@ public class CcpCommandSetMta extends CcpCommandBase
      */
     @Override
     protected boolean isSkippedInDryRun() {
-        return true;//false;
+        return false;
     }
     
     /**
