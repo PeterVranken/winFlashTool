@@ -92,11 +92,12 @@ public class CcpCommandClearMemory extends CcpCommandBase
         payloadCroAry[5] = (byte)((args_.noBytesToErase() >>  0) & 0xFF);
 
         sendCro(/*noContentBytes*/ 6);
-        _logger.printf( Level.DEBUG
-                      , "CRO message CLEAR_MEMORY(0x%06X) sent to ECU."
+        _logger.printf( Level.INFO
+                      , "Erasing 0x%X Byte at memory address 0x%06X."
                       , args_.noBytesToErase()
+                      , mta0()
                       );
-    }
+    } /* setup */
 
     /**
      * All CCP commands are implemented as state machines. This method implements a single

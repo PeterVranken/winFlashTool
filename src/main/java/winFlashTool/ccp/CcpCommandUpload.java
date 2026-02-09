@@ -122,7 +122,7 @@ public class CcpCommandUpload extends CcpCommandBase
         sendCro(/*noContentBytes*/ 3);
         
         _logger.printf( Level.INFO
-                      , "Upload 0x%06X Byte from memory address 0x%06X."
+                      , "Upload 0x%X Byte from memory address 0x%06X."
                       , noBytesToUpload_ 
                       , mta0()
                       );

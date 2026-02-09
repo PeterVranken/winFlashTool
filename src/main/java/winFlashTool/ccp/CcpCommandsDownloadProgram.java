@@ -42,7 +42,8 @@ import winFlashTool.can.PCANBasicEx;
 public class CcpCommandsDownloadProgram extends CcpCommandBase
 {
     /** The global logger object for all progress and error reporting. */
-    private static final Logger _logger = LogManager.getLogger(CcpCommandsDownloadProgram.class);
+    private static final Logger _logger = LogManager.getLogger
+                                                        (CcpCommandsDownloadProgram.class);
 
     /** Is this a sequence of DOWNLOAD or of PROGRAM commands? */
     private final boolean isDownload_;
@@ -172,7 +173,7 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
         sendCro(/*noContentBytes*/ 8);
 
         _logger.printf( Level.INFO
-                      , "%s 0x%06X Byte %s memory address 0x%06X."
+                      , "%s 0x%X Byte %s memory address 0x%06X."
                       , isDownload_? "Download": "Program"
                       , noBytesToDownload_
                       , isDownload_? "to": "at"
