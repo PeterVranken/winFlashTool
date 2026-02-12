@@ -34,8 +34,8 @@ import peak.can.basic.TPCANMsg;
 /**
  * Enumeration of supported CCP commands.
  */
-enum CroCommandId
-{
+enum CroCommandId {
+
     /** The IDs of the CCP commands in the CRO messages. */
     CONNECT((byte)0x01),
     SET_MTA((byte)0x02),
@@ -45,6 +45,8 @@ enum CroCommandId
     DOWNLOAD_6((byte)0x23),
     PROGRAM((byte)0x18),
     PROGRAM_6((byte)0x22),
+    DIAG_SERVICE((byte)0x20),
+    ACTION_SERVICE((byte)0x21),
     DISCONNECT((byte)0x07);
     
     private final byte cmdId_;

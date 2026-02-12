@@ -298,11 +298,14 @@ public class CCP {
      * we don't wait for a DTO. The success of the suppressed CCP is assumed true. However,
      * the complete state machine is stepped through.
      */
+private byte[] versionFbl_ = new byte[89];
     public void upload(Iterable<SRecord> memAreas, boolean isDryRun) {
         assert ccpCmdSequence_ == null  &&  state_ == StateFlashProcess.COMPLETED
              : "Can't start a new CCP communication if there is still one running";
         isDryRun_ = isDryRun;
         ccpCmdSequence_ = new CcpCmdSequence(ccpCmdFactory_);
+versionFbl_[0] = (byte)'x';
+ccpCmdSequence_.diagServiceGetVersion(versionFbl_);
         ccpCmdSequence_.upload(memAreas);
         state_ = StateFlashProcess.START;
         
@@ -430,6 +433,8 @@ public class CCP {
             if (ccpCmdSequence_.size() > 0) {
                 /* There is still another CCP command to process, no state change. */
             } else {
+_logger.info("Version FBL:");
+_logger.info(new String(versionFbl_));
                 state_ = StateFlashProcess.DISCONNECTING;
             }
         } else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING) {

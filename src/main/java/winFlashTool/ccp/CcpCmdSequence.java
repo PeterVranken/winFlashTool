@@ -19,8 +19,10 @@
  */
 /* Interface of class CcpCmdSequence
  *   CcpCmdSequence
+ *   erase
  *   eraseProgramAndVerify
  *   upload
+ *   diagServiceGetVersion
  */
 
 package winFlashTool.ccp;
@@ -37,8 +39,7 @@ import winFlashTool.srecParser.EraseSectorSequence;
  * The representation of a sequence of of CCP commands to be executed, e.g., for flashing a
  * program.
  */
-class CcpCmdSequence extends ArrayList<CcpCommandBase>
-{
+class CcpCmdSequence extends ArrayList<CcpCommandBase> {
     /** The global logger object for all progress and error reporting. */
     private static final Logger _logger = LogManager.getLogger(CcpCmdSequence.class);
 
@@ -47,6 +48,12 @@ class CcpCmdSequence extends ArrayList<CcpCommandBase>
         will make use of the right CAN bus and using the same configuration. */
     private final CcpCommandFactory ccpCmdFactory_;
     
+    /** The diagnostic service number for uploading the FBL's version information. */
+    private final byte DIAG_SN_UPLOAD_VERSION_FBL = 0x00;
+    
+    /** The diagnostic service number for uploading the seed for the authorization. */
+    private final byte DIAG_SN_UPLOAD_SEED = 0x01;
+
     /**
      * A new instance of CcpCmdSequence is created.
      *   @param ccpCmdFactory
@@ -200,13 +207,43 @@ class CcpCmdSequence extends ArrayList<CcpCommandBase>
                                                              );
             add(ccpCmdFactory_.create(argsSetMta));
             
-            final CcpCommandArgs.Upload argsPrg = new CcpCommandArgs.Upload( section.data()
-                                                                           , /*isVerify*/ false
-                                                                           );
-            add(ccpCmdFactory_.create(argsPrg));
+            final CcpCommandArgs.Upload argsUpload = new CcpCommandArgs.Upload
+                                                                          ( section.data()
+                                                                          , /*isVerify*/ false
+                                                                          );
+            add(ccpCmdFactory_.create(argsUpload));
 
         } /* for (All memory sections to upload) */
     } /* upload */
+    
+    /**
+     * Add the CCP command sequence needed for requesting the FBL version designation with
+     * a diagnostic service.
+     *   @param version
+     * The FBL's version designation (after execution of the CCP command sequence). Needs
+     * to be a byte[89].
+     */
+    void diagServiceGetVersion(byte[] version) {
+        /* CCP Connect and disconnect are handled outside of the command sequence. */
+        
+        /* We request the upload of the FLB's version string. */
+        final CcpCommandArgs.DiagService argsDiagService =
+                    new CcpCommandArgs.DiagService( /*serviceNum*/ DIAG_SN_UPLOAD_VERSION_FBL
+                                                  , /*argAry*/ null
+                                                  );
+        add(ccpCmdFactory_.create(argsDiagService));
+            
+        /* Add a CCP upload command, which fetches the response of the diagnostic service.
+           The MTA has already been set by the DIAG_SERVICE. */
+// @todo We set the length hardcoded for now but this needs to become a dynamic reaction on the response of the DIAG_SERVICE
+// @todo Dynamic length upload discards byte[] as in/out argument type. We will need to refactor to arraylist or other
+
+        final CcpCommandArgs.Upload argsUpload = new CcpCommandArgs.Upload( version
+                                                                          , /*isVerify*/ false
+                                                                          );
+        add(ccpCmdFactory_.create(argsUpload));
+
+    } /* diagServiceGetVersion */
     
 } /* End of class CcpCmdSequence definition. */
 

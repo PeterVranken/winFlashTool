@@ -18,9 +18,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 /* Interface of class CcpCommandArgs
+ *   Connect
+ *   Disconnect
  *   SetMta
- *   Upload
  *   ClearMemory
+ *   Download
+ *   Upload
+ *   Program
+ *   DiagService
  */
 
 package winFlashTool.ccp;
@@ -104,13 +109,15 @@ sealed interface CcpCommandArgs {
      *   @param data
      * A result buffer for the bytes to upload from current MTA0. The length of the array
      * is the number of bytes to upload. A length of zero is not supported. The
-     * implementation of the command will break it down into a series of #UPLOAD commands.
+     * implementation of the command will break it down into a series of #UPLOAD commands.<p>
+     *   data may be null. In this case, the requested number of bytes is determined
+     * dynamically, e.g., as a result of a preceding service command.
      *   @param verify
      * Pass false for normal upload operation. The uploaded data is stored in byte array
      * data.<p>
      *   If verify is true then data needs to hold the expected memory contents. The
      * uploaded data is not stored inside data but compared to the contents of data. An
-     * error is reported and the command is aborted when the first deiviation is found.
+     * error is reported and the command is aborted when the first deviation is found.
      */
     record Upload(byte[] data, boolean verify) implements CcpCommandArgs {
     }
@@ -125,4 +132,15 @@ sealed interface CcpCommandArgs {
     record Program(byte[] data) implements CcpCommandArgs {
     }
     
+    /**
+     * The arguments of CCP command DIAG_SERVICE.
+     *   @param serviceNum
+     * The service number. Range is 0..255.
+     *   @param argAry
+     * The arguments as an array of up to 5 Byte. May be null if no args are required by the
+     * service.
+     */
+    record DiagService(byte serviceNum, byte[] argAry) implements CcpCommandArgs {
+    }
+        
 } /* End of interface CcpCommandArgs definition. */

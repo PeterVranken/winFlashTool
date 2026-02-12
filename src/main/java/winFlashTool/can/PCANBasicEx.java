@@ -173,6 +173,7 @@ public class PCANBasicEx
     }
     
     
+    // @todo This should be moved into package basics
     /**
      * Convert the frequently used byte type into an unsigned integer.
      *   @return

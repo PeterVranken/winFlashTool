@@ -2,7 +2,7 @@
  * @file CcpCommandFactory.java
  * Constructor for CCP command objects.
  *
- * Copyright (C) 2025 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
+ * Copyright (C) 2025-2026 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by the
@@ -79,7 +79,8 @@ final class CcpCommandFactory {
         register(CcpCommandArgs.Download.class, CcpCommandsDownloadProgram::new);
         register(CcpCommandArgs.Upload.class, CcpCommandUpload::new);
         register(CcpCommandArgs.Program.class, CcpCommandsDownloadProgram::new);
-    }
+        register(CcpCommandArgs.DiagService.class, CcpCommandDiagService::new);
+    } /* CcpCommandFactory */
 
     /**
      * A new association CCP command constructor by argument class is added to the map.
