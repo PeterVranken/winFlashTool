@@ -98,6 +98,7 @@ class CcpCroTransmitter
         ERROR_NEGATIVE_RESPONSE,
         ERROR_BAD_MTA_UPDATE,
         ERROR_BAD_DTO_HDR,
+        ERROR_NO_BYTES_TO_PROCESS,
         ERROR_VERIFY_ERROR;
 
         /** String to enum conversion. Illegal strings are translated into enumeration

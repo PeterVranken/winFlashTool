@@ -44,7 +44,7 @@ public class CcpCommandDisconnect extends CcpCommandBase
 
     /** All required command arguments, provided at object creation time. */
     private final CcpCommandArgs.Disconnect args_;
-        
+
     /**
      * A new instance of CcpCommandDisconnect is created and configured for the CCP
      * #DISCONNECT command.
@@ -54,7 +54,7 @@ public class CcpCommandDisconnect extends CcpCommandBase
     protected CcpCommandDisconnect(CcpCommandArgs.Disconnect args)
     {
         args_ = args;
-        
+
     } /* CcpCommandDisconnect.CcpCommandDisconnect */
 
 
@@ -66,18 +66,28 @@ public class CcpCommandDisconnect extends CcpCommandBase
     protected boolean isSkippedInDryRun() {
         return false;
     }
-    
+
     /**
      * The CCP command is initiated. After return from setup(), the caller will repeatedly
      * call step() - until step() indicates completion of the command.
+     *   @return
+     * Normally, the method returns "pending" to indicate that the CCP communication has
+     * been successfully initiated but is still ongoing. In this case, the other method
+     * step() will be called as long as it indicates as still ongoing communication
+     * process.<p>
+     *   If the initialization fails, it'll return an error code. In this situation,
+     * everything is done and step() won't be called.<p>
+     *   In rare situations, it may even return success. CCP communication has successfully
+     * completed and step() must not be called any more. This may happen, e.g., if a
+     * pointless UPLOAD of zero Byte is commanded.
      */
-    public void setup()
-    {
+    public CcpCroTransmitter.ResultTransmission setup() {
+
         final byte[] payloadCroAry = payloadCroAry();
-        
+
         /* Send CAN CRO message with command DISCONNECT. */
         payloadCroAry[0] = CroCommandId.DISCONNECT.getCode();
-        
+
         /* 0: temporary, 1: end of session. */
         payloadCroAry[2] = (byte)(args_.isEndOfSession()? 0x01: 0x00);
         payloadCroAry[3] = 0;
@@ -85,7 +95,9 @@ public class CcpCommandDisconnect extends CcpCommandBase
         payloadCroAry[5] = (byte)((args_.stationAddr() & 0xFF00) >> 8);
         sendCro(/*noContentBytes*/ 6);
         _logger.debug("CRO message DISCONNECT sent to station {}.", args_.stationAddr());
-    }
+        return CcpCroTransmitter.ResultTransmission.PENDING;
+
+    } /* setup */
 
 
     /**
@@ -96,24 +108,18 @@ public class CcpCommandDisconnect extends CcpCommandBase
      * method returns anything other than "pending" needs to be the last time this method
      * is called -- until the command is reinitiated with setup() and executed again.
      */
-    public CcpCroTransmitter.ResultTransmission step()
-    {
+    public CcpCroTransmitter.ResultTransmission step() {
         final CcpCroTransmitter.ResultTransmission resultTxRx = checkRxDto();
-        if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
-        {
+        if (resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS) {
             _logger.info("ECU is disconnected.");
-        }
-        else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)
-        {
+        } else if (resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING) {
             /* The connect CRO/DTO exchange failed. The reason has been logged. Nothing
                else to do. */
             errCnt().error();
             _logger.error("Can't disconnect from the ECU. See previous error messages"
                           + " for details."
                          );
-        }
-        else
-        {
+        } else {
             /* DTO has not been received yet. We continue polling. */
         }
 

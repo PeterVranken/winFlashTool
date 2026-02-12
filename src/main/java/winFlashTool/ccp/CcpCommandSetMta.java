@@ -48,26 +48,25 @@ public class CcpCommandSetMta extends CcpCommandBase
 
     /** The index of the affected MTA, either 0 or 1. */
     private final int idxMta_;
-    
+
     /**
      * A new instance of CcpCommandSetMta is created and configured for the CCP SET_MTA
-     * command. 
+     * command.
      *   @param args
      * A record with all required configuration data.
      */
-    CcpCommandSetMta(CcpCommandArgs.SetMta args)
-    {
+    CcpCommandSetMta(CcpCommandArgs.SetMta args) {
         memoryAddr_ = args.address();
-        
+
         idxMta_ = args.idxMta();
-        
+
         /* For now, we do not implement any CCP which would ever make use of MTA1. */
         assert idxMta_ == 0: "MTA1 is not suppoted, yet";
-        
+
         /* We do not support the address extension, which is just a relict from the ancient
-           16 Bit controllers with paging mechanisms. */ 
+           16 Bit controllers with paging mechanisms. */
         assert args.addressExt() == 0: "Address extension for CCP SET_MTA is not supported";
-        
+
     } /* CcpCommandSetMta.CcpCommandSetMta */
 
     /**
@@ -78,29 +77,40 @@ public class CcpCommandSetMta extends CcpCommandBase
     protected boolean isSkippedInDryRun() {
         return false;
     }
-    
+
     /**
      * The CCP command is initiated. After return from setup(), the caller will repeatedly
      * call step() - until step() indicates completion of the command.
+     *   @return
+     * Normally, the method returns "pending" to indicate that the CCP communication has
+     * been successfully initiated but is still ongoing. In this case, the other method
+     * step() will be called as long as it indicates as still ongoing communication
+     * process.<p>
+     *   If the initialization fails, it'll return an error code. In this situation,
+     * everything is done and step() won't be called.<p>
+     *   In rare situations, it may even return success. CCP communication has successfully
+     * completed and step() must not be called any more. This may happen, e.g., if a
+     * pointless UPLOAD of zero Byte is commanded.
      */
-    public void setup()
-    {
+    public CcpCroTransmitter.ResultTransmission setup() {
+
         final byte idxMta = (byte)idxMta_;
-        
+
         /* Send CAN CRO message with command SET_MTA. */
         final byte[] payloadCroAry = payloadCroAry();
         payloadCroAry[0] = CroCommandId.SET_MTA.getCode();
         payloadCroAry[2] = idxMta; /* The x in MTAx, x=0..1 */
         payloadCroAry[3] = (byte)0; /* Address extension not used in PowerPC. */
-        
-        /* Memory address in MSB endianess. */ 
+
+        /* Memory address in MSB endianess. */
         payloadCroAry[4] = (byte)((memoryAddr_ >> 24) & 0xFF);
         payloadCroAry[5] = (byte)((memoryAddr_ >> 16) & 0xFF);
         payloadCroAry[6] = (byte)((memoryAddr_ >>  8) & 0xFF);
         payloadCroAry[7] = (byte)((memoryAddr_ >>  0) & 0xFF);
         sendCro(/*noContentBytes*/ 8);
         _logger.printf(Level.DEBUG, "CRO message SET_MTA(0x%06X) sent to ECU.", memoryAddr_);
-        
+        return CcpCroTransmitter.ResultTransmission.PENDING;
+
     } /* setup */
 
     /**
@@ -111,32 +121,26 @@ public class CcpCommandSetMta extends CcpCommandBase
      * method returns anything other than "pending" needs to be the last time this method
      * is called -- until the command is reinitiated with setup() and executed again.
      */
-    public CcpCroTransmitter.ResultTransmission step()
-    {
+    public CcpCroTransmitter.ResultTransmission step() {
         final CcpCroTransmitter.ResultTransmission resultTxRx = checkRxDto();
-        if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
-        {
+        if (resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS) {
             _logger.debug("ECU acknowledged SET_MTA.");
-            
+
             /* Make new MTA available to other commands, e.g., DOWNLOAD and PROGRAM. */
             mta0(memoryAddr_);
-        }
-        else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)
-        {
+        } else if (resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING) {
             /* The connect CRO/DTO exchange failed. The reason has been logged. Nothing
                else to do. */
             errCnt().error();
             _logger.error("Can't set MTA in the ECU. See previous error messages"
                           + " for details."
                          );
-        }
-        else
-        {
+        } else {
             /* DTO has not been received yet. We continue polling. */
         }
-        
+
         return resultTxRx;
-        
+
     } /* step */
 
     /**

@@ -94,8 +94,18 @@ public class CcpCommandDiagService extends CcpCommandBase {
     /**
      * The CCP command is initiated. After return from setup(), the caller will repeatedly
      * call step() - until step() indicates completion of the command.
+     *   @return
+     * Normally, the method returns "pending" to indicate that the CCP communication has
+     * been successfully initiated but is still ongoing. In this case, the other method
+     * step() will be called as long as it indicates as still ongoing communication
+     * process.<p>
+     *   If the initialization fails, it'll return an error code. In this situation,
+     * everything is done and step() won't be called.<p>
+     *   In rare situations, it may even return success. CCP communication has successfully
+     * completed and step() must not be called any more. This may happen, e.g., if a
+     * pointless UPLOAD of zero Byte is commanded.
      */
-    public void setup() {
+    public CcpCroTransmitter.ResultTransmission setup() {
         /* Invalidate an earlier result. */
         sizeOfServiceResponse_ = 0;
         dataServiceResult_ = null;
@@ -116,6 +126,8 @@ public class CcpCommandDiagService extends CcpCommandBase {
                       , "Initiate diagnostic service 0x%02X."
                       , (int)cmdArgs_.serviceNum()
                       );
+        return CcpCroTransmitter.ResultTransmission.PENDING;
+        
     } /* setup */
 
 
@@ -160,7 +172,7 @@ public class CcpCommandDiagService extends CcpCommandBase {
      */
     @Override
     public String toString() {
-        return "DIAG_RESPONSE(serviceNumber=0x" 
+        return "DIAG_SERVICE(serviceNumber=0x" 
                + Integer.toHexString(PCANBasicEx.b2i(cmdArgs_.serviceNum())) + ")";
     }
 } /* End of class CcpCommandDiagService definition. */

@@ -254,9 +254,3 @@ class CcpCmdSequence extends ArrayList<CcpCommandBase> {
     } /* diagServiceGetVersion */
 
 } /* End of class CcpCmdSequence definition. */
-
-
-
-
-
-

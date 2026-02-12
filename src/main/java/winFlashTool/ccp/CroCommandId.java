@@ -48,7 +48,7 @@ enum CroCommandId {
     DIAG_SERVICE((byte)0x20),
     ACTION_SERVICE((byte)0x21),
     DISCONNECT((byte)0x07);
-    
+
     private final byte cmdId_;
     private static final Map<Byte, CroCommandId> lookupMap_ = new HashMap<>();
 
@@ -123,14 +123,10 @@ enum CroCommandId {
         }
         return cmd;
     }
-    
+
     // Tmp to make it compilable
     public CcpCommandBase getCmd() {
         assert false;
         return null;
     }
 } /* End of class CroCommandId definition. */
-
-
-
-

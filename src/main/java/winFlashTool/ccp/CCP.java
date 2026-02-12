@@ -4,24 +4,6 @@
  * needed subset of CCP. The needed processes are decomposed into sequences of required CCP
  * commands and these commands are then sequentially executed.
  *
- * Neuer Gedanke: Die Programmsequenz ist im Wesentlichen eine Liste von
- * Kommandoprozessoren.\n
- *   CCP hat als API die Vorgabe der verschiedenen Aufgaben, jeweils mit allen Parametern.
- * Z.B. würde eine API "Erase" nur die von..bis Adressen als Parameter haben und sie würde
- * eine Programmsequenz aus vier Kommandoprozessoren aufbauen, Connect, SetMta, Erase,
- * Disconnect. Die Adressangaben würde zu Parametern von zweien der Prozessoren werden,
- * SetMta bekmmt die Startadresse, Erase die Anzahl Bytes.\n
- *   Weitere APIs dieser Art von CCP wären natürlich Flashen, Hochladen, Auslesen,
- * Verifizieren. Auslesen und Verifizieren, die bzgl. CCP Protokollgeschehen auf dem Bus
- * vielleicht völlig identisch sind, könnten sich in der Art der Parameter der
- * Prozessoren unterscheiden; Auslesen könnte einen Streambuffer bekommen, in den Daten
- * eingeschrieben werden, Verifizieren könnte einen Datensatz bekommen, gegen den
- * verglichen wird.\n
- *   CCP hat dann die Kern-API step, die die ganze Programmsequenz abarbeitet.\n
- *   Evtl. ist Disconnect nicht einfach das letzte Element der Sequenz, sondern hat den
- * besonderen Stellenwert eines "on-error" Zweiges des Programms, der immer ausgeführt
- * wird, auch wenn zuvor ausgeführte Programmschritte einen Fehler gemeldet haben.\n
- *
  * Copyright (C) 2025-2026 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
  *
  * This program is free software: you can redistribute it and/or modify it
@@ -119,7 +101,7 @@ public class CCP {
     /* If true, then most CCP commands are not really executed; the CRO is not sent out and
        we don't wait for a DTO. */
     boolean isDryRun_;
-     
+
     /** If CCP command CONNECT fails, it can be repeated a number of time, with a second of
         pause in between. This is the demanded number of attempts. Value 1 would mean no
         retry. */
@@ -222,11 +204,11 @@ public class CCP {
         assert ccpCmdSequence_ == null  &&  state_ == StateFlashProcess.COMPLETED
              : "Can't start a new CCP communication if there is still one running";
         isDryRun_ = isDryRun;
-        
+
         ccpCmdSequence_ = new CcpCmdSequence(ccpCmdFactory_);
         ccpCmdSequence_.erase(eraseSectorSequence);
         state_ = StateFlashProcess.START;
-        
+
     } /* erase */
 
     /**
@@ -261,7 +243,7 @@ public class CCP {
                                              , program
                                              );
         state_ = StateFlashProcess.START;
-        
+
     } /* eraseAndProgram */
 
     /**
@@ -287,7 +269,7 @@ public class CCP {
                                              , program
                                              );
         state_ = StateFlashProcess.START;
-        
+
     } /* verify */
 
     /**
@@ -308,7 +290,7 @@ private Supplier<String> supplierVersionFbl_ = null;
         supplierVersionFbl_ = ccpCmdSequence_.diagServiceGetVersion();
         ccpCmdSequence_.upload(memAreas);
         state_ = StateFlashProcess.START;
-        
+
     } /* upload */
 
     /**
@@ -322,6 +304,7 @@ private Supplier<String> supplierVersionFbl_ = null;
 
         /* Do we require a new CCP CONNECT command? This will happen at the beginning and
            on every retry. */
+        final CcpCroTransmitter.ResultTransmission resultTxRx;
         if (currentCcpCmd_ == null) {
             assert cntAttemptsToConnect_ > 0;
             -- cntAttemptsToConnect_;
@@ -330,14 +313,15 @@ private Supplier<String> supplierVersionFbl_ = null;
             currentCcpCmd_ = ccpCmdFactory_.create(args);
             assert executeCcpCmd(): "CONNECT is assumed to be always executed";
             _logger.debug("Next executed CCP command: {}", currentCcpCmd_);
-            currentCcpCmd_.start();
+            resultTxRx = currentCcpCmd_.start();
+        } else {
+            resultTxRx = currentCcpCmd_.step();
         }
 
-        final CcpCroTransmitter.ResultTransmission resultTxRx = currentCcpCmd_.step();
         if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS) {
             currentCcpCmd_ = null;
             state_ = StateFlashProcess.COMMUNICATING_WITH_TARGET;
-            
+
         } else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING) {
             /* The connect CRO/DTO exchange failed. The reason has been logged. We can
                retry after a while. */
@@ -366,24 +350,26 @@ private Supplier<String> supplierVersionFbl_ = null;
      *   @param successful
      * Pass true if we discoonect after sucessful operation and false otherwise. The only
      * impact is the final result of the CCP protocol sequence, which is reported to the
-     * caller. 
+     * caller.
      */
     private void stateDisconnectFromTarget(boolean successful) {
 
         /* Do we require a new CCP CONNECT command? This will happen once on entry into
            state DISCONNECTING. */
+        final CcpCroTransmitter.ResultTransmission resultTxRx;
         if (currentCcpCmd_ == null) {
-            final CcpCommandArgs.Disconnect args = 
+            final CcpCommandArgs.Disconnect args =
                                         new CcpCommandArgs.Disconnect( stationAddr_
                                                                      , /*isEndOfSession*/ true
                                                                      );
             currentCcpCmd_ = ccpCmdFactory_.create(args);
             assert executeCcpCmd(): "DISCONNECT is assumed to be always executed";
             _logger.debug("Next executed CCP command: {}", currentCcpCmd_);
-            currentCcpCmd_.start();
+            resultTxRx = currentCcpCmd_.start();
+        } else {
+            resultTxRx = currentCcpCmd_.step();
         }
-
-        final CcpCroTransmitter.ResultTransmission resultTxRx = currentCcpCmd_.step();
+        
         if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING) {
             /* Successful termination or error doesn't make a difference any more. We did
                all we can do. */
@@ -407,6 +393,7 @@ private Supplier<String> supplierVersionFbl_ = null;
 
         /* Do we require a new CCP command? This will happen every time after a new element
            from the sequence has completed. */
+        final CcpCroTransmitter.ResultTransmission resultTxRx;
         if (currentCcpCmd_ == null) {
             assert ccpCmdSequence_.size() > 0;
             // TODO Consider using a list with pop instead of always get+remove.
@@ -415,19 +402,18 @@ private Supplier<String> supplierVersionFbl_ = null;
 
             if (executeCcpCmd()) {
                 _logger.debug("Next executed CCP command: {}", currentCcpCmd_);
-                currentCcpCmd_.start();
+                resultTxRx = currentCcpCmd_.start();
             } else {
                 _logger.info("Dry run: CCP command {} is skipped.", currentCcpCmd_);
+                resultTxRx = CcpCroTransmitter.ResultTransmission.SUCCESS;
             }
-        }
-
-        final CcpCroTransmitter.ResultTransmission resultTxRx;
-        if (executeCcpCmd()) {
+        } else if (executeCcpCmd()) {
             resultTxRx = currentCcpCmd_.step();
         } else {
+            assert false;
             resultTxRx = CcpCroTransmitter.ResultTransmission.SUCCESS;
         }
-            
+
         if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS) {
             currentCcpCmd_ = null;
             if (ccpCmdSequence_.size() > 0) {
@@ -498,21 +484,21 @@ _logger.info(supplierVersionFbl_.get());
                happens. Here, we just have to call it regularly. */
             stateDisconnectFromTarget(/*successful*/ true);
             break;
-            
+
         case DISCONNECTING_AFTER_ERROR:
             /* The state function will itself set the next state, depending on what
                happens. Here, we just have to call it regularly. */
             stateDisconnectFromTarget(/*successful*/ false);
             break;
-            
+
         case COMPLETED:
         case COMPLETED_WITH_ERRORS:
             return true;
-            
+
         } /* switch(state) */
-        
+
         return false;
-        
+
     } /* step */
 
     /**
@@ -522,16 +508,12 @@ _logger.info(supplierVersionFbl_.get());
      * sequence. The result would be undefined.
      *   @return
      * Get true if the CCP communication succeeded and false if it had been aborted for the
-     * one or other reason. 
+     * one or other reason.
      */
     public boolean getFinalSuccess() {
         assert state_ == StateFlashProcess.COMPLETED
                ||  state_ == StateFlashProcess.COMPLETED_WITH_ERRORS;
         return state_ == StateFlashProcess.COMPLETED;
     }
-    
+
 } /* End of class CCP definition. */
-
-
-
-

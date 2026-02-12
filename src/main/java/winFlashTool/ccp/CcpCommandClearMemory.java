@@ -77,9 +77,19 @@ public class CcpCommandClearMemory extends CcpCommandBase
     /**
      * The CCP command is initiated. After return from setup(), the caller will repeatedly
      * call step() - until step() indicates completion of the command.
+     *   @return
+     * Normally, the method returns "pending" to indicate that the CCP communication has
+     * been successfully initiated but is still ongoing. In this case, the other method
+     * step() will be called as long as it indicates as still ongoing communication
+     * process.<p>
+     *   If the initialization fails, it'll return an error code. In this situation,
+     * everything is done and step() won't be called.<p>
+     *   In rare situations, it may even return success. CCP communication has successfully
+     * completed and step() must not be called any more. This may happen, e.g., if a
+     * pointless UPLOAD of zero Byte is commanded.
      */
-    public void setup()
-    {
+    public CcpCroTransmitter.ResultTransmission setup() {
+    
         final byte[] payloadCroAry = payloadCroAry();
 
         /* Send CAN CRO message with command CLEAR_MEMORY. */
@@ -97,6 +107,8 @@ public class CcpCommandClearMemory extends CcpCommandBase
                       , args_.noBytesToErase()
                       , mta0()
                       );
+        return CcpCroTransmitter.ResultTransmission.PENDING;
+        
     } /* setup */
 
     /**
@@ -107,24 +119,18 @@ public class CcpCommandClearMemory extends CcpCommandBase
      * method returns anything other than "pending" needs to be the last time this method
      * is called -- until the command is reinitiated with setup() and executed again.
      */
-    public CcpCroTransmitter.ResultTransmission step()
-    {
+    public CcpCroTransmitter.ResultTransmission step() {
         final CcpCroTransmitter.ResultTransmission resultTxRx = checkRxDto();
-        if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
-        {
+        if (resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS) {
             _logger.debug("ECU acknowledged CLEAR_MEMORY.");
-        }
-        else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)
-        {
+        } else if (resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING) {
             /* The connect CRO/DTO exchange failed. The reason has been logged. Nothing
                else to do. */
             errCnt().error();
             _logger.error("Can't erase ECU memory. See previous error messages for"
                           + " details."
                          );
-        }
-        else
-        {
+        } else {
             /* DTO has not been received yet. We continue polling. */
         }
 

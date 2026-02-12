@@ -107,33 +107,50 @@ public class CcpCommandUpload extends CcpCommandBase
     /**
      * The CCP command is initiated. After return from setup(), the caller will repeatedly
      * call step() - until step() indicates completion of the command.
+     *   @return
+     * Normally, the method returns "pending" to indicate that the CCP communication has
+     * been successfully initiated but is still ongoing. In this case, the other method
+     * step() will be called as long as it indicates as still ongoing communication
+     * process.<p>
+     *   If the initialization fails, it'll return an error code. In this situation,
+     * everything is done and step() won't be called.<p>
+     *   In rare situations, it may even return success. CCP communication has successfully
+     * completed and step() must not be called any more. This may happen, e.g., if a
+     * pointless UPLOAD of zero Byte is commanded.
      */
-    public void setup() {
+    public CcpCroTransmitter.ResultTransmission setup() {
         dataUploaded_ = supplierDataBuffer_.get();
-// @todo No longer assertions. Buffer can be null if DIAG_SERVICE fails. The no bytes now depends on response of ECU. Invalid value needs to be handled
         assert dataUploaded_ != null;
         noBytesToUpload_ = dataUploaded_.length;
-        assert noBytesToUpload_ > 0: "Empty upload is not supported";
-        writePos_ = 0;
+        if (noBytesToUpload_ > 0) {
+            writePos_ = 0;
 
-        /* Progress reporting. The next watermark can be negative, which doesn't care.
-             Note, a warning level is less specific, if the verbosity is higher or same! */
-        if (_logger.getLevel().isLessSpecificThan(Level.DEBUG)) {
-            noBytesBetweenProgressMsgs_ = 0x1000;
+            /* Progress reporting. The next watermark can be negative, which doesn't care.
+                 Note, a warning level is less specific, if the verbosity is higher or same! */
+            if (_logger.getLevel().isLessSpecificThan(Level.DEBUG)) {
+                noBytesBetweenProgressMsgs_ = 0x1000;
+            } else {
+                noBytesBetweenProgressMsgs_ = 0x8000;
+            }
+            noBytesLeftWhenProgressMsg_ = noBytesToUpload_ - noBytesBetweenProgressMsgs_;
+
+            /* Send CAN CRO message. */
+            fillPayloadCro();
+            sendCro(/*noContentBytes*/ 3);
+
+// @todo The MTA is unknown if UPLOAD acts after DIAG_SERVICE. Command DIAG_SERVICE could set MTA to an invalid value and here we check if MTA is avlid and choose the right mesage format
+            _logger.printf( Level.INFO
+                          , "Upload 0x%X Byte from memory address 0x%06X."
+                          , noBytesToUpload_ 
+                          , mta0()
+                          );
+            return CcpCroTransmitter.ResultTransmission.PENDING;
         } else {
-            noBytesBetweenProgressMsgs_ = 0x8000;
+// @todo Check what happens with empty upload result. Then decide if warning or error
+            errCnt().warning();
+            _logger.warn("Upload 0x0 Byte from memory is not supported");
+            return CcpCroTransmitter.ResultTransmission.ERROR_NO_BYTES_TO_PROCESS;
         }
-        noBytesLeftWhenProgressMsg_ = noBytesToUpload_ - noBytesBetweenProgressMsgs_;
-
-        /* Send CAN CRO message. */
-        fillPayloadCro();
-        sendCro(/*noContentBytes*/ 3);
-        
-        _logger.printf( Level.INFO
-                      , "Upload 0x%X Byte from memory address 0x%06X."
-                      , noBytesToUpload_ 
-                      , mta0()
-                      );
     } /* setup */
 
 

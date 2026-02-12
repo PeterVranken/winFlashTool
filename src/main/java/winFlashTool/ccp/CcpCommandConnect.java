@@ -45,7 +45,7 @@ public class CcpCommandConnect extends CcpCommandBase
 
     /** All required command arguments, provided at object creation time. */
     private final CcpCommandArgs.Connect args_;
-    
+
     /**
      * A new instance of CcpCommandConnect is created and configured for the CCP
      * #CONNECT command.
@@ -66,7 +66,7 @@ public class CcpCommandConnect extends CcpCommandBase
     protected boolean isSkippedInDryRun() {
         return false;
     }
-    
+
     /**
      * Get the timeout value for the time span between sending CRO and receiving DTO, that
      * is required by CCP command CONNECT.
@@ -76,7 +76,7 @@ public class CcpCommandConnect extends CcpCommandBase
      */
     @Override
     int getRequiredTimeoutCroTillDto() {
-    
+
         /* Connect should not have a long timeout. In the quite normal situation, that
            there is not MCU waiting for a CCP CONNECT, the blocking states resulting from a
            long timeout are annoying. Delayed powering of the target board is better
@@ -89,9 +89,19 @@ public class CcpCommandConnect extends CcpCommandBase
     /**
      * The CCP command is initiated. After return from setup(), the caller will repeatedly
      * call step() - until step() indicates completion of the command.
+     *   @return
+     * Normally, the method returns "pending" to indicate that the CCP communication has
+     * been successfully initiated but is still ongoing. In this case, the other method
+     * step() will be called as long as it indicates as still ongoing communication
+     * process.<p>
+     *   If the initialization fails, it'll return an error code. In this situation,
+     * everything is done and step() won't be called.<p>
+     *   In rare situations, it may even return success. CCP communication has successfully
+     * completed and step() must not be called any more. This may happen, e.g., if a
+     * pointless UPLOAD of zero Byte is commanded.
      */
-    public void setup()
-    {
+    public CcpCroTransmitter.ResultTransmission setup() {
+
         /* Send CAN CRO message with command CONNECT. */
         final byte[] payloadCroAry = payloadCroAry();
         payloadCroAry[0] = CroCommandId.CONNECT.getCode();
@@ -99,7 +109,9 @@ public class CcpCommandConnect extends CcpCommandBase
         payloadCroAry[3] = (byte)((args_.stationAddr() & 0xFF00) >> 8);
         sendCro(/*noContentBytes*/ 4);
         _logger.debug("CRO message CONNECT sent to station {}.", args_.stationAddr());
-    }
+        return CcpCroTransmitter.ResultTransmission.PENDING;
+
+    } /* setup */
 
     /**
      * All CCP commands are implemented as state machines. This method implements a single
@@ -109,29 +121,23 @@ public class CcpCommandConnect extends CcpCommandBase
      * method returns anything other than "pending" needs to be the last time this method
      * is called -- until the command is reinitiated with setup() and executed again.
      */
-    public CcpCroTransmitter.ResultTransmission step()
-    {
+    public CcpCroTransmitter.ResultTransmission step() {
         final CcpCroTransmitter.ResultTransmission resultTxRx = checkRxDto();
-        if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS)
-        {
+        if (resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS) {
             _logger.info("ECU is connected.");
-        }
-        else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING)
-        {
+        } else if (resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING) {
             /* The connect CRO/DTO exchange failed. The reason has been logged. Nothing
                else to do. */
             errCnt().error();
             _logger.error("Can't connect to the ECU. See previous error messages for"
                           + " details."
                          );
-        }
-        else
-        {
+        } else {
             /* DTO has not been received yet. We continue polling. */
         }
-        
+
         return resultTxRx;
-        
+
     } /* step */
 
     /**

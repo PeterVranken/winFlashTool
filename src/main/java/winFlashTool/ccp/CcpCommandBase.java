@@ -159,7 +159,7 @@ abstract class CcpCommandBase
         return toolbox_.payloadCroAry_;
     }
 
-    /** 
+    /**
      * Get a @{linkplain CcpCommandToolbox#payloadDtoAry_ buffer} with the payload of the
      * last recently received DTO message.
      */
@@ -174,7 +174,7 @@ abstract class CcpCommandBase
     protected long mta0() {
         return toolbox_.mta0_;
     }
-    
+
     /**
      * Set the current memory address @{linkplain CcpCommandToolbox#mta0_ MTA0}, which is
      * shared between all CCP commands emitted by the same factory.
@@ -220,7 +220,7 @@ abstract class CcpCommandBase
     protected boolean isSkippedInDryRun() {
         return true;
     }
-    
+
     /**
      * Get the timeout value for the time span between sending CRO and receiving DTO, that
      * is required by the CCP command.<p>
@@ -243,15 +243,25 @@ abstract class CcpCommandBase
     /**
      * The CCP command is started. After return from start(), the caller will repeatedly
      * call step() - until step() indicates completion of the command.
+     *   @return
+     * Normally, the method returns "pending" to indicate that the CCP communication has
+     * been successfully initiated but is still ongoing. In this case, the other method
+     * step() will be called as long as it indicates as still ongoing communication
+     * process.<p>
+     *   If the initialization fails, it'll return an error code. In this situation,
+     * everything is done and step() won't be called.<p>
+     *   In rare situations, it may even return success. CCP communication has successfully
+     * completed and step() must not be called any more. This may happen, e.g., if a
+     * pointless UPLOAD of zero Byte is commanded.
      */
-    public final void start() {
+    public final CcpCroTransmitter.ResultTransmission start() {
         /* Configure the CCP timeout as required by the actual, derived CCP command. */
         final int timeoutTillRxDtoInMs = getRequiredTimeoutCroTillDto();
         _logger.debug("Setting timeout CRO to DTO to {} ms.", timeoutTillRxDtoInMs);
         toolbox_.croTransmitter_.setTimeoutCroTillDto(timeoutTillRxDtoInMs);
-        
+
         /* Call the initialization routine of the actual, derived CCP command. */
-        setup();
+        return setup();
     }
 
     /**
@@ -259,8 +269,18 @@ abstract class CcpCommandBase
      *   On return from this method, the CCP command is ready for the first call of
      * step().<p>
      *   This method is called from the base class method start().
+     *   @return
+     * Normally, the method returns "pending" to indicate that the CCP communication has
+     * been successfully initiated but is still ongoing. In this case, the other method
+     * step() will be called as long as it indicates as still ongoing communication
+     * process.<p>
+     *   If the initialization fails, it'll return an error code. In this situation,
+     * everything is done and step() won't be called.<p>
+     *   In rare situations, it may even return success. CCP communication has successfully
+     * completed and step() must not be called any more. This may happen, e.g., if a
+     * pointless UPLOAD of zero Byte is commanded.
      */
-    public abstract void setup();
+    public abstract CcpCroTransmitter.ResultTransmission setup();
 
     /**
      * All CCP commands are implemented as state machines. This method implements a single
