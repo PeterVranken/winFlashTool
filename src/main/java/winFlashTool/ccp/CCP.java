@@ -298,7 +298,7 @@ public class CCP {
      * we don't wait for a DTO. The success of the suppressed CCP is assumed true. However,
      * the complete state machine is stepped through.
      */
-private byte[] versionFbl_ = new byte[89];
+private byte[] versionFbl_ = new byte[150];
     public void upload(Iterable<SRecord> memAreas, boolean isDryRun) {
         assert ccpCmdSequence_ == null  &&  state_ == StateFlashProcess.COMPLETED
              : "Can't start a new CCP communication if there is still one running";

@@ -177,15 +177,16 @@ class CcpCmdSequence extends ArrayList<CcpCommandBase> {
                                                                  );
                 add(ccpCmdFactory_.create(argsSetMta));
 
-                final CcpCommandArgs.Upload argsPrg = new CcpCommandArgs.Upload
-                                                                            ( section.data()
-                                                                            , /*isVerify*/ true
-                                                                            );
+                final CcpCommandArgs.Upload argsPrg = 
+                   new CcpCommandArgs.Upload( section.data()
+                                            , /*noBytesSupplier*/ () -> section.data().length
+                                            , /*isVerify*/ true
+                                            );
                 add(ccpCmdFactory_.create(argsPrg));
 
             } /* for (All memory sections to upload and verify) */
         } /* if (Verification of programmed data demanded?) */
-    }
+    } /* eraseProgramAndVerify */
     
     /**
      * Add the CCP command sequence needed for uploading data from the flash.
@@ -207,10 +208,11 @@ class CcpCmdSequence extends ArrayList<CcpCommandBase> {
                                                              );
             add(ccpCmdFactory_.create(argsSetMta));
             
-            final CcpCommandArgs.Upload argsUpload = new CcpCommandArgs.Upload
-                                                                          ( section.data()
-                                                                          , /*isVerify*/ false
-                                                                          );
+            final CcpCommandArgs.Upload argsUpload = 
+                    new CcpCommandArgs.Upload( section.data()
+                                             , /*noBytesSupplier*/ () -> section.data().length
+                                             , /*isVerify*/ false
+                                             );
             add(ccpCmdFactory_.create(argsUpload));
 
         } /* for (All memory sections to upload) */
@@ -231,16 +233,20 @@ class CcpCmdSequence extends ArrayList<CcpCommandBase> {
                     new CcpCommandArgs.DiagService( /*serviceNum*/ DIAG_SN_UPLOAD_VERSION_FBL
                                                   , /*argAry*/ null
                                                   );
-        add(ccpCmdFactory_.create(argsDiagService));
+        final CcpCommandDiagService ccpCmdDiagService = ccpCmdFactory_.create(argsDiagService);
+        add(ccpCmdDiagService);
             
         /* Add a CCP upload command, which fetches the response of the diagnostic service.
            The MTA has already been set by the DIAG_SERVICE. */
 // @todo We set the length hardcoded for now but this needs to become a dynamic reaction on the response of the DIAG_SERVICE
 // @todo Dynamic length upload discards byte[] as in/out argument type. We will need to refactor to arraylist or other
 
-        final CcpCommandArgs.Upload argsUpload = new CcpCommandArgs.Upload( version
-                                                                          , /*isVerify*/ false
-                                                                          );
+        final CcpCommandArgs.Upload argsUpload = new CcpCommandArgs.Upload
+                                                        ( version
+                             //, /*noBytesSupplier*/ () -> version.length
+                             , /*noBytesSupplier*/ () -> ccpCmdDiagService.getSizeOfResponse()
+                                                        , /*isVerify*/ false
+                                                        );
         add(ccpCmdFactory_.create(argsUpload));
 
     } /* diagServiceGetVersion */

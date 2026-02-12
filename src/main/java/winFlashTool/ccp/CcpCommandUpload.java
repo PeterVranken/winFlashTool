@@ -30,6 +30,7 @@ package winFlashTool.ccp;
 import java.util.*;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.function.IntSupplier;
 import org.apache.logging.log4j.*;
 import winFlashTool.basics.ErrorCounter;
 import winFlashTool.can.PCANBasicEx;
@@ -48,6 +49,9 @@ public class CcpCommandUpload extends CcpCommandBase
     /** The buffer of required size for the uploaded data. */
     private final byte[] dataUploaded_;
 
+    /** A lambda, which provides the total number of bytes to upload. */
+    private final IntSupplier noBytesToUploadSupplier_;
+    
     /** Number of bytes from dataUploaded_, which have not been transmitted to the ECU
         yet. */
     private int noBytesToUpload_;
@@ -74,6 +78,7 @@ public class CcpCommandUpload extends CcpCommandBase
     protected CcpCommandUpload(CcpCommandArgs.Upload args) {
         isVerify_ = args.verify();
         dataUploaded_ = args.data();
+        noBytesToUploadSupplier_ = args.noBytesSupplier();
         noBytesToUpload_ = 0;
         writePos_ = 0;
         noBytesThisTime_ = 0;
@@ -104,7 +109,7 @@ public class CcpCommandUpload extends CcpCommandBase
      */
     public void setup() {
         assert dataUploaded_ != null;
-        noBytesToUpload_ = dataUploaded_.length;
+        noBytesToUpload_ = noBytesToUploadSupplier_.getAsInt(); //dataUploaded_.length;
         assert noBytesToUpload_ > 0: "Empty upload is not supported";
         writePos_ = 0;
 
