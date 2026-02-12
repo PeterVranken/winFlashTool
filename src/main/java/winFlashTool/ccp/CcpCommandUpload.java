@@ -30,7 +30,7 @@ package winFlashTool.ccp;
 import java.util.*;
 import java.util.Set;
 import java.util.HashSet;
-import java.util.function.IntSupplier;
+import java.util.function.Supplier;
 import org.apache.logging.log4j.*;
 import winFlashTool.basics.ErrorCounter;
 import winFlashTool.can.PCANBasicEx;
@@ -47,11 +47,12 @@ public class CcpCommandUpload extends CcpCommandBase
     private final boolean isVerify_;
     
     /** The buffer of required size for the uploaded data. */
-    private final byte[] dataUploaded_;
+    private byte[] dataUploaded_;
 
-    /** A lambda, which provides the total number of bytes to upload. */
-    private final IntSupplier noBytesToUploadSupplier_;
-    
+    /** A lambda, which provides the data buffer for the upload. (And implicitly the total
+        number of bytes to upload.) */
+    private final Supplier<byte[]> supplierDataBuffer_;
+
     /** Number of bytes from dataUploaded_, which have not been transmitted to the ECU
         yet. */
     private int noBytesToUpload_;
@@ -77,8 +78,8 @@ public class CcpCommandUpload extends CcpCommandBase
      */
     protected CcpCommandUpload(CcpCommandArgs.Upload args) {
         isVerify_ = args.verify();
-        dataUploaded_ = args.data();
-        noBytesToUploadSupplier_ = args.noBytesSupplier();
+        supplierDataBuffer_ = args.supplierDataBuffer();
+        dataUploaded_ = null;
         noBytesToUpload_ = 0;
         writePos_ = 0;
         noBytesThisTime_ = 0;
@@ -108,8 +109,10 @@ public class CcpCommandUpload extends CcpCommandBase
      * call step() - until step() indicates completion of the command.
      */
     public void setup() {
+        dataUploaded_ = supplierDataBuffer_.get();
+// @todo No longer assertions. Buffer can be null if DIAG_SERVICE fails. The no bytes now depends on response of ECU. Invalid value needs to be handled
         assert dataUploaded_ != null;
-        noBytesToUpload_ = noBytesToUploadSupplier_.getAsInt(); //dataUploaded_.length;
+        noBytesToUpload_ = dataUploaded_.length;
         assert noBytesToUpload_ > 0: "Empty upload is not supported";
         writePos_ = 0;
 
@@ -189,9 +192,11 @@ public class CcpCommandUpload extends CcpCommandBase
                ) {
                 /* Progress reporting. */
                 if (noBytesToUpload_ <= noBytesLeftWhenProgressMsg_) {
+                    final int noBytesNow = dataUploaded_.length - noBytesLeftWhenProgressMsg_;
                     _logger.printf( Level.INFO
-                                  , "0x%06X Byte uploaded."
-                                  , dataUploaded_.length - noBytesLeftWhenProgressMsg_
+                                  , "0x%06X Byte uploaded (%.0f%%)."
+                                  , noBytesNow
+                                  , 100.0 * noBytesNow / (float)dataUploaded_.length
                                   );
                     noBytesLeftWhenProgressMsg_ -= noBytesBetweenProgressMsgs_;
                 }
@@ -225,7 +230,7 @@ public class CcpCommandUpload extends CcpCommandBase
      */
     @Override
     public String toString() {
-        return "UPLOAD(noBytes=" + dataUploaded_.length + ")";
+        return "UPLOAD(noBytes=" + (dataUploaded_ == null? "?": ""+dataUploaded_.length) + ")";
     }
 } /* End of class CcpCommandUpload definition. */
 

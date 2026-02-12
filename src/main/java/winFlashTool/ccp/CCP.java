@@ -53,6 +53,7 @@
 package winFlashTool.ccp;
 
 import java.util.*;
+import java.util.function.Supplier;
 import org.apache.logging.log4j.*;
 import winFlashTool.basics.ErrorCounter;
 import winFlashTool.can.CanId;
@@ -298,14 +299,13 @@ public class CCP {
      * we don't wait for a DTO. The success of the suppressed CCP is assumed true. However,
      * the complete state machine is stepped through.
      */
-private byte[] versionFbl_ = new byte[150];
+private Supplier<String> supplierVersionFbl_ = null;
     public void upload(Iterable<SRecord> memAreas, boolean isDryRun) {
         assert ccpCmdSequence_ == null  &&  state_ == StateFlashProcess.COMPLETED
              : "Can't start a new CCP communication if there is still one running";
         isDryRun_ = isDryRun;
         ccpCmdSequence_ = new CcpCmdSequence(ccpCmdFactory_);
-versionFbl_[0] = (byte)'x';
-ccpCmdSequence_.diagServiceGetVersion(versionFbl_);
+        supplierVersionFbl_ = ccpCmdSequence_.diagServiceGetVersion();
         ccpCmdSequence_.upload(memAreas);
         state_ = StateFlashProcess.START;
         
@@ -433,8 +433,7 @@ ccpCmdSequence_.diagServiceGetVersion(versionFbl_);
             if (ccpCmdSequence_.size() > 0) {
                 /* There is still another CCP command to process, no state change. */
             } else {
-_logger.info("Version FBL:");
-_logger.info(new String(versionFbl_));
+_logger.info(supplierVersionFbl_.get());
                 state_ = StateFlashProcess.DISCONNECTING;
             }
         } else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING) {

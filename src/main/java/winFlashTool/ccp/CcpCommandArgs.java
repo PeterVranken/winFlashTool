@@ -30,7 +30,7 @@
 
 package winFlashTool.ccp;
 
-import java.util.function.IntSupplier;
+import java.util.function.Supplier;
 
 /**
  * Definition of arguments for the different CCP commands.<p>
@@ -108,16 +108,11 @@ sealed interface CcpCommandArgs {
     
     /**
      * The arguments of CCP command UPLOAD.
-     *   @param data
-     * A result buffer for the bytes to upload from current MTA0. The length of the array
-     * is the number of bytes to upload. A length of zero is not supported. The
-     * implementation of the command will break it down into a series of #UPLOAD commands.<p>
-     *   data may be null. In this case, the requested number of bytes is determined
-     * dynamically, e.g., as a result of a preceding service command.
-     *   @param noBytesSupplier
-     * A lambda, which provides the number of bytes to upload. The lambda is evaluated when
-     * the upload begins. Use case: It may specify the number of bytes to upload
-     * dynamically depending on the result of another, preceding CCP command.
+     *   @param supplierDataBuffer
+     * A lambda, which provides the data buffer for the uploaded bytes. (The number of
+     * bytes to upload is implicitly supplied by the size of the received buffer.) The
+     * lambda is evaluated when the upload begins. Use case: The number of bytes to upload
+     * may dynamically depend on the result of another, preceding CCP command.
      *   @param verify
      * Pass false for normal upload operation. The uploaded data is stored in byte array
      * data.<p>
@@ -125,7 +120,9 @@ sealed interface CcpCommandArgs {
      * uploaded data is not stored inside data but compared to the contents of data. An
      * error is reported and the command is aborted when the first deviation is found.
      */
-    record Upload(byte[] data, IntSupplier noBytesSupplier, boolean verify) implements CcpCommandArgs {
+    record Upload( Supplier<byte[]> supplierDataBuffer
+                 , boolean verify
+                 ) implements CcpCommandArgs {
     }
     
     /**
