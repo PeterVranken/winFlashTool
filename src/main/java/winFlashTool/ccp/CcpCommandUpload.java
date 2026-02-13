@@ -133,6 +133,9 @@ public class CcpCommandUpload extends CcpCommandBase
                 noBytesBetweenProgressMsgs_ = 0x8000;
             }
             noBytesLeftWhenProgressMsg_ = noBytesToUpload_ - noBytesBetweenProgressMsgs_;
+            if(noBytesLeftWhenProgressMsg_ < 0) {
+                noBytesLeftWhenProgressMsg_ = 0;
+            }
 
             /* Send CAN CRO message. */
             fillPayloadCro();
@@ -217,11 +220,9 @@ public class CcpCommandUpload extends CcpCommandBase
                              );
             }
             
-            /* Request next chunk of data if there are bytes left. */
-            if ( resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS
-                 &&  noBytesToUpload_ > 0
-               ) {
-                /* Progress reporting. */
+            if (resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS) {
+                /* Progress reporting. To see nice round numbers, we don't report the
+                   accurate number but the next reached threshold. */
                 if (noBytesToUpload_ <= noBytesLeftWhenProgressMsg_) {
                     final int noBytesNow = dataUploaded_.length - noBytesLeftWhenProgressMsg_;
                     _logger.printf( Level.INFO
@@ -230,11 +231,17 @@ public class CcpCommandUpload extends CcpCommandBase
                                   , 100.0 * noBytesNow / (float)dataUploaded_.length
                                   );
                     noBytesLeftWhenProgressMsg_ -= noBytesBetweenProgressMsgs_;
+                    if(noBytesLeftWhenProgressMsg_ < 0) {
+                        noBytesLeftWhenProgressMsg_ = 0;
+                    }
                 }
                     
-                fillPayloadCro();
-                sendCro(/*noContentBytes*/ 3);
-                resultTxRx = CcpCroTransmitter.ResultTransmission.PENDING;
+                /* Request next chunk of data if there are bytes left. */
+                if (noBytesToUpload_ > 0) {
+                    fillPayloadCro();
+                    sendCro(/*noContentBytes*/ 3);
+                    resultTxRx = CcpCroTransmitter.ResultTransmission.PENDING;
+                }
             }
         } else if (resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING) {
             /* The connect CRO/DTO exchange failed. The reason has been logged. Nothing

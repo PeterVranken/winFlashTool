@@ -177,6 +177,9 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
             noBytesBetweenProgressMsgs_ = 0x8000;
         }
         noBytesLeftWhenProgressMsg_ = noBytesToDownload_ - noBytesBetweenProgressMsgs_;
+        if(noBytesLeftWhenProgressMsg_ < 0) {
+            noBytesLeftWhenProgressMsg_ = 0;
+        }
 
         /* Send CAN CRO message with appropriate command ID. */
         fillPayloadCro();
@@ -224,18 +227,25 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
                 readPos_ += noBytesThisTime_;
                 setMta0(expectedNewMta);
 
+                /* Progress reporting. To see nice round numbers, we don't report the
+                   accurate number but the next reached threshold. */
+                if (noBytesToDownload_ <= noBytesLeftWhenProgressMsg_) {
+                    final int noBytesNow = dataToDownload_.length
+                                           - noBytesLeftWhenProgressMsg_;
+                    _logger.printf( Level.INFO
+                                  , "0x%06X Byte %s (%.0f%%)."
+                                  , noBytesNow
+                                  , isDownload_? "downloaded": "programmed"
+                                  , 100.0 * noBytesNow / (float)dataToDownload_.length
+                                  );
+                    noBytesLeftWhenProgressMsg_ -= noBytesBetweenProgressMsgs_;
+                    if(noBytesLeftWhenProgressMsg_ < 0) {
+                        noBytesLeftWhenProgressMsg_ = 0;
+                    }
+                }
+                    
                 /* Send next chunk of data if there are bytes left. */
                 if (noBytesToDownload_ > 0) {
-                    /* Progress reporting. */
-                    if (noBytesToDownload_ <= noBytesLeftWhenProgressMsg_) {
-                        _logger.printf( Level.INFO
-                                      , "0x%06X Byte %s."
-                                      , dataToDownload_.length - noBytesLeftWhenProgressMsg_
-                                      , isDownload_? "downloaded": "programmed"
-                                      );
-                        noBytesLeftWhenProgressMsg_ -= noBytesBetweenProgressMsgs_;
-                    }
-                    
                     fillPayloadCro();
                     sendCro(/*noContentBytes*/ 8);
                     resultTxRx = CcpCroTransmitter.ResultTransmission.PENDING;
