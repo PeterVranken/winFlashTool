@@ -83,6 +83,7 @@ public class CcpCommandDisconnect extends CcpCommandBase
      */
     public CcpCroTransmitter.ResultTransmission setup() {
 
+        invalidateMta0();
         final byte[] payloadCroAry = payloadCroAry();
 
         /* Send CAN CRO message with command DISCONNECT. */

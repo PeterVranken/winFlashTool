@@ -138,12 +138,19 @@ public class CcpCommandUpload extends CcpCommandBase
             fillPayloadCro();
             sendCro(/*noContentBytes*/ 3);
 
-// @todo The MTA is unknown if UPLOAD acts after DIAG_SERVICE. Command DIAG_SERVICE could set MTA to an invalid value and here we check if MTA is avlid and choose the right mesage format
-            _logger.printf( Level.INFO
-                          , "Upload 0x%X Byte from memory address 0x%06X."
-                          , noBytesToUpload_ 
-                          , mta0()
-                          );
+            if (isValidMta0()) {
+                _logger.printf( Level.INFO
+                              , "Upload 0x%X Byte from memory address 0x%06X."
+                              , noBytesToUpload_ 
+                              , mta0()
+                              );
+            } else {
+                _logger.printf( Level.INFO
+                              , "Upload 0x%X Byte from target."
+                              , noBytesToUpload_ 
+                              );
+            }
+            
             return CcpCroTransmitter.ResultTransmission.PENDING;
         } else {
 // @todo Check what happens with empty upload result. Then decide if warning or error
@@ -194,15 +201,22 @@ public class CcpCommandUpload extends CcpCommandBase
             /* Update the status, where we are with the upload. */
             noBytesToUpload_ -= noBytesThisTime_;
             writePos_ += noBytesThisTime_;
-            mta0(mta0() + noBytesThisTime_);
             
-            _logger.trace( "DTO message received with {} Byte of data. {} Byte remaining."
-                           + " New MTA is 0x%06X."
-                         , noBytesThisTime_
-                         , noBytesToUpload_ - noBytesThisTime_
-                         , mta0()
-                         );
-
+            if (isValidMta0()) {
+                setMta0(mta0() + noBytesThisTime_);
+                _logger.trace( "DTO message received with {} Byte of data. {} Byte remaining."
+                               + " New MTA is 0x%06X."
+                             , noBytesThisTime_
+                             , noBytesToUpload_ - noBytesThisTime_
+                             , mta0()
+                             );
+            } else {
+                _logger.trace( "DTO message received with {} Byte of data. {} Byte remaining."
+                             , noBytesThisTime_
+                             , noBytesToUpload_ - noBytesThisTime_
+                             );
+            }
+            
             /* Request next chunk of data if there are bytes left. */
             if ( resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS
                  &&  noBytesToUpload_ > 0

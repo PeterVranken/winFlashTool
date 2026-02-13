@@ -119,6 +119,9 @@ public class CcpCommandDiagService extends CcpCommandBase {
         payloadCroAry[0] = CroCommandId.DIAG_SERVICE.getCode();
         payloadCroAry[2] = cmdArgs_.serviceNum();
 
+        /* DIAG_SERVICE sets the MTA0 internally in the ECU, without giving feedback how. */
+        invalidateMta0();
+        
         /* Send CAN CRO message. */
         sendCro(/*noContentBytes*/ 3);
         

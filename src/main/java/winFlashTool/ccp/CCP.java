@@ -24,11 +24,13 @@
  *   erase
  *   eraseAndProgram
  *   verify
+ *   uploadVersionFbl
  *   upload
  *   stateConnectToTarget
  *   stateDisconnectFromTarget
  *   stateProcessCcpCmdSequence
  *   step
+ *   run
  *   getFinalSuccess
  */
 
@@ -273,6 +275,33 @@ public class CCP {
     } /* verify */
 
     /**
+     * Add the CCP command sequence needed for uploading the version of the FBL on the
+     * target ECU.<p>
+     *   Note, this service is FBL specific and not working in general. It assumes that CCP
+     * DIAG_SERVICE with service number 0 will make the FBL provide its version
+     * designation.
+     *   @return
+     * Get a String supplier, which will deliver the version information after completion
+     * of the command sequence. The delivered string is empty if the CCP communication
+     * fails.<p>
+     *   The supplier must not be used before the command sequence has completed, otherwise
+     * the result is undefined.
+     *   @param isDryRun
+     * If true, then most CCP commands are not really executed; the CRO is not sent out and
+     * we don't wait for a DTO. The success of the suppressed CCP is assumed true. However,
+     * the complete state machine is stepped through.
+     */
+    public Supplier<String> uploadVersionFbl(boolean isDryRun) {
+        assert ccpCmdSequence_ == null  &&  state_ == StateFlashProcess.COMPLETED
+             : "Can't start a new CCP communication if there is still one running";
+        isDryRun_ = isDryRun;
+        state_ = StateFlashProcess.START;
+        ccpCmdSequence_ = new CcpCmdSequence(ccpCmdFactory_);
+        return ccpCmdSequence_.diagServiceGetVersion();
+
+    } /* uploadVersionFbl */
+
+    /**
      * Add the CCP command sequence needed for uploading data from the flash.
      *   @param memAreas
      * The representation of the memory area(s) to upload.
@@ -281,13 +310,11 @@ public class CCP {
      * we don't wait for a DTO. The success of the suppressed CCP is assumed true. However,
      * the complete state machine is stepped through.
      */
-private Supplier<String> supplierVersionFbl_ = null;
     public void upload(Iterable<SRecord> memAreas, boolean isDryRun) {
         assert ccpCmdSequence_ == null  &&  state_ == StateFlashProcess.COMPLETED
              : "Can't start a new CCP communication if there is still one running";
         isDryRun_ = isDryRun;
         ccpCmdSequence_ = new CcpCmdSequence(ccpCmdFactory_);
-        supplierVersionFbl_ = ccpCmdSequence_.diagServiceGetVersion();
         ccpCmdSequence_.upload(memAreas);
         state_ = StateFlashProcess.START;
 
@@ -369,7 +396,7 @@ private Supplier<String> supplierVersionFbl_ = null;
         } else {
             resultTxRx = currentCcpCmd_.step();
         }
-        
+
         if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING) {
             /* Successful termination or error doesn't make a difference any more. We did
                all we can do. */
@@ -396,7 +423,6 @@ private Supplier<String> supplierVersionFbl_ = null;
         final CcpCroTransmitter.ResultTransmission resultTxRx;
         if (currentCcpCmd_ == null) {
             assert ccpCmdSequence_.size() > 0;
-            // TODO Consider using a list with pop instead of always get+remove.
             currentCcpCmd_ = ccpCmdSequence_.get(0);
             ccpCmdSequence_.remove(0);
 
@@ -419,7 +445,6 @@ private Supplier<String> supplierVersionFbl_ = null;
             if (ccpCmdSequence_.size() > 0) {
                 /* There is still another CCP command to process, no state change. */
             } else {
-_logger.info(supplierVersionFbl_.get());
                 state_ = StateFlashProcess.DISCONNECTING;
             }
         } else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING) {
@@ -501,6 +526,28 @@ _logger.info(supplierVersionFbl_.get());
 
     } /* step */
 
+
+    /**
+     * The CCP communication is performed as a synchronous, blocking operation.<p>
+     *   The function step() of the CCP object is called until it signals the completion of
+     * the communication sequence.<p>
+     *   Please note that this is a convenience method only, which wraps step() in a loop.
+     * Normally, the client code will prefer to call the step function itself; this allows
+     * intermingling the state checks of the communication state machine with any other
+     * activities, e.g., serving a GUI or providing progress information.
+     *   @return
+     * Get getFinalResult().
+     */
+    public boolean run() {
+    
+        /* Clock the state machine, which runs the CCP communication. */
+        while(!step()) {
+            /* Here, we could do other, non-blocking things, e.g., print some
+               progress information. */
+        }
+        return getFinalSuccess();
+    }
+    
     /**
      * After termination of the iteration with step(), the owner can ask for the final
      * result of the completed CCP protocol sequence.<p>
@@ -508,7 +555,10 @@ _logger.info(supplierVersionFbl_.get());
      * sequence. The result would be undefined.
      *   @return
      * Get true if the CCP communication succeeded and false if it had been aborted for the
-     * one or other reason.
+     * one or other reason.<p>
+     *   If false is returned then some communication error occurred and has been logged.
+     * Upload results must not be evaluated and the success of a program procedure on the
+     * target must be doubted.
      */
     public boolean getFinalSuccess() {
         assert state_ == StateFlashProcess.COMPLETED

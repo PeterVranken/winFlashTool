@@ -19,12 +19,20 @@
  */
 /* Interface of class CcpCommandBase
  *   CcpCommandBase
- *   setErrorCounter
+ *   setToolbox
+ *   errCnt
+ *   payloadCroAry
+ *   payloadDtoAry
+ *   mta0
+ *   setMta0
+ *   invalidateMta0
+ *   isValidMta0
  *   sendCro
  *   checkRxDto
- *   myCcpCmdIds
+ *   isSkippedInDryRun
  *   getRequiredTimeoutCroTillDto
  *   start
+ *   setup
  *   step
  */
 
@@ -62,6 +70,10 @@ final class CcpCommandToolbox {
         received DTO message. Note, it is _payloadDtoAry = _msgDto.getData(). */
     final TPCANMsg msgDto_;
 
+    /** A value of the MTA, which can never occur in CCP processing. This value is assigned
+        to mta0_ to indicate that the flash tool has no awareness of the MTA in the target. */
+    final static long MTA_INVALID_VALUE = 0xFFFFFFFFFFFFFFFFl;
+
     /** The current memory address, initially set with SET_MTA and modified with the
         DOWNLOAD and PROGRAMM commands. */
     long mta0_;
@@ -89,7 +101,7 @@ final class CcpCommandToolbox {
         msgDto_ = new TPCANMsg();
         payloadDtoAry_ = msgDto_.getData();
 
-        mta0_ = 0;
+        mta0_ = MTA_INVALID_VALUE;
         croTransmitter_ = croTransmitter;
     }
 }
@@ -172,6 +184,7 @@ abstract class CcpCommandBase
      * shared between all CCP commands emitted by the same factory.
      */
     protected long mta0() {
+        assert isValidMta0(): "MTA0 requested although not known";
         return toolbox_.mta0_;
     }
 
@@ -179,8 +192,28 @@ abstract class CcpCommandBase
      * Set the current memory address @{linkplain CcpCommandToolbox#mta0_ MTA0}, which is
      * shared between all CCP commands emitted by the same factory.
      */
-    protected void mta0(long mta0) {
+    protected void setMta0(long mta0) {
         toolbox_.mta0_ = mta0;
+    }
+
+    /**
+     * Set the @{linkplain CcpCommandToolbox#mta0_ MTA0} to an non-existing value to
+     * indicate that the flash tool lost knowledge about the MTA 0 on the target, e.g,
+     * after disconnect or when a diagnostic service is requested.
+     */
+    protected void invalidateMta0() {
+        toolbox_.mta0_ = CcpCommandToolbox.MTA_INVALID_VALUE;
+    }
+
+    /**
+     * Check if the @{linkplain CcpCommandToolbox#mta0_ MTA0} is currently set to a known
+     * value.
+     *   @return
+     * Get true if the value returned by mta0() corresponds with the value MTA 0 on the
+     * target.
+     */
+    protected boolean isValidMta0() {
+        return toolbox_.mta0_ != CcpCommandToolbox.MTA_INVALID_VALUE;
     }
 
     /**

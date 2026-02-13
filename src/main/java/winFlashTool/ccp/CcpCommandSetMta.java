@@ -127,7 +127,7 @@ public class CcpCommandSetMta extends CcpCommandBase
             _logger.debug("ECU acknowledged SET_MTA.");
 
             /* Make new MTA available to other commands, e.g., DOWNLOAD and PROGRAM. */
-            mta0(memoryAddr_);
+            setMta0(memoryAddr_);
         } else if (resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING) {
             /* The connect CRO/DTO exchange failed. The reason has been logged. Nothing
                else to do. */

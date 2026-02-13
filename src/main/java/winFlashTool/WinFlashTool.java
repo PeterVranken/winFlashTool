@@ -32,6 +32,7 @@ package winFlashTool;
 import java.util.*;
 import java.io.*;
 import java.text.*;
+import java.util.function.Supplier;
 import winFlashTool.mcu.Flash;
 import winFlashTool.mcu.Mpc5775BE_C55FMC;
 import winFlashTool.mcu.Mpc5748G_C55FMC;
@@ -83,7 +84,7 @@ public class WinFlashTool
 
     /** The full version of the tool, including the forth part, the build number. */
     public static final String _versionFull = _version + "." + _versionAry[3];
-    
+
     /** The global logger object for all progress and error reporting. It is initialized to
         null in order to give time to the other class {@link Log4j2Configurator} to first
         configure the loggers according to the command line settings. */
@@ -223,6 +224,16 @@ public class WinFlashTool
               + "\nOptional, default is the 11 Bit ID 0x650."
             );
         clp.defineArgument
+            ( "uv", "upload-version-fbl"
+            , /*cntMax*/ 1
+            , "The version designation of the flash boot loader on the target is uploaded"
+              + " and printed in the log."
+              + "\nThis option is target specific. It is based on the assumption,"
+              + " that the target provides the FBL version information as result of CCP"
+              + " command DIAG_SERVICE with service number 0."
+              + "\nOptional, default is not uploading the version information."
+            );
+        clp.defineArgument
             ( "o", "srec-output-file"
             , /*cntMin, cntMax*/ 0, 1
             , /*defaultValue*/ null
@@ -259,7 +270,7 @@ public class WinFlashTool
               + "\nOptional, default is doing the verification."
               + "\nPlease note, regardless of this switch, an immediate verify of each"
               + " flash programming step is always performed. However, this validates only"
-              + " the physical flash programming but not potential data transmission errors." 
+              + " the physical flash programming but not potential data transmission errors."
             );
         clp.defineArgument
             ( "e", "erase-all"
@@ -403,14 +414,14 @@ public class WinFlashTool
                configuration string.) */
             baudRateInKHz = -1;
         }
-        
+
         /* The translation value to enum returns null if the value doesn't exist in the
            enumeration. */
         return TPCANBaudrate.valueOfBaudRate(baudRateInKHz*1000);
 
     } /* getBaudRate */
-    
-    
+
+
     /**
      * This method implements the application behavior. Call it once from the main function
      * run is synchronous and does not fork another task or process.
@@ -425,9 +436,9 @@ public class WinFlashTool
                       && CanDevice.initClass(errCnt_)
                       && SrecWriter.initClass(errCnt_);
         }
-            
+
         final String canDeviceName = cmdLineParser_.getString("CAN-device");
-        
+
         /* Check command line to find out, which tasks are commanded. */
         final String srecInputFileName = cmdLineParser_.getString("srec-input-file")
                    , srecOutputFileName = cmdLineParser_.getString("srec-output-file");
@@ -435,6 +446,7 @@ public class WinFlashTool
                     , verifyOnly = cmdLineParser_.getBoolean("verify-only")
                     , noVerify = cmdLineParser_.getBoolean("no-verify")
                     , dryRun = cmdLineParser_.getBoolean("dry-run")
+                    , taskUploadVersion = cmdLineParser_.getBoolean("upload-version-fbl")
                     , taskEnumCanDevices = cmdLineParser_.getBoolean("enumerate-CAN-devices")
                     , taskUpload = srecOutputFileName != null
                     , taskProgram = srecInputFileName != null  && !verifyOnly
@@ -462,7 +474,7 @@ public class WinFlashTool
                           + " input srec file is pointless. Upload is not performed."
                          );
         }
-        
+
         if(success && taskEnumCanDevices)
         {
             if (taskUpload || taskProgram) {
@@ -472,14 +484,19 @@ public class WinFlashTool
                               + " --srec-output-file and --srec-input-file are ignored."
                             );
             }
-            
+
             /* Print all connected devices. */
             PCANBasicEx.printAttachedChannels();
             if (!canDeviceName.isEmpty()) {
                 success = PCANBasicEx.identifyChannel(canDeviceName);
             }
-        } else if (taskUpload || taskEraseOnly || taskProgram || taskVerify) {
-        
+        } else if (taskUploadVersion
+                   || taskUpload
+                   || taskEraseOnly
+                   || taskProgram
+                   || taskVerify
+                  ) {
+
             /* Set the CN IDs to use for CCP communication. */
             final CanId canIdCro = new CanId( cmdLineParser_.getInteger("CAN-ID-CRO") & 0x7FF
                                             , /*isExtId*/ false
@@ -495,7 +512,7 @@ public class WinFlashTool
             final CanDevice canDev;
             if (success) {
                 canDev = new CanDevice();
-                final TPCANBaudrate baudRate = 
+                final TPCANBaudrate baudRate =
                                 getBaudRate(cmdLineParser_.getString("CAN-configuration"));
                 if (baudRate != null) {
                     success = canDev.open(canDeviceName, baudRate, listOfRxCanIds);
@@ -511,7 +528,7 @@ public class WinFlashTool
             } else {
                 canDev = null;
             }
-            
+
             /* Setup the CCP communication. */
             final CCP ccp;
             if(success) {
@@ -526,10 +543,27 @@ public class WinFlashTool
                 ccp = null;
             }
 
+            if (success && taskUploadVersion) {
+                /* Prepare a CCP communication thread for uploading memory contents. */
+                _logger.debug("Now uploading the version designation from target.");
+                final Supplier<String> supplierVersionInfo = ccp.uploadVersionFbl(dryRun);
+                
+                /* Clock the state machine, which runs the CCP communication. */
+                success = ccp.run();
+                
+                if (success) {
+                    final String version = supplierVersionInfo.get();
+                    _logger.info( "Version flash boot loader:{}{}"
+                                , version.contains("\n")? '\n': ' '
+                                , version
+                                );
+                }
+            } /* taskUploadVersion */
+
             if (success && taskUpload) {
                 /* Prepare a CCP communication thread for uploading memory contents. */
                 _logger.info("Now uploading memory contents from target.");
-                
+
                 AddressRangeSequence addrRangeSeqForUpload = new AddressRangeSequence(errCnt_);
                 if (!addrRangeSeqForUpload.parseCmdLine(cmdLineParser_)) {
                     success = false;
@@ -541,8 +575,11 @@ public class WinFlashTool
                                   + " memory contents from the target device. Please use"
                                   + " --address-range to do so or use -h for help."
                                  );
+                } else {
+                    errCnt_.warning();
+                    _logger.warn("Target doesn't provide the version information of the FBL.");
                 }
-
+                
                 /* Check specified address ranges for (unsupported) overlap and allocate
                    memory buffers of required size for the upload. */
                 final SRecordSequence srecSeq;
@@ -556,27 +593,23 @@ public class WinFlashTool
                 if (success) {
                     srecSeq.logSections();
                     ccp.upload(srecSeq, dryRun);
-                
+
                     /* Clock the state machine, which runs the CCP communication. */
-                    while(!ccp.step()) {
-                        /* Here, we could do other, non-blocking things, e.g., print some
-                           progress information. */
-                    }
-                    success = ccp.getFinalSuccess();
-                
+                    success = ccp.run();
+
                     if (success) {
                         success = SrecWriter.write( srecOutputFileName
                                                   , srecSeq
                                                   , /*noBytesPerLine*/ 16
                                                   );
                     }
-                }        
-                
+                }
+
                 if (success) {
                     _logger.info("Data upload successfully completed.");
                 }
-            } /* if(Is an upload commanded?) */ 
-            
+            } /* if(Is an upload commanded?) */
+
             if (success && (taskProgram || taskEraseOnly || taskVerify)) {
 
                 final String targetMcuName = cmdLineParser_.getString("mcu-target");
@@ -587,7 +620,7 @@ public class WinFlashTool
                                    + " use -h for help."
                                  );
                 }
-            
+
                 final Flash flashROM;
                 if (success) {
                     switch(targetMcuName) {
@@ -610,10 +643,10 @@ public class WinFlashTool
                                      , targetMcuName
                                      );
                     }
-                } else {      
+                } else {
                     flashROM = null;
                 }
-            
+
                 String task = "";
                 if (taskProgram || taskVerify) {
                     final MemoryMap memMap;
@@ -626,7 +659,7 @@ public class WinFlashTool
                                           + " terminates."
                                          );
                         }
-                    } else {      
+                    } else {
                         memMap = null;
                     }
 
@@ -655,29 +688,25 @@ public class WinFlashTool
                 } else {
                     assert taskEraseOnly;
                     task = "Flash ROM erasure";
-                    final EraseSectorSequence eraseSectorSequence = 
+                    final EraseSectorSequence eraseSectorSequence =
                                                     new EraseSectorSequence(flashROM, errCnt_);
-                    eraseSectorSequence.eraseAll();                                        
-                    
+                    eraseSectorSequence.eraseAll();
+
                     /* Prepare a CCP communication thread for erasure. */
                     ccp.erase(eraseSectorSequence, dryRun);
                     _logger.info("Now erasing all flash ROM on the target.");
                 }
-                
+
                 if (success) {
                     /* Clock the state machine, which runs the CCP communication. */
-                    while(!ccp.step()) {
-                        /* Here, we could do other, non-blocking things, e.g., print some
-                           progress information. */
-                    }
-                    success = ccp.getFinalSuccess();
+                    success = ccp.run();
                 }
 
                 if (success) {
                     _logger.info("{} successfully completed.", task);
                 }
-            } /* if(Is an erase all or download and program commanded?) */ 
-           
+            } /* if(Is an erase all or download and program commanded?) */
+
             /* Close CAN device; release the PCAN-USB CAN device for other applications. */
             if (canDev != null) {
                 canDev.close();
@@ -744,7 +773,7 @@ public class WinFlashTool
         if(This.parseCmdLine(argAry))
         {
             final CmdLineParser clp = This.cmdLineParser_;
-            
+
             /* Print the application greeting, but only if log level is not OFF. */
             final Level logLevel = Level.getLevel(clp.getString("v").toUpperCase());
             if(logLevel == null  ||  logLevel != Level.OFF)
@@ -766,7 +795,7 @@ public class WinFlashTool
 
             /* The actual software execution. */
             boolean success = This.run();
-            
+
             _logger.debug( "{} terminating {}."
                          , _applicationName
                          , success? "successfully": "with errors"

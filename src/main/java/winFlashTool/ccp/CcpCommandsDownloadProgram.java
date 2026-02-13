@@ -222,7 +222,7 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
                 /* Update the status, where we are with the download. */
                 noBytesToDownload_ -= noBytesThisTime_;
                 readPos_ += noBytesThisTime_;
-                mta0(expectedNewMta);
+                setMta0(expectedNewMta);
 
                 /* Send next chunk of data if there are bytes left. */
                 if (noBytesToDownload_ > 0) {
