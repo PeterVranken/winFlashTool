@@ -29,6 +29,7 @@ package winFlashTool.ccp;
 
 import java.util.*;
 import java.util.function.Supplier;
+import java.util.function.LongSupplier;
 import org.apache.logging.log4j.*;
 import winFlashTool.basics.Range;
 import winFlashTool.srecParser.SRecord;
@@ -82,10 +83,10 @@ class CcpCmdSequence extends ArrayList<CcpCommandBase> {
         for (Range eraseRange: eraseSectorSequence) {
             /* CCP's CLEAR_MEMORY operates at the bytes from MTA0. */
             final CcpCommandArgs.SetMta argsSetMta =
-                                new CcpCommandArgs.SetMta( /*address*/ eraseRange.from()
-                                                         , /*addressExt*/ 0
-                                                         , /*idxMta*/ 0
-                                                         );
+                        new CcpCommandArgs.SetMta( /*supplierAddress*/ () -> eraseRange.from()
+                                                 , /*addressExt*/ 0
+                                                 , /*idxMta*/ 0
+                                                 );
             add(ccpCmdFactory_.create(argsSetMta));
 
             /* Our address ranges apply long for addresses. Not to allow addresses
@@ -151,10 +152,10 @@ class CcpCmdSequence extends ArrayList<CcpCommandBase> {
                    initially set MTA0. We need to refresh the MTA0 for each sector, because
                    different sectors typically have a gap in between them. */
                 final CcpCommandArgs.SetMta argsSetMta =
-                                        new CcpCommandArgs.SetMta( /*address*/ section.from()
-                                                                 , /*addressExt*/ 0
-                                                                 , /*idxMta*/ 0
-                                                                 );
+                            new CcpCommandArgs.SetMta( /*supplierAddress*/ () -> section.from()
+                                                     , /*addressExt*/ 0
+                                                     , /*idxMta*/ 0
+                                                     );
                 add(ccpCmdFactory_.create(argsSetMta));
 
                 final CcpCommandArgs.Program argsPrg =
@@ -172,10 +173,10 @@ class CcpCmdSequence extends ArrayList<CcpCommandBase> {
                    We need to refresh the MTA0 for each sector, because different sectors
                    typically have a gap in between them. */
                 final CcpCommandArgs.SetMta argsSetMta =
-                                        new CcpCommandArgs.SetMta( /*address*/ section.from()
-                                                                 , /*addressExt*/ 0
-                                                                 , /*idxMta*/ 0
-                                                                 );
+                            new CcpCommandArgs.SetMta( /*supplierAddress*/ () -> section.from()
+                                                     , /*addressExt*/ 0
+                                                     , /*idxMta*/ 0
+                                                     );
                 add(ccpCmdFactory_.create(argsSetMta));
 
                 final CcpCommandArgs.Upload argsPrg =
@@ -200,10 +201,10 @@ class CcpCmdSequence extends ArrayList<CcpCommandBase> {
                need to refresh the MTA0 for each sector, because different sectors
                typically have a gap in between them. */
             final CcpCommandArgs.SetMta argsSetMta =
-                                    new CcpCommandArgs.SetMta( /*address*/ section.from()
-                                                             , /*addressExt*/ 0
-                                                             , /*idxMta*/ 0
-                                                             );
+                            new CcpCommandArgs.SetMta( /*supplierAddress*/ () -> section.from()
+                                                     , /*addressExt*/ 0
+                                                     , /*idxMta*/ 0
+                                                     );
             add(ccpCmdFactory_.create(argsSetMta));
 
             final CcpCommandArgs.Upload argsUpload =
@@ -252,5 +253,92 @@ class CcpCmdSequence extends ArrayList<CcpCommandBase> {
             }
         };
     } /* diagServiceGetVersion */
+
+    /**
+     * Add the CCP command sequence needed for authentication (request and upload seed,
+     * downlaod key).
+     */
+    void diagServiceAuthenticate() {
+        /* CCP Connect and disconnect are handled outside of the command sequence. */
+
+        /* We request the upload of the seed. */
+        final CcpCommandArgs.DiagService argsDiagService =
+                            new CcpCommandArgs.DiagService( /*serviceNum*/ DIAG_SN_UPLOAD_SEED
+                                                          , /*argAry*/ null
+                                                          );
+        final CcpCommandDiagService ccpCmdDiagService = ccpCmdFactory_.create(argsDiagService);
+        add(ccpCmdDiagService);
+
+        /* We create a supplier object, which provides the length of the result data of the
+           DIAG_SERVICE command and the buffer, where to put the uploaded result data into. */
+        final Supplier<byte[]> supplierDiagServiceResultBuf = () -> {
+            return ccpCmdDiagService.getServiceResult();
+        };
+
+        /* We create a supplier object, which can later fetch the seed from the at that
+           time uploaded response of the CCP command DIAG_SERVICE. */
+        final Supplier<byte[]> supplierSeed = () -> {
+            /* The diagnostic service returns the 4 Byte seed followed by the 4 Byte upload
+               address. (Upload length is fixed and known due to the chosen crypto
+               algorithm.) */
+            final byte[] diagServiceResponse = ccpCmdDiagService.getServiceResult()
+                       , seed = new byte[4];
+            if (diagServiceResponse.length == 8) {
+                seed[0] = diagServiceResponse[0];
+                seed[1] = diagServiceResponse[1];
+                seed[2] = diagServiceResponse[2];
+                seed[3] = diagServiceResponse[3];
+            }
+            return seed;
+        };
+        
+        /* We create a supplier object, which can later fetch the upload address for the
+           key from the at that time uploaded response of the CCP command DIAG_SERVICE. */
+        final LongSupplier supplierMta = () -> {
+            /* The diagnostic service returns the 4 Byte seed followed by the 4 Byte upload
+               address (big endian). (Upload length is fixed and known due to the chosen
+               crypto algorithm.) */
+            final byte[] diagServiceResponse = ccpCmdDiagService.getServiceResult();
+            final long mta;
+            if (diagServiceResponse.length == 8) {
+                mta = (long)((((((((int)diagServiceResponse[4] & 0xFF) << 8)
+                                 | ((int)diagServiceResponse[5] & 0xFF)
+                                ) << 8
+                               )
+                               | ((int)diagServiceResponse[6] & 0xFF)
+                              ) << 8
+                             )
+                             | ((int)diagServiceResponse[7] & 0xFF)
+                            );
+            } else {
+                /* We set the MTA to an invalid value so that SET_MTA is informed about the
+                   failure. */
+                mta = 0xFFFFFFFFFFFFFFFFl;
+            }
+_logger.info("Supply this mta: {}", mta);
+            return mta;
+        };
+        
+        /* Add a CCP upload command, which fetches the response of the diagnostic service.
+           The MTA has already been set by the DIAG_SERVICE command. */
+        final CcpCommandArgs.Upload argsUpload =
+                                    new CcpCommandArgs.Upload( supplierDiagServiceResultBuf
+                                                             , /*isVerify*/ false
+                                                             );
+        add(ccpCmdFactory_.create(argsUpload));
+        
+        /* Add a CCP SET_MTA command to set the upload address for the key in the target. */
+        final CcpCommandArgs.SetMta argsSetMta = new CcpCommandArgs.SetMta( supplierMta
+                                                                          , /*addressExt*/ 0
+                                                                          , /*idxMta*/ 0
+                                                                          );
+        add(ccpCmdFactory_.create(argsSetMta));
+
+        /* Add a CCP DOWNLOAD command to transfer the key to the target. */
+        final CcpCommandArgs.CcpCommandDownloadKey argsDownload = 
+                                        new CcpCommandArgs.CcpCommandDownloadKey(supplierSeed);
+        add(ccpCmdFactory_.create(argsDownload));
+        
+    } /* diagServiceAuthenticate */
 
 } /* End of class CcpCmdSequence definition. */

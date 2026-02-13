@@ -19,7 +19,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 /* Interface of class CcpCommandsDownloadProgram
- *   CcpCommandsDownloadProgram (2 variants)
+ *   CcpCommandsDownloadProgram (3 variants)
+ *   setData
  *   fillPayloadCro
  *   setup
  *   step
@@ -49,7 +50,7 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
     private final boolean isDownload_;
 
     /** The data to download. */
-    private final byte[] dataToDownload_;
+    private byte[] dataToDownload_;
 
     /** Number of bytes from dataToDownload_, which have not been transmitted to the ECU
         yet. */
@@ -69,6 +70,20 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
     private int noBytesBetweenProgressMsgs_;
 
     /**
+     * A new instance of CcpCommandsDownloadProgram is created and pre-configured.<p>
+     *   No data to download or program is specified yet. You need to call setData() prior
+     * to calling setup().
+     *   @param isDownload
+     * For a CCP DOWNLOAD pass true, for a CCP PROGRAM pass false.
+     */
+    protected CcpCommandsDownloadProgram(boolean isDownload) {
+        isDownload_ = isDownload;
+        setData(null);
+        noBytesLeftWhenProgressMsg_ = 0;
+        noBytesBetweenProgressMsgs_ = 0x8000;
+    }
+    
+    /**
      * A new instance of CcpCommandsDownloadProgram is created and configured for a number
      * of CCP DOWNLOAD commands.
      *   @param args
@@ -76,10 +91,7 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
      */
     protected CcpCommandsDownloadProgram(CcpCommandArgs.Download args) {
         isDownload_ = true;
-        dataToDownload_ = args.data();
-        noBytesToDownload_ = 0;
-        readPos_ = 0;
-        noBytesThisTime_ = 0;
+        setData(args.data());
         noBytesLeftWhenProgressMsg_ = 0;
         noBytesBetweenProgressMsgs_ = 0x8000;
 
@@ -93,15 +105,28 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
      */
     protected CcpCommandsDownloadProgram(CcpCommandArgs.Program args) {
         isDownload_ = false;
-        dataToDownload_ = args.data();
-        noBytesToDownload_ = 0;
-        readPos_ = 0;
-        noBytesThisTime_ = 0;
+        setData(args.data());
         noBytesLeftWhenProgressMsg_ = 0;
         noBytesBetweenProgressMsgs_ = 0x8000;
 
     } /* CcpCommandsDownloadProgram.CcpCommandsDownloadProgram */
 
+    /**
+     * Set the data to download and program.<p>
+     *   This methods is an option to set the data later then at construction time. If it
+     * is used then this needs be happen before setup() is called.
+     */
+    protected void setData(byte[] data) {
+        /* Replacing data is not a technical issue but it points to potential misuse of the
+           class. */
+        assert dataToDownload_ == null: "Suspicious redefinition of data for download";
+        dataToDownload_ = data;
+        noBytesToDownload_ = 0;
+        readPos_ = 0;
+        noBytesThisTime_ = 0;
+        
+    } /* setData */
+    
     /**
      * Compose a CRO message with the next bytes to download/program and update status of
      * remaining data.
@@ -289,8 +314,9 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
      */
     @Override
     public String toString() {
-        final String cmdName = isDownload_? "DOWNLOAD": "PROGRAM";
-        return cmdName + "(noBytes=" + dataToDownload_.length + ")";
+        final String cmdName = isDownload_? "DOWNLOAD": "PROGRAM"
+                   , noBytes = dataToDownload_ != null? ""+dataToDownload_.length: "?";
+        return cmdName + "(noBytes=" + noBytes + ")";
     }
 } /* End of class CcpCommandsDownloadProgram definition. */
 

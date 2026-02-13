@@ -80,6 +80,8 @@ final class CcpCommandFactory {
         register(CcpCommandArgs.Upload.class, CcpCommandUpload::new);
         register(CcpCommandArgs.Program.class, CcpCommandsDownloadProgram::new);
         register(CcpCommandArgs.DiagService.class, CcpCommandDiagService::new);
+        register(CcpCommandArgs.CcpCommandDownloadKey.class, CcpCommandDownloadKey::new);
+        
     } /* CcpCommandFactory */
 
     /**

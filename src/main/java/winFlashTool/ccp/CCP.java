@@ -25,6 +25,7 @@
  *   eraseAndProgram
  *   verify
  *   uploadVersionFbl
+ *   authenticate
  *   upload
  *   stateConnectToTarget
  *   stateDisconnectFromTarget
@@ -297,7 +298,9 @@ public class CCP {
         isDryRun_ = isDryRun;
         state_ = StateFlashProcess.START;
         ccpCmdSequence_ = new CcpCmdSequence(ccpCmdFactory_);
-        return ccpCmdSequence_.diagServiceGetVersion();
+        final Supplier<String> supplierVersionInfo = ccpCmdSequence_.diagServiceGetVersion();
+        ccpCmdSequence_.diagServiceAuthenticate();
+        return supplierVersionInfo;
 
     } /* uploadVersionFbl */
 

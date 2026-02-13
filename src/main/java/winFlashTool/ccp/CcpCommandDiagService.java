@@ -46,7 +46,7 @@ public class CcpCommandDiagService extends CcpCommandBase {
     /** The command arguments. */
     final CcpCommandArgs.DiagService cmdArgs_;
     
-    /** Information extracted from the CCP command response: How many bytes to uplaod for
+    /** Information extracted from the CCP command response: How many bytes to upload for
         the result of the diagnostic service? */
     private int sizeOfServiceResponse_;
     

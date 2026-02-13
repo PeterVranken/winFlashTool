@@ -547,10 +547,10 @@ public class WinFlashTool
                 /* Prepare a CCP communication thread for uploading memory contents. */
                 _logger.debug("Now uploading the version designation from target.");
                 final Supplier<String> supplierVersionInfo = ccp.uploadVersionFbl(dryRun);
-                
+
                 /* Clock the state machine, which runs the CCP communication. */
                 success = ccp.run();
-                
+
                 if (success) {
                     final String version = supplierVersionInfo.get();
                     _logger.info( "Version flash boot loader:{}{}"
@@ -579,7 +579,7 @@ public class WinFlashTool
                     errCnt_.warning();
                     _logger.warn("Target doesn't provide the version information of the FBL.");
                 }
-                
+
                 /* Check specified address ranges for (unsupported) overlap and allocate
                    memory buffers of required size for the upload. */
                 final SRecordSequence srecSeq;

@@ -30,6 +30,7 @@ package winFlashTool.ccp;
 import java.util.*;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.function.LongSupplier;
 import org.apache.logging.log4j.*;
 import winFlashTool.basics.ErrorCounter;
 
@@ -42,9 +43,9 @@ public class CcpCommandSetMta extends CcpCommandBase
     /** The global logger object for all progress and error reporting. */
     private static final Logger _logger = LogManager.getLogger(CcpCommandSetMta.class);
 
-    /** Temporary storage of memory address to set with SET_MTA. Will become new MTA when
-        the ECU acknowledges the command. */
-    private final long memoryAddr_;
+    /** Lambda object for getting the memory address to set with SET_MTA. The supplied
+        value will become the new MTA when the ECU acknowledges the command. */
+    private final LongSupplier supplierMemoryAddr_;
 
     /** The index of the affected MTA, either 0 or 1. */
     private final int idxMta_;
@@ -56,7 +57,7 @@ public class CcpCommandSetMta extends CcpCommandBase
      * A record with all required configuration data.
      */
     CcpCommandSetMta(CcpCommandArgs.SetMta args) {
-        memoryAddr_ = args.address();
+        supplierMemoryAddr_ = args.supplierAddress();
 
         idxMta_ = args.idxMta();
 
@@ -100,17 +101,27 @@ public class CcpCommandSetMta extends CcpCommandBase
         final byte[] payloadCroAry = payloadCroAry();
         payloadCroAry[0] = CroCommandId.SET_MTA.getCode();
         payloadCroAry[2] = idxMta; /* The x in MTAx, x=0..1 */
-        payloadCroAry[3] = (byte)0; /* Address extension not used in PowerPC. */
+        payloadCroAry[3] = (byte)0; /* Address extension not used in any modern CPU. */
 
-        /* Memory address in MSB endianess. */
-        payloadCroAry[4] = (byte)((memoryAddr_ >> 24) & 0xFF);
-        payloadCroAry[5] = (byte)((memoryAddr_ >> 16) & 0xFF);
-        payloadCroAry[6] = (byte)((memoryAddr_ >>  8) & 0xFF);
-        payloadCroAry[7] = (byte)((memoryAddr_ >>  0) & 0xFF);
-        sendCro(/*noContentBytes*/ 8);
-        _logger.printf(Level.DEBUG, "CRO message SET_MTA(0x%06X) sent to ECU.", memoryAddr_);
-        return CcpCroTransmitter.ResultTransmission.PENDING;
+        final long memoryAddr = supplierMemoryAddr_.getAsLong();
+        if ((memoryAddr & 0xFFFFFFFF00000000l) == 0l) {
+            /* Memory address in MSB endianess. */
+            payloadCroAry[4] = (byte)((memoryAddr >> 24) & 0xFF);
+            payloadCroAry[5] = (byte)((memoryAddr >> 16) & 0xFF);
+            payloadCroAry[6] = (byte)((memoryAddr >>  8) & 0xFF);
+            payloadCroAry[7] = (byte)((memoryAddr >>  0) & 0xFF);
 
+            /* Make new MTA available to other commands, e.g., DOWNLOAD and PROGRAM. */
+            setMta0(memoryAddr);
+
+            sendCro(/*noContentBytes*/ 8);
+            _logger.printf(Level.DEBUG, "CRO message SET_MTA(0x%06X) sent to ECU.",memoryAddr);
+            return CcpCroTransmitter.ResultTransmission.PENDING;
+        } else {
+            errCnt().error();
+            _logger.error("CCP command SET_MTA is initiated with invalid address.");
+            return CcpCroTransmitter.ResultTransmission.ERROR_BAD_MTA_UPDATE;
+        }
     } /* setup */
 
     /**
@@ -126,11 +137,10 @@ public class CcpCommandSetMta extends CcpCommandBase
         if (resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS) {
             _logger.debug("ECU acknowledged SET_MTA.");
 
-            /* Make new MTA available to other commands, e.g., DOWNLOAD and PROGRAM. */
-            setMta0(memoryAddr_);
         } else if (resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING) {
             /* The connect CRO/DTO exchange failed. The reason has been logged. Nothing
                else to do. */
+            invalidateMta0();
             errCnt().error();
             _logger.error("Can't set MTA in the ECU. See previous error messages"
                           + " for details."
@@ -150,8 +160,10 @@ public class CcpCommandSetMta extends CcpCommandBase
      */
     @Override
     public String toString() {
-        return "SET_MTA(mta" + idxMta_ + "=0x" + Long.toHexString(memoryAddr_).toUpperCase()
-               + ")";
+        final String addr = isValidMta0() 
+                            ? "0x" + Long.toHexString(mta0()).toUpperCase()
+                            : "?";
+        return "SET_MTA(mta" + idxMta_ + "=" + addr + ")";
     }
 } /* End of class CcpCommandSetMta definition. */
 

@@ -242,6 +242,14 @@ public class CcpCommandUpload extends CcpCommandBase
                     sendCro(/*noContentBytes*/ 3);
                     resultTxRx = CcpCroTransmitter.ResultTransmission.PENDING;
                 }
+else {
+_logger.info("Upload done:");
+int maxI = dataUploaded_.length<=50? dataUploaded_.length: 50;
+for(int i=0; i<maxI; ++i) {
+    _logger.printf(Level.INFO, " %02X", (int)dataUploaded_[i]);
+}
+_logger.printf(Level.INFO, "\n");
+}
             }
         } else if (resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING) {
             /* The connect CRO/DTO exchange failed. The reason has been logged. Nothing

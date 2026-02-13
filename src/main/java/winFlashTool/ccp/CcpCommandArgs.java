@@ -31,6 +31,7 @@
 package winFlashTool.ccp;
 
 import java.util.function.Supplier;
+import java.util.function.LongSupplier;
 
 /**
  * Definition of arguments for the different CCP commands.<p>
@@ -75,16 +76,21 @@ sealed interface CcpCommandArgs {
     
     /**
      * The arguments of CCP command SET_MTA.
-     *   @param address
-     * The byte address, where to subsequently program or erase some bytes.
+     *   @param supplierAddress
+     * A lambda, which provides the address where to subsequently program or erase some
+     * bytes. The lambda is evaluated in setup(), when the transmission of CCP command
+     * SET_MTA starts.
      *   @param addressExt
      * The target specific address extension. Only the least significant eight bit matter,
      * the rest is expected to be all zeros.<p>
-     *   Caution, address extension ar e not supported and zero needs to be supplied.
+     *   Caution, address extension are not supported and zero needs to be supplied.
      *   @param idxMta
      * CPP knows two memory transfer addresses. Which one is meant? The x in MTAx, x=0..1.
      */
-    record SetMta(long address, int addressExt, int idxMta) implements CcpCommandArgs {
+    record SetMta( LongSupplier supplierAddress
+                 , int addressExt
+                 , int idxMta
+                 ) implements CcpCommandArgs {
     }
     
     /**
@@ -101,11 +107,24 @@ sealed interface CcpCommandArgs {
      *   @param data
      * The bytes to program at current MTA0. Any number of bytes can be specified. The
      * implementation of the command will break it down into a series of #DOWNLOAD and
-     * #DOWNLOAD_6 commands.
+     * #DOWNLOAD_6 commands.<p>
+     *   data may be null, if the data is provided later using method
+     * CcpCommandsDownloadProgram.setData().
      */
     record Download(byte[] data) implements CcpCommandArgs {
     }
     
+    /**
+     * The arguments of CCP command DIAG_DOWNLOAD (in the context of downloading the key
+     * for authentication).
+     *   @param supplierDataBuffer
+     * A lambda, which provides the seed. The lambda is evaluated when the download begins.
+     * Use case: The seed for the key calculation will dynamically depend on the result of
+     * another, preceding CCP command.
+     */
+    record CcpCommandDownloadKey(Supplier<byte[]> supplierSeed) implements CcpCommandArgs {
+    }
+
     /**
      * The arguments of CCP command UPLOAD.
      *   @param supplierDataBuffer
@@ -130,7 +149,9 @@ sealed interface CcpCommandArgs {
      *   @param data
      * The bytes to program at current MTA0. Any number of bytes can be specified. The
      * implementation of the command will break it down into a series of #PROGRAM and
-     * #PROGRAM_6 commands.
+     * #PROGRAM_6 commands.<p>
+     *   data may be null, if the data is provided later using method
+     * CcpCommandsDownloadProgram.setData().
      */
     record Program(byte[] data) implements CcpCommandArgs {
     }
