@@ -36,6 +36,7 @@ import java.util.function.Supplier;
 import winFlashTool.mcu.Flash;
 import winFlashTool.mcu.Mpc5775BE_C55FMC;
 import winFlashTool.mcu.Mpc5748G_C55FMC;
+import winFlashTool.digitalSignature.DigitalSignature;
 
 import org.apache.logging.log4j.*;
 import winFlashTool.applicationInterface.cmdLineParser.CmdLineParser;
@@ -430,6 +431,25 @@ public class WinFlashTool
      */
     public boolean run() {
         boolean success = true;
+
+DigitalSignature digSig = new DigitalSignature(errCnt_);
+String keyFileName = "privateKey.sk";
+digSig.generateKeyPair(keyFileName);
+
+//byte[] seed = new byte[32];
+//for (int i=0; i<seed.length; ++i) {
+//    seed[i] = (byte)i;
+//}
+byte[] seed = digSig.readPrivateKey(keyFileName);
+if (seed != null) {
+    byte[] msg = new byte[10];
+    for (int i=0; i<msg.length-1; ++i) {
+        msg[i] = (byte)(i+1);
+    }
+    msg[msg.length-1] = 0;
+    byte[] signature = digSig.calculateSignature(msg, seed);
+    _logger.info("Signature:{}", digSig.toHex(signature));
+}
 
         if (success) {
             success = PCANBasicEx.initClass(errCnt_)
