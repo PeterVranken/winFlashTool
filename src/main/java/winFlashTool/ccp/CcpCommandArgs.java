@@ -32,6 +32,7 @@ package winFlashTool.ccp;
 
 import java.util.function.Supplier;
 import java.util.function.LongSupplier;
+import winFlashTool.digitalSignature.DigitalSignature;
 
 /**
  * Definition of arguments for the different CCP commands.<p>
@@ -117,12 +118,17 @@ sealed interface CcpCommandArgs {
     /**
      * The arguments of CCP command DIAG_DOWNLOAD (in the context of downloading the key
      * for authentication).
+     *   @param digitalSignature
+     * This object is used for calculating the digital signature of the target provided
+     * seed.
      *   @param supplierDataBuffer
      * A lambda, which provides the seed. The lambda is evaluated when the download begins.
      * Use case: The seed for the key calculation will dynamically depend on the result of
      * another, preceding CCP command.
      */
-    record CcpCommandDownloadKey(Supplier<byte[]> supplierSeed) implements CcpCommandArgs {
+    record CcpCommandDownloadKey( DigitalSignature digitalSignature
+                                , Supplier<byte[]> supplierSeed
+                                ) implements CcpCommandArgs {
     }
 
     /**

@@ -1,6 +1,7 @@
 /**
  * @file DigitalSignature.java
- * 
+ * This class provides generation of new key pairs, writing keys to file and loading them
+ * and the generation of a digital signature for a message using the private key.
  *
  * Copyright (C) 2026 Copilot & Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
  *
@@ -19,6 +20,9 @@
  */
 /* Interface of class DigitalSignature
  *   DigitalSignature
+ *   generateKeyPair
+ *   readPrivateKey
+ *   calculateSignature
  */
 
 package winFlashTool.digitalSignature;
@@ -35,28 +39,23 @@ import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
-import java.security.spec.EdECPrivateKeySpec;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Signature;
+import java.security.spec.EdECPrivateKeySpec;
 import java.security.spec.NamedParameterSpec;
 import java.util.Arrays;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
+import winFlashTool.basics.Basics;
 import winFlashTool.basics.ErrorCounter;
 
 /**
  * Digital signature helper for Ed25519.
- * <p>
- * Return value: Methods return success flags, arrays or {@code null} on error as
- * documented per method.
- * <p>
- * Parameters: See individual method Javadoc sections.
- *
- * Please note, This class has been widely designed and written by Copilot. Only subtle
+ *   This class provides generation of new key pairs, writing keys to file and loading them
+ * and the generation of a digital signature for a message using the private key.
+ *   Please note, This class has been widely designed and written by Copilot. Only minor
  * modifiations have been made afterwards.
  */
 public class DigitalSignature {
@@ -67,7 +66,9 @@ public class DigitalSignature {
     /** The error counter to be used for error reporting. */
     final ErrorCounter errCnt_;
 
-    /** The secrect
+    /** The private key, which is used for making the signature. */
+    private byte[] sk_;
+
     /**
      * Construct with an error counter for reporting.
      *   @param errCnt 
@@ -75,184 +76,190 @@ public class DigitalSignature {
      */
     public DigitalSignature(final ErrorCounter errCnt) {
         this.errCnt_ = errCnt;
+        
+        /* The private key is read from file prior to use. */
+        sk_ = null;
     }
 
     /**
      * Generate an Ed25519 key pair from locally mixed entropy and store the
      * 32-byte private key (seed) as a binary file. The corresponding
-     * 32-byte public key is logged in hex.
+     * 32-byte public key is logged in hex.<p>
+     *   This method is a convenience function only, it is not used for normal operation.
      *   @return
      * Get {@code true} on success, otherwise {@code false}.
      *   @param outFileName 
      * The target file name for the 32-byte private key.
      */
-    public boolean generateKeyPair(final String outFileName) {
+    public boolean generateKeyPair(final String keyFileName) {
         Path cpath;
         try {
-            cpath = toCanonicalPath(outFileName);
+            cpath = toCanonicalPath(keyFileName);
         } catch (IOException e) {
             errCnt_.error();
-            _logger.error("Output file {} can't be canonicalized. {}",
-                          outFileName, e.getMessage());
+            _logger.error( "Output file {} can't be canonicalized. {}"
+                         , keyFileName
+                         , e.getMessage()
+                         );
             return false;
         }
 
         try {
-            _logger.info("Generating Ed25519 private key seed (32 bytes).");
-            byte[] seed = makeSeed(cpath);
+            _logger.info("Generating Ed25519 private key pair.");
+            byte[] seed = makeSeed(cpath.toString());
             assert seed.length == 32;
-for (int i=0; i<seed.length; ++i) {
-    seed[i] = (byte)i;
-}
-            _logger.info("Deriving public key from seed and preparing output.");
+//for (int i=0; i<seed.length; ++i) {
+//    seed[i] = (byte)i;
+//}
+
             KeyPair kp = deriveKeyPairFromSeed(seed);
             byte[] pubSpki = kp.getPublic().getEncoded();
+            /* pubSpki has 44 Byte but only the last 32 are the public key of Ed25519. */
+assert pubSpki.length == 44;
             byte[] pubRaw = Arrays.copyOfRange(pubSpki, pubSpki.length - 32, pubSpki.length);
 
-            _logger.info("Writing private key to: {}", cpath.toString());
-            Files.write(cpath, seed, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+            _logger.info("Writing private key to file {}.", cpath.toString());
+            Files.write(cpath, seed, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
 
-            _logger.info("Public key (hex, 32 bytes): {}", toHex(pubRaw));
-            _logger.info("Key pair generation completed.");
+            _logger.info("Public key (hex, 32 Byte):{}", Basics.byteArrayToHex(pubRaw));
             return true;
+
         } catch (IOException e) {
             errCnt_.error();
-            _logger.error( "Output file {} can't be written. {}"
-                         , safeString(cpath)
+            _logger.error( "Private key file {} can't be written. {}"
+                         , cpath
                          , e.getMessage()
                          );
             return false;
         } catch (GeneralSecurityException e) {
             errCnt_.error();
-            _logger.error("Key generation failed. {}", e.getMessage());
+            _logger.error("Key pair generation failed. {}", e.getMessage());
             return false;
         } catch (RuntimeException e) {
             errCnt_.error();
-            _logger.error("Unexpected error during key generation. {}", e.getMessage());
+            _logger.error("Unexpected error during key pair generation. {}", e.getMessage());
             return false;
         }
     } /* generateKeyPair */
 
     /**
-     * Read a previously generated 32-byte private key (seed) from a file.
-     * <p>
-     * Return value: The 32-byte private key as {@code byte[]}, or {@code null}
-     * if an error occurs.
-     * <p>
-     * Parameters: inFileName The source file name of the 32-byte private key.
+     * Read a 32-byte private key (seed) from a file. Only if the function succeeds,
+     * message can be signed using calculateSignature.
+     *   @return
+     * Get {@code true} if the key could be read, or {@code false} if an error occurs.
+     *   @param keyFileName
+     * The source file name of the 32-byte private key.
      */
-    public byte[] readPrivateKey(final String inFileName) {
+    public boolean readPrivateKey(final String keyFileName) {   
+        assert keyFileName != null  &&  keyFileName.length() > 0;
         Path cpath;
         try {
-            cpath = toCanonicalPath(inFileName);
+            cpath = toCanonicalPath(keyFileName);
         } catch (IOException e) {
             errCnt_.error();
-            _logger.error( "Input file {} can't be canonicalized. {}"
-                         , inFileName
+            _logger.error( "File name {} can't be canonicalized. {}"
+                         , keyFileName
                          , e.getMessage()
                          );
-            return null;
+            return false;
         }
 
         try {
-            _logger.info("Reading private key from: {}", cpath.toString());
-            byte[] data = Files.readAllBytes(cpath);
-            if (data.length != 32) {
+            byte[] fileContents = Files.readAllBytes(cpath);
+            if (fileContents.length != 32) {
                 errCnt_.error();
-                _logger.error("Input file {} has wrong length: {} (expected 32).",
-                              cpath.toString(), data.length);
-                return null;
+                _logger.error( "Key file {} has wrong length {} Byte, but expected 32 Byte."
+                             , cpath.toString()
+                             , fileContents.length
+                             );
+                return false;
             }
-            _logger.info("Private key successfully read (32 bytes).");
-            return data;
+            _logger.info("Authentication key successfully read from {}.", cpath.toString());
+            sk_ = fileContents;
+            return true;
+
         } catch (IOException e) {
             errCnt_.error();
             _logger.error("Input file {} can't be read. {}", cpath.toString(), e.getMessage());
-            return null;
+            return false;
         } catch (RuntimeException e) {
             errCnt_.error();
             _logger.error("Unexpected error during key read. {}", e.getMessage());
-            return null;
+            return false;
         }
     } /* readPrivateKey */
 
     /**
      * Calculate the Ed25519 signature (64 bytes) over a message.
-     * <p>
-     * Return value: The 64-byte signature as {@code byte[]}, or {@code null}
-     * if an error occurs.
-     * <p>
-     * Parameters:
-     * msg The message to sign as {@code byte[]}.
-     * privKey32 The 32-byte Ed25519 private key (seed) as {@code byte[]}.
+     *   @return
+     * Get the 64-byte signature as {@code byte[]}, or {@code null} if an error occurs.
+     *   @param msg
+     * The message to sign as {@code byte[]}.
      */
-    public byte[] calculateSignature(final byte[] msg, final byte[] privKey32) {
+    public byte[] calculateSignature(final byte[] msg) {
+        assert msg != null  &&  sk_ != null  &&  sk_.length == 32;
+
         try {
-            if (msg == null) {
-                errCnt_.error();
-                _logger.error("Message is null.");
-                return null;
-            }
-            if (privKey32 == null || privKey32.length != 32) {
-                errCnt_.error();
-                _logger.error("Private key must be 32 bytes (seed).");
-                return null;
-            }
-
-            _logger.info("Preparing Ed25519 signature.");
-KeyFactory kf = KeyFactory.getInstance("Ed25519");
-PrivateKey pk = kf.generatePrivate(new EdECPrivateKeySpec(NamedParameterSpec.ED25519, privKey32));
-//            KeyPair kp = deriveKeyPairFromSeed(privKey32);
-
-            Signature sig = Signature.getInstance("Ed25519");
+            KeyFactory kf = KeyFactory.getInstance("Ed25519");
+            PrivateKey pk = kf.generatePrivate
+                                    (new EdECPrivateKeySpec( NamedParameterSpec.ED25519, sk_));
+            final Signature sig = Signature.getInstance("Ed25519");
             sig.initSign(pk);
-//            sig.initSign(kp.getPrivate());
             sig.update(msg);
-            byte[] signature = sig.sign();
-
+            final byte[] signature = sig.sign();
+            
             if (signature.length != 64) {
-                errCnt_.error();
-                _logger.error("Unexpected signature length: {} (expected 64).",
-                              signature.length);
-                return null;
+                throw new GeneralSecurityException("Implementation of Ed25519 delivered"
+                                                   + " the unexpected signature length "
+                                                   + signature.length + " Byte, but expected"
+                                                   + " 64 Byte."
+                                                  );
             }
-
-            _logger.info("Signature successfully calculated (64 bytes).");
+            _logger.info ( "TODO Make this verbosity trace! Signature for msg{} successfully calculated:{}."
+                         , Basics.byteArrayToHex(msg)
+                         , Basics.byteArrayToHex(signature)
+                         );
             return signature;
+
         } catch (GeneralSecurityException e) {
             errCnt_.error();
             _logger.error("Signature calculation failed. {}", e.getMessage());
             return null;
-        } catch (RuntimeException e) {
-            errCnt_.error();
-            _logger.error("Unexpected error during signing. {}",
-                          e.getMessage());
-            return null;
         }
     } /* calculateSignature */
 
-    /* --------------------------- helpers below --------------------------- */
-
-    /*
+    /**
      * Convert a file name to an absolute, canonicalized path.
+     *   @return
+     * Get the canonicalized path.
+     *   @param fileName
+     * The file path, which may be relative or contain "." and ".." as path elements..
      */
     private static Path toCanonicalPath(final String fileName)
         throws IOException {
+        
         File f = new File(fileName);
         return f.getCanonicalFile().toPath();
-    }
+        
+    } /* toCanonicalPath */
 
     /*
      * Build a 32-byte seed by hashing fluctuating local data. The sources are
      * intentionally obscured by hashing.
+     *   @return
+     * Get the random seed of 32 Byte length.
+     *   @param filePath
+     * Some file path, which is taken into account for the random seed generation. Use-case
+     * is passing in the user provided file name of the key file, but could actually be any
+     * (variable, little predictable) string. 
      */
-    private static byte[] makeSeed(final Path canonicalPath)
+    private static byte[] makeSeed(final String filePath)
         throws IOException {
         try {
             ByteArrayOutputStream bos = new ByteArrayOutputStream(256);
             try (DataOutputStream dos = new DataOutputStream(bos)) {
                 dos.writeLong(System.nanoTime());
-                dos.writeUTF(canonicalPath.toString());
+                dos.writeUTF(filePath);
                 dos.writeLong(System.currentTimeMillis());
                 dos.writeInt(Runtime.getRuntime().availableProcessors());
                 dos.writeLong(Runtime.getRuntime().freeMemory());
@@ -272,15 +279,20 @@ PrivateKey pk = kf.generatePrivate(new EdECPrivateKeySpec(NamedParameterSpec.ED2
         } catch (GeneralSecurityException e) {
             throw new IOException("Seed derivation failed: " + e.getMessage(), e);
         }
-    }
+    } /* makeSeed */
 
-    /*
+    /**
      * Deterministically derive an Ed25519 KeyPair from a 32-byte seed by
      * feeding the seed via a custom SecureRandom to the generator. The public
      * key is implicitly derived by the provider's EC arithmetic.
+     *   @return
+     * Get the key pair.
+     *   @param seed
+     * The seed of the key pair and at the same time the secret key.
      */
     private static KeyPair deriveKeyPairFromSeed(final byte[] seed)
         throws GeneralSecurityException {
+
         if (seed == null || seed.length != 32) {
             throw new GeneralSecurityException("Seed must be 32 bytes.");
         }
@@ -296,45 +308,20 @@ PrivateKey pk = kf.generatePrivate(new EdECPrivateKeySpec(NamedParameterSpec.ED2
             @Override
             public void nextBytes(byte[] bytes) {
                 /* Supply the private key seed deterministically. */
-_logger.info("SecureRandom: Asked for a seed of {} Byte.", bytes.length);
-if (bytes.length == seed.length) {
+                if (bytes.length == seed.length) {
                     System.arraycopy(seed, 0, bytes, 0, seed.length);
-} else {
-    throw new RuntimeException("Public key generation fails. SecureRandom is asked for"
-                               + " seed length " + bytes.length + ", but " + seed.length
-                               + " was expected for Ed25519."
-                              );
-}
-//                System.arraycopy(seed, 0, bytes, 0, seed.length);
-//                if (bytes.length > seed.length) {
-//                    /* Fill remaining bytes with zeros to be explicit. */
-//                    Arrays.fill(bytes, seed.length, bytes.length, (byte) 0);
-//                }
-            }
-        };
+                } else {
+                    throw new RuntimeException("Public key generation fails. SecureRandom"
+                                               + " is asked for seed length " + bytes.length
+                                               + ", but " + seed.length + " was expected"
+                                               + " for Ed25519."
+                                              );
+                }
+            } /* nextBytes */
+        }; /* Anonymous sub-class of SecureRandom */
+
         kpg.initialize(new NamedParameterSpec("Ed25519"), seeded);
         return kpg.generateKeyPair();
-    }
-
-    /*
-     * Convert bytes to lowercase hexadecimal.
-     */
-    public static String toHex(final byte[] in) {
-        char[] HEX = "0123456789ABCDEF".toCharArray();
-        char[] out = new char[in.length * 3];
-        for (int i = 0, j = 0; i < in.length; i++) {
-            int v = in[i] & 0xff;
-            out[j++] = ' ';
-            out[j++] = HEX[v >>> 4];
-            out[j++] = HEX[v & 0x0f];
-        }
-        return new String(out);
-    }
-
-    /*
-     * Safe string conversion for paths in error logs.
-     */
-    private static String safeString(Path p) {
-        return p == null ? "<null>" : p.toString();
-    }
-}
+        
+    } /* deriveKeyPairFromSeed */
+} /* DigitalSignature */

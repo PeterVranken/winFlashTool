@@ -55,6 +55,7 @@ import peak.can.basic.TPCANBaudrate;
 import winFlashTool.applicationInterface.AddressRangeSequence;
 import winFlashTool.srecParser.SrecWriter;
 import winFlashTool.srecParser.EraseSectorSequence;
+import winFlashTool.basics.Basics;
 
 /**
  * This class has a main function, which implements the excel exporter application.
@@ -225,9 +226,18 @@ public class WinFlashTool
               + "\nOptional, default is the 11 Bit ID 0x650."
             );
         clp.defineArgument
+            ( "sk", "key-file"
+            , /*cntMin, cntMax*/ 0, 1
+            , /*defaultValue*/ null
+            , "The name of a file with the private key of the Ed25519 authentication"
+              + " procedure with the flash boot loader (FBL) in the target ECU."
+              + "\nOptional, default is to not run through the authentication procedure with"
+              + " the FBL."
+            );
+        clp.defineArgument
             ( "uv", "upload-version-fbl"
             , /*cntMax*/ 1
-            , "The version designation of the flash boot loader on the target is uploaded"
+            , "The version designation of the FBL in the target ECU is uploaded"
               + " and printed in the log."
               + "\nThis option is target specific. It is based on the assumption,"
               + " that the target provides the FBL version information as result of CCP"
@@ -328,6 +338,19 @@ public class WinFlashTool
               + " any number of times."
               + "\nThis argument is mandatory if the other argument srec-output-file is used"
               + " to command an upload."
+            );
+        clp.defineArgument
+            ( "kp", "generate-key-pair"
+            , /*cntMin, cntMax*/ 0, 1
+            , /*defaultValue*/ null
+            , "If given, then the application will generate an ED25519 key pair,"
+              + " which can be used for the authentication procedure with the FBL. The"
+              + " public key is printed in the application log and would be integrated"
+              + " in the FBL. This switch has a file designation as argument. The private"
+              + " key is written into that file and would be used with switch --key-file,"
+              + " when later using this application to communicate with the FBL."
+              + "\nThe application stops after generating the key pair."
+              + "\nOptional, default is not to generate a key pair."
             );
 //        clp.defineArgument
 //            ( "$(point)", ""
@@ -432,24 +455,17 @@ public class WinFlashTool
     public boolean run() {
         boolean success = true;
 
-DigitalSignature digSig = new DigitalSignature(errCnt_);
-String keyFileName = "privateKey.sk";
-digSig.generateKeyPair(keyFileName);
-
-//byte[] seed = new byte[32];
-//for (int i=0; i<seed.length; ++i) {
-//    seed[i] = (byte)i;
+//if (digSig.readPrivateKey("privateKey.sk")) {
+//    byte[] msg = new byte[10];
+//    for (int i=0; i<msg.length-1; ++i) {
+//        msg[i] = (byte)(i+1);
+//    }
+//    msg[msg.length-1] = 0;
+//    byte[] signature = digSig.calculateSignature(msg);
+//    if (signature != null) {
+//        _logger.info("Signature:{}", Basics.byteArrayToHex(signature));
+//    }
 //}
-byte[] seed = digSig.readPrivateKey(keyFileName);
-if (seed != null) {
-    byte[] msg = new byte[10];
-    for (int i=0; i<msg.length-1; ++i) {
-        msg[i] = (byte)(i+1);
-    }
-    msg[msg.length-1] = 0;
-    byte[] signature = digSig.calculateSignature(msg, seed);
-    _logger.info("Signature:{}", digSig.toHex(signature));
-}
 
         if (success) {
             success = PCANBasicEx.initClass(errCnt_)
@@ -461,17 +477,28 @@ if (seed != null) {
 
         /* Check command line to find out, which tasks are commanded. */
         final String srecInputFileName = cmdLineParser_.getString("srec-input-file")
-                   , srecOutputFileName = cmdLineParser_.getString("srec-output-file");
+                   , srecOutputFileName = cmdLineParser_.getString("srec-output-file")
+                   , newPrivKeyFileName = cmdLineParser_.getString("generate-key-pair")
+                   , privateKeyFileName = cmdLineParser_.getString("key-file");
         final boolean eraseAll = cmdLineParser_.getBoolean("erase-all")
                     , verifyOnly = cmdLineParser_.getBoolean("verify-only")
                     , noVerify = cmdLineParser_.getBoolean("no-verify")
                     , dryRun = cmdLineParser_.getBoolean("dry-run")
                     , taskUploadVersion = cmdLineParser_.getBoolean("upload-version-fbl")
                     , taskEnumCanDevices = cmdLineParser_.getBoolean("enumerate-CAN-devices")
+                    , taskGenerateKeyPair = newPrivKeyFileName != null
                     , taskUpload = srecOutputFileName != null
                     , taskProgram = srecInputFileName != null  && !verifyOnly
                     , taskVerify = srecInputFileName != null  && verifyOnly
-                    , taskEraseOnly = eraseAll &&  srecInputFileName == null;
+                    , taskEraseOnly = eraseAll &&  srecInputFileName == null
+                    , isNormalFlashTaskSpecified = taskUploadVersion
+                                                   || taskUpload
+                                                   || taskProgram
+                                                   || taskVerify
+                                                   || taskEraseOnly
+                    , isAnyTaskTaskSpecified = isNormalFlashTaskSpecified
+                                               || taskEnumCanDevices
+                                               || taskGenerateKeyPair;
 
         if (verifyOnly &&  srecInputFileName == null) {
             success = false;
@@ -494,9 +521,8 @@ if (seed != null) {
                           + " input srec file is pointless. Upload is not performed."
                          );
         }
-
-        if(success && taskEnumCanDevices)
-        {
+        
+        if (success && taskEnumCanDevices) {
             if (taskUpload || taskProgram) {
                 errCnt_.warning();
                 _logger.warn( "Please note, if command line argument --enumerate-CAN-devices"
@@ -510,12 +536,21 @@ if (seed != null) {
             if (!canDeviceName.isEmpty()) {
                 success = PCANBasicEx.identifyChannel(canDeviceName);
             }
-        } else if (taskUploadVersion
-                   || taskUpload
-                   || taskEraseOnly
-                   || taskProgram
-                   || taskVerify
-                  ) {
+        }
+        if (success && taskGenerateKeyPair) {
+        
+            DigitalSignature digSig = new DigitalSignature(errCnt_);
+            digSig.generateKeyPair(newPrivKeyFileName);
+
+        }
+        if ((taskEnumCanDevices || taskGenerateKeyPair) && isNormalFlashTaskSpecified) {
+            errCnt_.warning();
+            _logger.warn("Please note, if --enumerate-CAN-devices or --generate-key-pair"
+                         + " is given on the command line then no normal flash task is"
+                         + " executed. Application terminates."
+                        );
+        }
+        if (success && !(taskEnumCanDevices || taskGenerateKeyPair)) {
 
             /* Set the CN IDs to use for CCP communication. */
             final CanId canIdCro = new CanId( cmdLineParser_.getInteger("CAN-ID-CRO") & 0x7FF
@@ -549,13 +584,27 @@ if (seed != null) {
                 canDev = null;
             }
 
+            /* If authentication is required, load the private key from file. */
+            final DigitalSignature digSignature;
+            if(success) {
+                if (privateKeyFileName != null) {
+                    digSignature = new DigitalSignature(errCnt_);
+                    success = digSignature.readPrivateKey(privateKeyFileName);
+                } else {
+                    digSignature = null;
+                }
+            } else {
+                digSignature = null;
+            }
+            
             /* Setup the CCP communication. */
             final CCP ccp;
-            if(success) {
+            if (success) {            
                 ccp = new CCP( canDev
                              , canIdCro
                              , canIdDto
                              , cmdLineParser_.getInteger("station-address")
+                             , digSignature
                              , cmdLineParser_.getInteger("no-retries-ccp-connect")
                              , errCnt_
                              );
@@ -577,6 +626,9 @@ if (seed != null) {
                                 , version.contains("\n")? '\n': ' '
                                 , version
                                 );
+                } else {
+                    errCnt_.warning();
+                    _logger.warn("Target doesn't provide the version information of the FBL.");
                 }
             } /* taskUploadVersion */
 
@@ -595,9 +647,6 @@ if (seed != null) {
                                   + " memory contents from the target device. Please use"
                                   + " --address-range to do so or use -h for help."
                                  );
-                } else {
-                    errCnt_.warning();
-                    _logger.warn("Target doesn't provide the version information of the FBL.");
                 }
 
                 /* Check specified address ranges for (unsupported) overlap and allocate
@@ -731,7 +780,9 @@ if (seed != null) {
             if (canDev != null) {
                 canDev.close();
             }
-        } else {
+        } /* if (Normal flash task specified?) */
+
+        if (!isAnyTaskTaskSpecified) {
             success = false;
             errCnt_.error();
             _logger.error( "No srec file is specified on the command line. You normally"
@@ -765,8 +816,7 @@ if (seed != null) {
     {
         final String greeting = _applicationName + " " + _versionFull
                                 + " Copyright (C) 2025-2026, Peter Vranken"
-                                + " (mailto:Peter_Vranken@Yahoo.de)"
-                                + "\n";
+                                + " (mailto:Peter_Vranken@Yahoo.de)";
         System.out.println(greeting);
 
     } /* End of greeting */

@@ -25,7 +25,6 @@
  *   eraseAndProgram
  *   verify
  *   uploadVersionFbl
- *   authenticate
  *   upload
  *   stateConnectToTarget
  *   stateDisconnectFromTarget
@@ -47,6 +46,7 @@ import winFlashTool.can.PCANBasicEx;
 import winFlashTool.srecParser.SRecord;
 import winFlashTool.srecParser.MemoryMap;
 import winFlashTool.srecParser.EraseSectorSequence;
+import winFlashTool.digitalSignature.DigitalSignature;
 
 /**
  * State machine for the subset of CCP, whichis require for the flash tool.
@@ -103,8 +103,12 @@ public class CCP {
 
     /* If true, then most CCP commands are not really executed; the CRO is not sent out and
        we don't wait for a DTO. */
-    boolean isDryRun_;
-
+    private boolean isDryRun_;
+    
+    /** Object to calculate the digital signature for the target provided seed, or null if
+        no authentication is required. */
+    private DigitalSignature digitalSignature_;
+    
     /** If CCP command CONNECT fails, it can be repeated a number of time, with a second of
         pause in between. This is the demanded number of attempts. Value 1 would mean no
         retry. */
@@ -137,6 +141,9 @@ public class CCP {
      *   @param stationAddr
      * The 16 Bit station address of the connected ECU. If the supplied value exceeds the
      * 16 Bit range, then the more significant bits are ignored.
+     *  @param digitalSignature
+     * The object used for calculating the digital signature for authentication. Can be
+     * null if no authetication is required for the FBL in the connected target.
      *   @param noRetriesConnect
      * If CCP command CONNECT fails, it can be repeated a number of time, with a second of
      * pause in between. This is the demanded number of retries. Range is
@@ -148,10 +155,13 @@ public class CCP {
               , CanId canIdCro
               , CanId canIdDto
               , int stationAddr
+              , DigitalSignature digitalSignature
               , int noRetriesConnect
-              , ErrorCounter errCnt ) {
+              , ErrorCounter errCnt 
+              ) {
         stationAddr_ = stationAddr & 0xFFFF;
-
+        digitalSignature_ = digitalSignature;
+        
         if (noRetriesConnect < 0  ||  noRetriesConnect > MAX_NO_RETRIES_CONNECT) {
             if (noRetriesConnect < 0) {
                 noRetriesConnect = 0;
@@ -208,7 +218,7 @@ public class CCP {
              : "Can't start a new CCP communication if there is still one running";
         isDryRun_ = isDryRun;
 
-        ccpCmdSequence_ = new CcpCmdSequence(ccpCmdFactory_);
+        ccpCmdSequence_ = new CcpCmdSequence(ccpCmdFactory_, digitalSignature_);
         ccpCmdSequence_.erase(eraseSectorSequence);
         state_ = StateFlashProcess.START;
 
@@ -238,7 +248,7 @@ public class CCP {
         assert ccpCmdSequence_ == null  &&  state_ == StateFlashProcess.COMPLETED
              : "Can't start a new CCP communication if there is still one running";
         isDryRun_ = isDryRun;
-        ccpCmdSequence_ = new CcpCmdSequence(ccpCmdFactory_);
+        ccpCmdSequence_ = new CcpCmdSequence(ccpCmdFactory_, digitalSignature_);
         ccpCmdSequence_.eraseProgramAndVerify( /*doErase*/ true
                                              , eraseAll
                                              , /*doProgram*/ true
@@ -264,7 +274,7 @@ public class CCP {
         assert ccpCmdSequence_ == null  &&  state_ == StateFlashProcess.COMPLETED
              : "Can't start a new CCP communication if there is still one running";
         isDryRun_ = isDryRun;
-        ccpCmdSequence_ = new CcpCmdSequence(ccpCmdFactory_);
+        ccpCmdSequence_ = new CcpCmdSequence(ccpCmdFactory_, digitalSignature_);
         ccpCmdSequence_.eraseProgramAndVerify( /*doErase*/ false
                                              , /*eraseAll*/ false
                                              , /*doProgram*/ false
@@ -297,9 +307,8 @@ public class CCP {
              : "Can't start a new CCP communication if there is still one running";
         isDryRun_ = isDryRun;
         state_ = StateFlashProcess.START;
-        ccpCmdSequence_ = new CcpCmdSequence(ccpCmdFactory_);
+        ccpCmdSequence_ = new CcpCmdSequence(ccpCmdFactory_, digitalSignature_);
         final Supplier<String> supplierVersionInfo = ccpCmdSequence_.diagServiceGetVersion();
-        ccpCmdSequence_.diagServiceAuthenticate();
         return supplierVersionInfo;
 
     } /* uploadVersionFbl */
@@ -317,7 +326,7 @@ public class CCP {
         assert ccpCmdSequence_ == null  &&  state_ == StateFlashProcess.COMPLETED
              : "Can't start a new CCP communication if there is still one running";
         isDryRun_ = isDryRun;
-        ccpCmdSequence_ = new CcpCmdSequence(ccpCmdFactory_);
+        ccpCmdSequence_ = new CcpCmdSequence(ccpCmdFactory_, digitalSignature_);
         ccpCmdSequence_.upload(memAreas);
         state_ = StateFlashProcess.START;
 
@@ -326,7 +335,7 @@ public class CCP {
     /**
      * This function implements the activities while we are in state CONNECTING.<p>
      *   The CCP CONNECT command is sent once or repeatedly, until we get a valid response
-     * or the number of allowed retries is exhausted.<p>
+     * or the number of allowed retries is reached.<p>
      *   The success and error conditions are directly evaluated and the next state is
      * accordingly set by side-effect.
      */

@@ -36,6 +36,7 @@ import winFlashTool.srecParser.SRecord;
 import winFlashTool.srecParser.SRecordSequence;
 import winFlashTool.srecParser.MemoryMap;
 import winFlashTool.srecParser.EraseSectorSequence;
+import winFlashTool.digitalSignature.DigitalSignature;
 
 /**
  * The representation of a sequence of of CCP commands to be executed, e.g., for flashing a
@@ -62,12 +63,23 @@ class CcpCmdSequence extends ArrayList<CcpCommandBase> {
      * This CCP command factory is used for all CCP commands, which will go into the
      * command sequence. The use of a particular factory guarantees that all CCP command
      * will make use of the right CAN bus and using the same configuration.
+     *   @param digitalSignature
+     * If the connected target requires authentication as part of a CONECT then this
+     * object is used for calculating the digital signature of the target provided seed.
+     *   The communication required for authentication will be the first part of the new
+     * CCP command sequence.<p>
+     *   If null is passed in then the authentication procedure is skipped for the new CCP
+     * command sequence.
      */
-    CcpCmdSequence(CcpCommandFactory ccpCmdFactory)
+    CcpCmdSequence(CcpCommandFactory ccpCmdFactory, DigitalSignature digitalSignature)
     {
         super(10);
         ccpCmdFactory_ = ccpCmdFactory;
-
+        
+        /* Add the authentication procedure as very first part of the CCP communication. */
+        if (digitalSignature != null) {
+            diagServiceAuthenticate(digitalSignature);
+        }
     } /* CcpCmdSequence.CcpCmdSequence */
 
     /**
@@ -256,9 +268,12 @@ class CcpCmdSequence extends ArrayList<CcpCommandBase> {
 
     /**
      * Add the CCP command sequence needed for authentication (request and upload seed,
-     * downlaod key).
+     * download key).
+     *   @param digitalSignature
+     * This object is used for calculating the digital signature of the target provided
+     * seed.
      */
-    void diagServiceAuthenticate() {
+    private void diagServiceAuthenticate(DigitalSignature digitalSignature) {
         /* CCP Connect and disconnect are handled outside of the command sequence. */
 
         /* We request the upload of the seed. */
@@ -315,7 +330,6 @@ class CcpCmdSequence extends ArrayList<CcpCommandBase> {
                    failure. */
                 mta = 0xFFFFFFFFFFFFFFFFl;
             }
-_logger.info("Supply this mta: {}", mta);
             return mta;
         };
         
@@ -336,7 +350,9 @@ _logger.info("Supply this mta: {}", mta);
 
         /* Add a CCP DOWNLOAD command to transfer the key to the target. */
         final CcpCommandArgs.CcpCommandDownloadKey argsDownload = 
-                                        new CcpCommandArgs.CcpCommandDownloadKey(supplierSeed);
+                                  new CcpCommandArgs.CcpCommandDownloadKey( digitalSignature
+                                                                          , supplierSeed
+                                                                          );
         add(ccpCmdFactory_.create(argsDownload));
         
     } /* diagServiceAuthenticate */

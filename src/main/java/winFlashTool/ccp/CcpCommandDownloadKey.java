@@ -27,6 +27,8 @@ package winFlashTool.ccp;
 
 import java.util.*;
 import org.apache.logging.log4j.*;
+import winFlashTool.digitalSignature.DigitalSignature;
+import winFlashTool.basics.Basics;
 
 /**
  * Calculate and download the key for authentication to the ECU using CCP commands DOWNLOAD
@@ -75,19 +77,28 @@ public class CcpCommandDownloadKey extends CcpCommandsDownloadProgram {
         /* Fetch the seed from the preceding UPLOAD command. */
         byte[] seed = cmdArgs_.supplierSeed().get();
         
-        /* Calculate the key fom the seed. */
-        // @todo Add crypto here
+        /* Calculate the key from the seed. */
+        DigitalSignature digSignature = cmdArgs_.digitalSignature();
         assert dataKey_ == null;
-        dataKey_ = new byte[SIZE_OF_KEY];
-        for (int i=0; i<dataKey_.length; ++i) {
-            dataKey_[i] = (byte)i;
+        byte[] dataKey_ = digSignature.calculateSignature(seed);
+        if (dataKey_ != null) {
+            /* Provide the data buffer for download to the super class. */
+            setData(dataKey_);
+
+// @todo Remove after testing
+dataKey_ = new byte[SIZE_OF_KEY];
+for (int i=0; i<dataKey_.length; ++i) {
+    dataKey_[i] = (byte)i;
+}
+_logger.info("Key to download:{}", Basics.byteArrayToHex(dataKey_));
+            
+            /* Communication setup is done by the normal DOWNLOAD command. */
+            return super.setup();
+        } else {            
+            return CcpCroTransmitter.ResultTransmission.ERROR_AUTHENTICATION;
         }
+            
         
-        /* Provide the data buffer for download to the super class. */
-        setData(dataKey_);
-        
-        /* Communication setup is done by the normal DOWNLOAD command. */
-        return super.setup();
         
     } /* setup */
 
