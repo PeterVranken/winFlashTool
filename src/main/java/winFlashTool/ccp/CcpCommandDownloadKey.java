@@ -86,10 +86,10 @@ public class CcpCommandDownloadKey extends CcpCommandsDownloadProgram {
             setData(dataKey_);
 
 // @todo Remove after testing
-dataKey_ = new byte[SIZE_OF_KEY];
-for (int i=0; i<dataKey_.length; ++i) {
-    dataKey_[i] = (byte)i;
-}
+//dataKey_ = new byte[SIZE_OF_KEY];
+//for (int i=0; i<dataKey_.length; ++i) {
+//    dataKey_[i] = (byte)i;
+//}
 _logger.info("Key to download:{}", Basics.byteArrayToHex(dataKey_));
             
             /* Communication setup is done by the normal DOWNLOAD command. */

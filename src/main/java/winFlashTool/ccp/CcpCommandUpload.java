@@ -215,6 +215,8 @@ public class CcpCommandUpload extends CcpCommandBase
                              , mta0()
                              );
             } else {
+                /* We don't have an MTA if this is an UPLOAD of the result of a
+                   DIAG_SERVICE or ACTION_SERVICE. */
                 _logger.trace( "DTO message received with {} Byte of data. {} Byte remaining."
                              , noBytesThisTime_
                              , noBytesToUpload_ - noBytesThisTime_
@@ -250,11 +252,19 @@ public class CcpCommandUpload extends CcpCommandBase
             /* The connect CRO/DTO exchange failed. The reason has been logged. Nothing
                else to do. */
             errCnt().error();
-            _logger.printf( Level.ERROR
-                          , "Can't upload data from the ECU. Failing memory address is"
-                            + " 0x%06X. See previous error messages for details." 
-                          , mta0()
-                          );
+            if (isValidMta0()) {
+                _logger.printf( Level.ERROR
+                              , "Can't upload data from the ECU. Failing memory address is"
+                                + " 0x%06X. See previous error messages for details." 
+                              , mta0()
+                              );
+            } else {
+                /* We don't have an MTA if this is an UPLOAD of the result of a
+                   DIAG_SERVICE or ACTION_SERVICE. */
+                _logger.error("Can't upload data from the ECU. See previous error messages"
+                              + " for details."
+                             );
+            }
         } else {
             /* DTO has not been received yet. We continue polling. */
         }

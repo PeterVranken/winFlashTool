@@ -23,6 +23,7 @@
  *   eraseProgramAndVerify
  *   upload
  *   diagServiceGetVersion
+ *   diagServiceAuthenticate
  */
 
 package winFlashTool.ccp;

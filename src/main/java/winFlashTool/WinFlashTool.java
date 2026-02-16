@@ -352,18 +352,6 @@ public class WinFlashTool
               + "\nThe application stops after generating the key pair."
               + "\nOptional, default is not to generate a key pair."
             );
-//        clp.defineArgument
-//            ( "$(point)", ""
-//            , /* cntMin, cntMax */ 0, -1
-//            , /* defaultValue */ null
-//            , ""
-//              + " "
-//              + " "
-//              + " "
-//              + ".\nOptional, default is"
-//              + " "
-//              + ".\nThis parameter is mandatory unless --enumerate-CAN-devices is given."
-//            );
 
         /* No unnamed arguments are expected. */
         //clp.defineArgument( /* cntMin, cntMax */ 0, -1

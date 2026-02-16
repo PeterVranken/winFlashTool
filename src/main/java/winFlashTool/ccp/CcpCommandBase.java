@@ -270,8 +270,7 @@ abstract class CcpCommandBase
      */
     int getRequiredTimeoutCroTillDto() {
         return 500;
-
-    } /* CcpCroTransmitter.CcpCroTransmitter */
+    }
 
     /**
      * The CCP command is started. After return from start(), the caller will repeatedly

@@ -52,11 +52,9 @@ public class CcpCommandClearMemory extends CcpCommandBase
      *   @param args
      * A record with all required configuration data.
      */
-    protected CcpCommandClearMemory(CcpCommandArgs.ClearMemory args)
-    {
+    protected CcpCommandClearMemory(CcpCommandArgs.ClearMemory args) {
         args_ = args;
-
-    } /* CcpCommandClearMemory.CcpCommandClearMemory */
+    }
 
     /**
      * Get the timeout value for the time span between sending CRO and receiving DTO, that
@@ -72,7 +70,7 @@ public class CcpCommandClearMemory extends CcpCommandBase
            only on completion. This requires a timeout of several seconds. */
         return 30/*s*/ * 1000;
 
-    } /* CcpCroTransmitter.CcpCroTransmitter */
+    } /* getRequiredTimeoutCroTillDto */
 
     /**
      * The CCP command is initiated. After return from setup(), the caller will repeatedly

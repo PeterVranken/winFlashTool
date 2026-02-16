@@ -276,6 +276,8 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
                     resultTxRx = CcpCroTransmitter.ResultTransmission.PENDING;
                 }
             } else {
+                setMta0(newMta);
+                
                 /* There is a communication problem. We abort the download. */
                 errCnt().error();
                 _logger.printf( Level.ERROR
@@ -286,8 +288,7 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
                               );
                 resultTxRx = CcpCroTransmitter.ResultTransmission.ERROR_BAD_MTA_UPDATE;
             }
-        }
-        else if (resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING) {
+        } else if (resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING) {
             /* The connect CRO/DTO exchange failed. The reason has been logged. Nothing
                else to do. */
             errCnt().error();
@@ -305,6 +306,15 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
         return resultTxRx;
 
     } /* step */
+
+@Override
+int getRequiredTimeoutCroTillDto() {
+
+    /* CLEAR_MEMORY is a blocking operation in our flash bootloader. The DTO is sent
+       only on completion. This requires a timeout of several seconds. */
+    return 5/*s*/ * 1000;
+
+} /* CcpCroTransmitter.CcpCroTransmitter */
 
 
     /**
