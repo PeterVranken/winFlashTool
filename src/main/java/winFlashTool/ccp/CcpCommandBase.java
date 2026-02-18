@@ -2,7 +2,7 @@
  * @file CcpCommandBase.java
  * The common functions of the implementation of a CCP command.
  *
- * Copyright (C) 2025 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
+ * Copyright (C) 2025-2026 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by the
@@ -27,6 +27,7 @@
  *   setMta0
  *   invalidateMta0
  *   isValidMta0
+ *   setIgnoreCanRxErrors
  *   sendCro
  *   checkRxDto
  *   isSkippedInDryRun
@@ -129,12 +130,17 @@ abstract class CcpCommandBase
         created by the same factory object. */
     private CcpCommandToolbox toolbox_;
 
+    /** The minimum timeout from CRO till DTO in case a CONNECT is sent and acknowledge
+        errors should be ignored. Unit is Millisecond. */
+    private int timeoutCroToDtoWhenIgnoreAckErr_;
+    
     /**
      * A new instance of CcpCommandBase is created.
      */
     protected CcpCommandBase()
     {
         toolbox_ = null;
+        timeoutCroToDtoWhenIgnoreAckErr_ = 0;
 
     } /* CcpCommandBase.CcpCommandBase */
 
@@ -217,6 +223,41 @@ abstract class CcpCommandBase
     }
 
     /**
+     * Set the command counter of the next sent CRO message.<p>
+     *   This method is an option for fine-control of setting the command counter. For
+     * normal use, it is not required; if not used, the counter is (cyclically) incremented
+     * after each sent CRO.
+     *   @param newValue
+     * The next CRO will have this counter value.
+     */
+    void setCroCmdCounter(int newValue) {
+        toolbox_.croTransmitter_.setCroCmdCounter(newValue);
+    }
+    
+    /**
+     * Enable or disable the mode, in which CAN Rx errors for expected DTO messages are
+     * ignored.
+     *   @return
+     * Get the state on entry into the method.
+     *   @param ignoreCanRxErrs
+     * Pass true to enable the mode and false to disable it again. (It's initially off.)
+     *   @param timeoutCroToDtoWhenIgnoreAckErrInMs
+     * The mode ignoring-CAN-Rx-errors makes barely sense with the usual short timeouts.
+     * Therefore, a new minimal timeout from CRO till DTO can be set, which overrides any
+     * normal, shorter timeout, as long as this mode is enabled.
+     */
+    boolean setIgnoreCanRxErrors( boolean ignoreCanRxErrs
+                                , int timeoutCroToDtoWhenIgnoreAckErrInMs
+                                ) {
+        if (ignoreCanRxErrs) {
+            timeoutCroToDtoWhenIgnoreAckErr_ = timeoutCroToDtoWhenIgnoreAckErrInMs;
+        } else {
+            timeoutCroToDtoWhenIgnoreAckErr_ = 0;
+        }
+        return toolbox_.croTransmitter_.setIgnoreCanRxErrors(ignoreCanRxErrs);
+    }
+
+    /**
      * Send a CRO message. The payload of the CAN message is taken from _payloadCroAry
      *   @param noContentBytes
      * The number of meaningful payload bytes in _payloadCroAry. The remaining bytes will
@@ -266,10 +307,10 @@ abstract class CcpCommandBase
      * is Milliseconds.
      *   @note
      * The method is intended for being overridden by the actual commands. The default
-     * implementation in the base class requests a timeout of 500 ms.
+     * implementation in the base class requests a timeout of 1s.
      */
     int getRequiredTimeoutCroTillDto() {
-        return 500;
+        return 1000;
     }
 
     /**
@@ -287,8 +328,16 @@ abstract class CcpCommandBase
      * pointless UPLOAD of zero Byte is commanded.
      */
     public final CcpCroTransmitter.ResultTransmission start() {
-        /* Configure the CCP timeout as required by the actual, derived CCP command. */
-        final int timeoutTillRxDtoInMs = getRequiredTimeoutCroTillDto();
+        /* Configure the CCP timeout as required by the actual, derived CCP command.
+             If the ignore-error mode is used to benefit from automatic CAN re-transmit
+           then it doesn't make sense to have a short timeout at the same time. We use a
+           lower boundary for the time we wait for the DTO of a CRO CONNECT. */
+        int timeoutTillRxDtoInMs = getRequiredTimeoutCroTillDto();
+        if (toolbox_.croTransmitter_.getIgnoreCanRxErrors()) {
+            timeoutTillRxDtoInMs = Math.max( timeoutTillRxDtoInMs
+                                           , timeoutCroToDtoWhenIgnoreAckErr_
+                                           );
+        }
         _logger.debug("Setting timeout CRO to DTO to {} ms.", timeoutTillRxDtoInMs);
         toolbox_.croTransmitter_.setTimeoutCroTillDto(timeoutTillRxDtoInMs);
 

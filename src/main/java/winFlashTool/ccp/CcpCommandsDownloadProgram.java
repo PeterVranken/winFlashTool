@@ -34,7 +34,7 @@ import java.util.Set;
 import java.util.HashSet;
 import org.apache.logging.log4j.*;
 import winFlashTool.basics.ErrorCounter;
-import winFlashTool.can.PCANBasicEx;
+import winFlashTool.basics.Basics;
 
 /**
  * Download a number of bytes to the ECU using CCP commands DOWNLOAD, DOWNLOAD_6, PROGRAM
@@ -235,10 +235,10 @@ public class CcpCommandsDownloadProgram extends CcpCommandBase
         if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS) {
             /* The new MTA is returned as 4 bytes with MSB endianess. */
             final byte[] payloadDtoAry = payloadDtoAry();
-            final int newMta = (PCANBasicEx.b2i(payloadDtoAry[4]) << 24)
-                               + (PCANBasicEx.b2i(payloadDtoAry[5]) << 16)
-                               + (PCANBasicEx.b2i(payloadDtoAry[6]) <<  8)
-                               + (PCANBasicEx.b2i(payloadDtoAry[7]) <<  0);
+            final int newMta = (Basics.b2i(payloadDtoAry[4]) << 24)
+                               + (Basics.b2i(payloadDtoAry[5]) << 16)
+                               + (Basics.b2i(payloadDtoAry[6]) <<  8)
+                               + (Basics.b2i(payloadDtoAry[7]) <<  0);
 
             _logger.printf( Level.TRACE
                           , "ECU acknowledges data transfer. New MTA is 0x%06X."

@@ -206,7 +206,7 @@ public class WinFlashTool
             , "The CAN device configuration. If classic CAN is used then this argument is"
               + " a simple integral number specifying the CAN Baud rate in kBd. If CAN FD is"
               + " used then this is the configuration string as defined by the PCAN Basic"
-              + " API. Please see PCAN dcoumentation for details."
+              + " API. Please see PCAN documentation for details."
               + "\nOptional, default is using classic CAN with 500 kBd."
             );
         clp.defineArgument
@@ -226,11 +226,25 @@ public class WinFlashTool
               + "\nOptional, default is the 11 Bit ID 0x650."
             );
         clp.defineArgument
+            ( "ie", "ignore-ack-err-for-connect"
+            , /*cntMax*/ 1
+            , "Ignoring CAN Rx errors when sending the CCP CONNECT command and waiting"
+              + " for the response can simplify connecting to a target with a flash boot"
+              + " loader (FBL), which checks for a connection request only shortly out"
+              + " of reset."
+              + "\nIf this argument is used then repeated attempts to connect are counter"
+              + "-productive. Instead, a large timeout is required for the CCP CONNECT"
+              + " command. Therefore, the other argument --no-retries-ccp-connect is"
+              + " (ab)used to specify the new timeout; it is 5s times the"
+              + " specified number of a retries plus one."
+              + "\nOptional, default is aborting the connection attempt in case of CAN errors."
+            );
+        clp.defineArgument
             ( "sk", "key-file"
             , /*cntMin, cntMax*/ 0, 1
             , /*defaultValue*/ null
             , "The name of a file with the private key of the Ed25519 authentication"
-              + " procedure with the flash boot loader (FBL) in the target ECU."
+              + " procedure with the FBL in the target ECU."
               + "\nOptional, default is to not run through the authentication procedure with"
               + " the FBL."
             );
@@ -471,6 +485,8 @@ public class WinFlashTool
         final boolean eraseAll = cmdLineParser_.getBoolean("erase-all")
                     , verifyOnly = cmdLineParser_.getBoolean("verify-only")
                     , noVerify = cmdLineParser_.getBoolean("no-verify")
+                    , ignoreCanErrsDuringConnect =
+                                        cmdLineParser_.getBoolean("ignore-ack-err-for-connect")
                     , dryRun = cmdLineParser_.getBoolean("dry-run")
                     , taskUploadVersion = cmdLineParser_.getBoolean("upload-version-fbl")
                     , taskEnumCanDevices = cmdLineParser_.getBoolean("enumerate-CAN-devices")
@@ -594,6 +610,7 @@ public class WinFlashTool
                              , cmdLineParser_.getInteger("station-address")
                              , digSignature
                              , cmdLineParser_.getInteger("no-retries-ccp-connect")
+                             , ignoreCanErrsDuringConnect
                              , errCnt_
                              );
             } else {

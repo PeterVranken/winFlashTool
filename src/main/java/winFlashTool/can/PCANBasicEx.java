@@ -20,7 +20,6 @@
 /* Interface of class PCANBasicEx
  *   getPcanApi
  *   checkReturnCode (2 variants)
- *   b2i
  *   getFirstAvailableChannel
  *   printAttachedChannels
  *   identifyChannel (2 variants)
@@ -173,19 +172,6 @@ public class PCANBasicEx
     }
     
     
-    // @todo This should be moved into package basics
-    /**
-     * Convert the frequently used byte type into an unsigned integer.
-     *   @return
-     * Get the value of b as an int in the range 0..255.
-     *   @param b
-     * The byte value, which is a number -127..128 for Java.
-     */
-    public static int b2i(byte b) {
-        return (int)b & 0xFF;
-    }
-
-
     /**
      * Print a list of connected PEAK PCAN-USB devices into the application log.
      *   @return

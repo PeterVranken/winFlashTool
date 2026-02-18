@@ -31,7 +31,7 @@ import java.util.Set;
 import java.util.HashSet;
 import org.apache.logging.log4j.*;
 import winFlashTool.basics.ErrorCounter;
-import winFlashTool.can.PCANBasicEx;
+import winFlashTool.basics.Basics;
 
 /**
  * Initiate a diagnostc service in the ECU using CCP command DIAG_SERVICE.
@@ -146,7 +146,7 @@ public class CcpCommandDiagService extends CcpCommandBase {
         CcpCroTransmitter.ResultTransmission resultTxRx = checkRxDto();
         if (resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS) {
             final byte[] payloadDtoAry = payloadDtoAry();
-            sizeOfServiceResponse_ = PCANBasicEx.b2i(payloadDtoAry[3]);
+            sizeOfServiceResponse_ = Basics.b2i(payloadDtoAry[3]);
 
         } else if (resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING) {
             /* Invalidate the result. */
@@ -176,7 +176,7 @@ public class CcpCommandDiagService extends CcpCommandBase {
     @Override
     public String toString() {
         return "DIAG_SERVICE(serviceNumber=0x" 
-               + Integer.toHexString(PCANBasicEx.b2i(cmdArgs_.serviceNum())) + ")";
+               + Integer.toHexString(Basics.b2i(cmdArgs_.serviceNum())) + ")";
     }
 } /* End of class CcpCommandDiagService definition. */
 

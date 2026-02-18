@@ -559,8 +559,10 @@ public class CanDevice
      *  @param timeoutInMs
      * The function returns immediately if a message has already been received. Otherwise
      * it'll wait for reception of a message but no longer than this arguments allows. If
-     * after this time span still no mesage is received then the function returns with
-     * error code {@link PCANStatus.PCAN_ERROR_TIMEOUT}. Unit is Milliseconds.
+     * after this time span still no message is received then the function returns with
+     * error code {@link PCANStatus.PCAN_ERROR_TIMEOUT}. Unit is Milliseconds.<p>
+     *   The function will return TPCANStatus.PCAN_ERROR_QRCVEMPTY only if timeoutInMs is
+     * zero - and if no message is currently in the Rx queue.
      *   @note
      * Several messages may have been queued since the previous invocation of this method.
      * If the method returns a message then it is recommended to poll for all potentially
@@ -597,7 +599,7 @@ public class CanDevice
                                               , messageBuffer
                                               , timestampBuffer
                                               );
-        if (readStatus == TPCANStatus.PCAN_ERROR_QRCVEMPTY  && timeoutInMs > 0 && !gotSignal) {
+        if (readStatus == TPCANStatus.PCAN_ERROR_QRCVEMPTY  && timeoutInMs > 0) {
             readStatus = TPCANStatus.PCAN_ERROR_TIMEOUT;
         }
 

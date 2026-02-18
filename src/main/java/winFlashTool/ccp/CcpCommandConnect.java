@@ -104,6 +104,7 @@ public class CcpCommandConnect extends CcpCommandBase
 
         /* Send CAN CRO message with command CONNECT. */
         invalidateMta0();
+        setCroCmdCounter(0);
         final byte[] payloadCroAry = payloadCroAry();
         payloadCroAry[0] = CroCommandId.CONNECT.getCode();
         payloadCroAry[2] = (byte)(args_.stationAddr() & 0x00FF);

@@ -117,6 +117,22 @@ public class CCP {
     /** The down-counter of CONNECT attempts. */
     private int cntAttemptsToConnect_;
 
+    /** We can ignore CAN errors when checking for the reception of the DTO message for a
+        CCP CONNECT command. If this flag is set and if sending the CONNECT CRO leads to an
+        acknowledge error, we don't abort the communication but let the CAN transceiver
+        re-transmit the CRO message at maximum frequency. This mode is most useful when
+        connecting with a target, where the FBL becomes active on reset of the ECU but
+        checks the CAN bus for CCP requests only shortly. Using this mode, we can start the
+        flash tool and reset the target, while the flash tool is in ACK error and permanent
+        re-transmission. The FBL will safely catch one of the re-transmissions and accept
+        the connection. Note, this requires that there is no other CAN node connected to
+        the bus. */
+    private boolean ignoreCanErrsDuringConnect_;
+    
+    /** The minimum timeout from CRO till DTO in case a CONNECT is sent and acknowledge
+        errors should be ignored. Unit is Millisecond. */
+    private int timeoutCroToDtoWhenIgnoreCanErrs_;
+    
     /** The currently processed CCP command sequence. */
     CcpCmdSequence ccpCmdSequence_;
 
@@ -157,10 +173,22 @@ public class CCP {
               , int stationAddr
               , DigitalSignature digitalSignature
               , int noRetriesConnect
+              , boolean ignoreCanErrsDuringConnect
               , ErrorCounter errCnt 
               ) {
         stationAddr_ = stationAddr & 0xFFFF;
         digitalSignature_ = digitalSignature;
+        
+        /* Different retries with a short pause in between make little sense when we use
+           the mode with ignoring CAN Ack errors while waiting for the target being reset.
+           Now, it's more to the point to have a single attempt with very long timeout. We
+           (ab)use the command line option to set the number of attempts for controlling
+           the length of the timeout. */
+        timeoutCroToDtoWhenIgnoreCanErrs_ = (noRetriesConnect+1) * 5000;
+        ignoreCanErrsDuringConnect_ = ignoreCanErrsDuringConnect;
+        if (ignoreCanErrsDuringConnect) {
+            noRetriesConnect = 0;
+        }
         
         if (noRetriesConnect < 0  ||  noRetriesConnect > MAX_NO_RETRIES_CONNECT) {
             if (noRetriesConnect < 0) {
@@ -177,7 +205,6 @@ public class CCP {
         }
         noAttemptsToConnect_ = noRetriesConnect + 1;
         cntAttemptsToConnect_ = 0;
-
         errCnt_ = errCnt;
         state_ = StateFlashProcess.COMPLETED;
         cntState_ = 0;
@@ -350,6 +377,9 @@ public class CCP {
 
             final CcpCommandArgs.Connect args = new CcpCommandArgs.Connect(stationAddr_);
             currentCcpCmd_ = ccpCmdFactory_.create(args);
+            currentCcpCmd_.setIgnoreCanRxErrors( ignoreCanErrsDuringConnect_
+                                               , timeoutCroToDtoWhenIgnoreCanErrs_
+                                               );
             assert executeCcpCmd(): "CONNECT is assumed to be always executed";
             _logger.debug("Next executed CCP command: {}", currentCcpCmd_);
             resultTxRx = currentCcpCmd_.start();
@@ -358,12 +388,14 @@ public class CCP {
         }
 
         if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS) {
+            currentCcpCmd_.setIgnoreCanRxErrors(false, timeoutCroToDtoWhenIgnoreCanErrs_);
             currentCcpCmd_ = null;
             state_ = StateFlashProcess.COMMUNICATING_WITH_TARGET;
 
         } else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING) {
             /* The connect CRO/DTO exchange failed. The reason has been logged. We can
                retry after a while. */
+            currentCcpCmd_.setIgnoreCanRxErrors(false, timeoutCroToDtoWhenIgnoreCanErrs_);
             currentCcpCmd_ = null;
             if (cntAttemptsToConnect_ > 0) {
                 timerState_ = new TimeoutTimer(TIME_BETWEEN_CONNECT_IN_MS);

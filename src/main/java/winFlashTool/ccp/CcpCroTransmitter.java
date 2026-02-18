@@ -25,6 +25,9 @@
 /* Interface of class CcpCroTransmitter
  *   CcpCroTransmitter
  *   setTimeoutCroTillDto
+ *   setCroCmdCounter
+ *   getIgnoreCanRxErrors
+ *   setIgnoreCanRxErrors
  *   sendCro
  *   getDto
  */
@@ -39,6 +42,7 @@ import winFlashTool.basics.SignalWithAutoReset;
 import winFlashTool.can.CanId;
 import winFlashTool.can.CanDevice;
 import winFlashTool.can.PCANBasicEx;
+import winFlashTool.basics.Basics;
 
 /**
  * Base class of CCP communication: A command receive object (CRO message) is assembled
@@ -145,13 +149,28 @@ class CcpCroTransmitter
     /** A dummy message object, just needed to flush the Rx queue in case of protocol
         errors. */
     private final TPCANMsg tmpCanMsg_;
-            
+
     /** The length of all CRO and DTO messages. */
     private final static int MSG_LEN = 8;
 
     /** The maximum time, which may elapse after sending the CRO until the DTO arrives. Unit
         is Milliseconds. */
     private int timeoutTillRxDtoInMs_;
+
+    /** Ignore ACK error: If set and if sending the CRO leads to an acknowledge error, we
+        don't handle the CAN acknowledge error as an error and let the CAN transceiver
+        re-transmit the CRO at maximum frequency. This mode is most useful when sending the
+        CRO CONNECT to connect to an FBL, which becomes active on reset of the ECU but checks
+        the CAN bus for flash requests only shortly. Using this mode, we can start the
+        flash tool and reset the target, while the flash tool is in ACK error and permanent
+        re-transmission. The FBL will safely catch one of the re-transmissions and accept
+        the connection. Note, this requires that there is no other CAN node connected to
+        the bus. */
+    private boolean ignoreAckErr_;
+
+    /** Flag to avoid repeated feedback about suppressed error messages because of
+        ignoreAckErr_ being set. */
+    private boolean ackErrReported_;
 
     /**
      * A new instance of CcpCroTransmitter is created.
@@ -181,6 +200,8 @@ class CcpCroTransmitter
         tmpCanMsg_ = new TPCANMsg();
         timeoutTillRxDtoInMs_ = 1000;
         timerRxDtoTO_ = new TimeoutTimer(timeoutTillRxDtoInMs_);
+        ignoreAckErr_ = false;
+        ackErrReported_ = false;
 
         state_ = StateTransmission.IDLE;
 
@@ -201,6 +222,47 @@ class CcpCroTransmitter
 
     } /* CcpCroTransmitter.CcpCroTransmitter */
 
+
+    /**
+     * Set the command counter of the next sent CRO message.<p>
+     *   This method is an option for fine-control of setting the command counter. For
+     * normal use, it is not required; if not used, the counter is (cyclically) incremented
+     * after each sent CRO.
+     *   @param newValue
+     * The next CRO will have this counter value.
+     */
+    void setCroCmdCounter(int newValue) {
+        cmdCntr_ = (byte)(newValue & 0xFF);
+    }
+    
+    
+    /**
+     * Getter for the state of the mode, in which CAN Rx errors for expected DTO messages
+     * are ignored.
+     *   @return
+     * Get the current value of {@link ignoreAckErr_}.
+     */
+    boolean getIgnoreCanRxErrors() {
+        return ignoreAckErr_;
+    }
+
+
+    /**
+     * Enable or disable the mode, in which CAN Rx errors for expected DTO messages are
+     * ignored.
+     *   @return
+     * Get the state on entry into the method.
+     *   @param ignoreCanRxErrs
+     * Pass true to enable the mode and false to disable it again. (It's initially off.)
+     */
+    boolean setIgnoreCanRxErrors(boolean ignoreCanRxErrs) {
+        final boolean oldState = ignoreAckErr_;
+        ignoreAckErr_ = ignoreCanRxErrs;
+        ackErrReported_ = false;
+        return oldState;
+    }
+
+
     /**
      * Initiate a CRO Tx and DTO Rx exchange with the connected ECU.<p>
      *   This function sends the CRO and initailizes the state machine to handle the later
@@ -212,8 +274,7 @@ class CcpCroTransmitter
      *   @param noContentBytes
      * The number of used bytes in payloadAry. Range is 2..#MSG_LEN.
      */
-    public void sendCro(byte[] payloadAry, int noContentBytes)
-    {
+    public void sendCro(byte[] payloadAry, int noContentBytes) {
         assert noContentBytes >= 2  &&  noContentBytes <= MSG_LEN
              : "The number of payload bytes of a CRO message is limited.";
 
@@ -228,16 +289,16 @@ class CcpCroTransmitter
                                             , (byte)MSG_LEN
                                             , payloadAry
                                             );
-        final TPCANStatus errCode = canDev_.write(canMsg);
+        TPCANStatus errCode = canDev_.write(canMsg);
         tiResponseEcuInNs_ = System.nanoTime();
         if(PCANBasicEx.checkReturnCode(errCode))
         {
             /* Start timeout measurement till Rx of DTO. */
             timerRxDtoTO_.restart(timeoutTillRxDtoInMs_);
             _logger.trace( "Command {} with {} Byte payload send in CRO no {}."
-                         , PCANBasicEx.b2i(payloadAry[0])
+                         , Basics.b2i(payloadAry[0])
                          , noContentBytes
-                         , PCANBasicEx.b2i(payloadAry[1])
+                         , Basics.b2i(payloadAry[1])
                          );
             state_ = StateTransmission.WAITING_FOR_DTO;
         }
@@ -253,7 +314,7 @@ class CcpCroTransmitter
                return it like all later Rx related errors in method getDto(). This makes
                the usage of this class simpler. At the caller side, on entry into a CCP
                state, the next state can unconditionally be entered and it is left using
-               the anyway implemented transition logic of the enetred state. Otherwise we
+               the anyway implemented transition logic of the entered state. Otherwise we
                would have two transition logics, on entry and during the state. */
             state_ = StateTransmission.ERROR_TX_CRO;
         }
@@ -291,13 +352,33 @@ class CcpCroTransmitter
             assert state_ == StateTransmission.WAITING_FOR_DTO: "Bad use of class interface";
 
             /* Check PCANBasic API for Rx event. */
-            final TPCANStatus errCode = canDev_.read( canMsg
-                                                    , /*TimestampBuffer*/ null
-                                                    , /*timeoutInMs*/ 10
-                                                    );
-            if (errCode != TPCANStatus.PCAN_ERROR_QRCVEMPTY 
+            TPCANStatus errCode = canDev_.read( canMsg
+                                              , /*TimestampBuffer*/ null
+                                              , /*timeoutInMs*/ 10
+                                              );
+            if (ignoreAckErr_
                 &&  errCode != TPCANStatus.PCAN_ERROR_TIMEOUT
+                &&  errCode != TPCANStatus.PCAN_ERROR_OK
                ) {
+                if (!ackErrReported_) {
+                    ackErrReported_ = true;
+                    _logger.warn( "CAN Rx error {} is ignored, continue waiting for a DTO"
+                                  + " message"
+                                , errCode
+                                );
+                }
+                errCode = TPCANStatus.PCAN_ERROR_TIMEOUT;
+
+                /* Almost certainly, the (expected, tolerated) acknowledge error has been
+                   reported immediately but not after our wait timespan of 10ms. We make a
+                   short non-busy wait here in order to not end up with a busy-wait loop. */
+                try {
+                    Thread.sleep(10);
+                } catch(InterruptedException e) {
+                }
+            } /* if(Ignore CAN Rx errors?) */
+
+            if (errCode != TPCANStatus.PCAN_ERROR_TIMEOUT) {
                 tiResponseEcuInNs_ = System.nanoTime() - tiResponseEcuInNs_;
                 if (PCANBasicEx.checkReturnCode(errCode)) {
                     /* Checking the CAN ID is actually useless as the reception filter
@@ -325,10 +406,10 @@ class CcpCroTransmitter
                                            + " {}, but received packed"
                                            + " ID {}, response code {} and command counter"
                                            + " {}."
-                                         , PCANBasicEx.b2i(cmdCntrExpected)
-                                         , PCANBasicEx.b2i(payloadAry[0])
-                                         , PCANBasicEx.b2i(payloadAry[1])
-                                         , PCANBasicEx.b2i(payloadAry[2])
+                                         , Basics.b2i(cmdCntrExpected)
+                                         , Basics.b2i(payloadAry[0])
+                                         , Basics.b2i(payloadAry[1])
+                                         , Basics.b2i(payloadAry[2])
                                          );
 
                             result = payloadAry[1] != (byte)0
@@ -339,7 +420,7 @@ class CcpCroTransmitter
                         } else {
                             /* We received a proper DTO. It is returned to the caller. */
                             _logger.trace( "DTO for CRO no {} received after {}ns."
-                                         , PCANBasicEx.b2i(cmdCntrExpected)
+                                         , Basics.b2i(cmdCntrExpected)
                                          , tiResponseEcuInNs_
                                          );
                             result = ResultTransmission.SUCCESS;
@@ -392,17 +473,17 @@ class CcpCroTransmitter
                     state_ = StateTransmission.IDLE;
 
                 } /* if(CAN message reception without errors?) */
-                
+
             } else if(timerRxDtoTO_.hasTimedOut()) {
                 /* It took too long to receive the DTO. Report error and return to IDLE for
                    a repeated attempt. */
-                final int cmdCntrExpected = (PCANBasicEx.b2i(cmdCntr_) - 1) & 0xFF;
+                final int cmdCntrExpected = (Basics.b2i(cmdCntr_) - 1) & 0xFF;
                 _logger.error( "No DTO message received for CRO no {}. Timeout elapsed."
                              , cmdCntrExpected
                              );
                 result = ResultTransmission.ERROR_TIMEOUT;
                 state_ = StateTransmission.IDLE;
-                
+
             } else {
                 /* We remain in state WAITING_FOR_DTO. */
                 result = ResultTransmission.PENDING;

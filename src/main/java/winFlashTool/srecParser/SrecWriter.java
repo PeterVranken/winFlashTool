@@ -33,7 +33,7 @@ import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
 import winFlashTool.basics.ErrorCounter;
-import winFlashTool.can.PCANBasicEx;
+import winFlashTool.basics.Basics;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -165,7 +165,7 @@ public class SrecWriter {
 
         /* Write the data bytes. */
         for (int idxByte=0; idxByte<noBytes; ++idxByte) {
-            final int i = PCANBasicEx.b2i(data[idxByte]);
+            final int i = Basics.b2i(data[idxByte]);
             srec += String.format("%02X", i);
             sumOfBytes += i;
         }
