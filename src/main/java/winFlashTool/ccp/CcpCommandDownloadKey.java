@@ -85,13 +85,6 @@ public class CcpCommandDownloadKey extends CcpCommandsDownloadProgram {
             /* Provide the data buffer for download to the super class. */
             setData(dataKey_);
 
-// @todo Remove after testing
-//dataKey_ = new byte[SIZE_OF_KEY];
-//for (int i=0; i<dataKey_.length; ++i) {
-//    dataKey_[i] = (byte)i;
-//}
-_logger.info("Key to download:{}", Basics.byteArrayToHex(dataKey_));
-            
             /* Communication setup is done by the normal DOWNLOAD command. */
             return super.setup();
         } else {            
@@ -102,7 +95,7 @@ _logger.info("Key to download:{}", Basics.byteArrayToHex(dataKey_));
         
     } /* setup */
 
-} /* End of class CcpCommandDownloadKey definition. */
+} /* Class CcpCommandDownloadKey */
 
 
 

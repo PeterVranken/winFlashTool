@@ -52,11 +52,14 @@ class CcpCmdSequence extends ArrayList<CcpCommandBase> {
         will make use of the right CAN bus and using the same configuration. */
     private final CcpCommandFactory ccpCmdFactory_;
 
-    /** The diagnostic service number for uploading the FBL's version information. */
-    private final byte DIAG_SN_UPLOAD_VERSION_FBL = 0x00;
+    /** The diagnostic service number for uploading the seed for the authentication. */
+    private final static byte DIAG_SN_UPLOAD_SEED = 0x00;
 
-    /** The diagnostic service number for uploading the seed for the authorization. */
-    private final byte DIAG_SN_UPLOAD_SEED = 0x01;
+    /** The diagnostic service number for uploading the FBL's version information. */
+    private final static byte DIAG_SN_UPLOAD_VERSION_FBL = 0x01;
+
+    /** The diagnostic service number for resetting the target ECU. */
+    private final static byte DIAG_SN_RESET_ECU = 0x02;
 
     /**
      * A new instance of CcpCmdSequence is created.

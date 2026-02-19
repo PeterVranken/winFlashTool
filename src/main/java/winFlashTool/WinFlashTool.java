@@ -457,18 +457,6 @@ public class WinFlashTool
     public boolean run() {
         boolean success = true;
 
-//if (digSig.readPrivateKey("privateKey.sk")) {
-//    byte[] msg = new byte[10];
-//    for (int i=0; i<msg.length-1; ++i) {
-//        msg[i] = (byte)(i+1);
-//    }
-//    msg[msg.length-1] = 0;
-//    byte[] signature = digSig.calculateSignature(msg);
-//    if (signature != null) {
-//        _logger.info("Signature:{}", Basics.byteArrayToHex(signature));
-//    }
-//}
-
         if (success) {
             success = PCANBasicEx.initClass(errCnt_)
                       && CanDevice.initClass(errCnt_)
@@ -681,6 +669,9 @@ public class WinFlashTool
 
                 if (success) {
                     _logger.info("Data upload successfully completed.");
+                } else {
+                    errCnt_.error();
+                    _logger.error("Data upload failed.");
                 }
             } /* if(Is an upload commanded?) */
 
@@ -778,6 +769,9 @@ public class WinFlashTool
 
                 if (success) {
                     _logger.info("{} successfully completed.", task);
+                } else {
+                    errCnt_.error();
+                    _logger.error("{} failed.", task);
                 }
             } /* if(Is an erase all or download and program commanded?) */
 

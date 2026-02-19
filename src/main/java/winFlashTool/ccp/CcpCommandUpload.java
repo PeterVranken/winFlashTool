@@ -245,7 +245,7 @@ public class CcpCommandUpload extends CcpCommandBase
                     sendCro(/*noContentBytes*/ 3);
                     resultTxRx = CcpCroTransmitter.ResultTransmission.PENDING;
                 } else {
-                    _logger.info("TODO Make this message a trace. Upload done:{}", Basics.byteArrayToHex(dataUploaded_));
+                    _logger.trace("Upload done:{}", Basics.byteArrayToHex(dataUploaded_));
                 }
             }
         } else if (resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING) {

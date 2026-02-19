@@ -215,7 +215,7 @@ assert pubSpki.length == 44;
                                                    + " 64 Byte."
                                                   );
             }
-            _logger.info ( "TODO Make this verbosity trace! Signature for msg{} successfully calculated:{}."
+            _logger.trace( "Signature for msg{} successfully calculated:{}."
                          , Basics.byteArrayToHex(msg)
                          , Basics.byteArrayToHex(signature)
                          );

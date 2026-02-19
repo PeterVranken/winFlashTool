@@ -147,6 +147,11 @@ public class CcpCommandDiagService extends CcpCommandBase {
         if (resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS) {
             final byte[] payloadDtoAry = payloadDtoAry();
             sizeOfServiceResponse_ = Basics.b2i(payloadDtoAry[3]);
+            _logger.printf( Level.INFO
+                          , "Diagnostic service 0x%02X responds with %d Byte of data."
+                          , (int)cmdArgs_.serviceNum()
+                          , sizeOfServiceResponse_
+                          );
 
         } else if (resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING) {
             /* Invalidate the result. */
@@ -178,7 +183,7 @@ public class CcpCommandDiagService extends CcpCommandBase {
         return "DIAG_SERVICE(serviceNumber=0x" 
                + Integer.toHexString(Basics.b2i(cmdArgs_.serviceNum())) + ")";
     }
-} /* End of class CcpCommandDiagService definition. */
+} /* Class CcpCommandDiagService. */
 
 
 
