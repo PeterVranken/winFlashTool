@@ -83,7 +83,7 @@ public class Mpc5748G_C55FMC extends Flash {
              , new Range(0x00FAC000, 0x00FB0000), Integer.valueOf(3), Boolean.valueOf(false) /* 16KB Code Flash block */
              , new Range(0x00FB0000, 0x00FB8000), Integer.valueOf(2), Boolean.valueOf(false) /* 32KB Code Flash block */
              , new Range(0x00FB8000, 0x00FC0000), Integer.valueOf(3), Boolean.valueOf(false) /* 32KB Code Flash block */
-             , new Range(0x00FC0000, 0x00FC8000), Integer.valueOf(0), Boolean.valueOf(true)  /* 32KB Code Flash block */
+             , new Range(0x00FC0000, 0x00FC8000), Integer.valueOf(0), Boolean.valueOf(false) /* 32KB Code Flash block */
              , new Range(0x00FC8000, 0x00FD0000), Integer.valueOf(0), Boolean.valueOf(true)  /* 32KB Code Flash block */
              , new Range(0x00FD0000, 0x00FD8000), Integer.valueOf(1), Boolean.valueOf(true)  /* 32KB Code Flash block */
              , new Range(0x00FD8000, 0x00FE0000), Integer.valueOf(1), Boolean.valueOf(true)  /* 32KB Code Flash block */
