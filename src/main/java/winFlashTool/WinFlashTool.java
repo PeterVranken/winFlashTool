@@ -210,7 +210,7 @@ public class WinFlashTool
               + "\nOptional, default is using classic CAN with 500 kBd."
             );
         clp.defineArgument
-            ( "t", "CAN-ID-CRO"
+            ( "tx", "CAN-ID-CRO"
             , /*cntMin, cntMax*/ 0, 1
             , /*defaultValue*/ 0x600
             , "The CAN ID for all CCP CRO Tx messages. Please note, extended CAN IDs are not"
@@ -218,7 +218,7 @@ public class WinFlashTool
               + "\nOptional, default is the 11 Bit ID 0x600."
             );
         clp.defineArgument
-            ( "r", "CAN-ID-DTO"
+            ( "rx", "CAN-ID-DTO"
             , /*cntMin, cntMax*/ 0, 1
             , /*defaultValue*/ 0x650
             , "The CAN ID for all CCP DTO Rx messages. Please note, extended CAN IDs are not"
@@ -238,6 +238,21 @@ public class WinFlashTool
               + " (ab)used to specify the new timeout; it is 5s times the"
               + " specified number of a retries plus one."
               + "\nOptional, default is aborting the connection attempt in case of CAN errors."
+            );
+        clp.defineArgument
+            ( "nr", "no-retries-ccp-connect"
+            , /*cntMin, cntMax*/ 0, 1
+            , /*defaultValue*/ 2
+            , "The number of re-tries (after short delay) if the initial CCP connect fails."
+              + " The supported range is [0, 10]"
+              + "\nOptional, default is 2."
+            );
+        clp.defineArgument
+            ( "a", "station-address"
+            , /*cntMin, cntMax*/ 0, 1
+            , /*defaultValue*/ 0
+            , "The 16 Bit station address of the CCP target."
+              + "\nOptional, default is station address 0."
             );
         clp.defineArgument
             ( "sk", "key-file"
@@ -268,6 +283,16 @@ public class WinFlashTool
               + "\nIf this argument is combined with a command to erase and/or program"
               + " the flash ROM, then the upload is done first, prior to modifying the flash"
               + " ROM contents."
+            );
+        clp.defineArgument
+            ( "u", "address-range"
+            , /*cntMin, cntMax*/ 0, Integer.MAX_VALUE
+            , /*defaultValue*/ ""
+            , "Address range for upload. A colon-separated pair of two hexadecimal"
+              + " addresses, from:to, e.g., 00800000:008E0000. This argument can be used"
+              + " any number of times."
+              + "\nThis argument is mandatory if the other argument srec-output-file is used"
+              + " to command an upload."
             );
         clp.defineArgument
             ( "i", "srec-input-file"
@@ -308,15 +333,19 @@ public class WinFlashTool
               + " the srec file."
             );
         clp.defineArgument
-            ( "dev", "enumerate-CAN-devices"
-            , /*cntMax*/ 1
-            , "If given, then the application will only search for connected, available"
-              + " CAN devices. It stops after listing available devices."
-              + "\nIf --CAN-device is given, too, then the identification mode is"
-              + " enabled: The LED on the selected device will blink in orange for a"
-              + " short while before the application terminates."
-              + "\nUseful for a check of the setup."
-              + "\nOptional, default is false."
+            ( "r", "reset-target-ECU"
+            , /*cntMin, cntMax*/ 0, 1
+            , /*defaultVal*/ null
+            , "If given, then communication with the ECU ends with a request for reset."
+              + " The reset request has an argument, which is either \"APP\" or \"FBL\"."
+              + " The argument commands the FBL to either launch the flashed application"
+              + " or itself again after reset."
+              + "\nThis command depends on the FBL in the target ECU. The flash tool just"
+              + " subimits the CCP command DIAG_SERVICE with service number 8 (APP) or 2"
+              + " (FBL). It depends on the FBL implementation, how it reacts on these"
+              + " commands."
+              + "\nOptional, default is not to reset at the end of operation of the flash"
+              + " tool."
             );
         clp.defineArgument
             ( "n", "dry-run"
@@ -329,29 +358,15 @@ public class WinFlashTool
               + "\nOptional, default is normal operation."
             );
         clp.defineArgument
-            ( "a", "station-address"
-            , /*cntMin, cntMax*/ 0, 1
-            , /*defaultValue*/ 0
-            , "The 16 Bit station address of the CCP target."
-              + "\nOptional, default is station address 0."
-            );
-        clp.defineArgument
-            ( "nr", "no-retries-ccp-connect"
-            , /*cntMin, cntMax*/ 0, 1
-            , /*defaultValue*/ 2
-            , "The number of re-tries (after short delay) if the initial CCP connect fails."
-              + " The supported range is [0, 10]"
-              + "\nOptional, default is 2."
-            );
-        clp.defineArgument
-            ( "u", "address-range"
-            , /*cntMin, cntMax*/ 0, Integer.MAX_VALUE
-            , /*defaultValue*/ ""
-            , "Address range for upload. A colon-separated pair of two hexadecimal"
-              + " addresses, from:to, e.g., 00800000:008E0000. This argument can be used"
-              + " any number of times."
-              + "\nThis argument is mandatory if the other argument srec-output-file is used"
-              + " to command an upload."
+            ( "dev", "enumerate-CAN-devices"
+            , /*cntMax*/ 1
+            , "If given, then the application will only search for connected, available"
+              + " CAN devices. It stops after listing available devices."
+              + "\nIf --CAN-device is given, too, then the identification mode is"
+              + " enabled: The LED on the selected device will blink in orange for a"
+              + " short while before the application terminates."
+              + "\nUseful for a check of the setup."
+              + "\nOptional, default is false."
             );
         clp.defineArgument
             ( "kp", "generate-key-pair"
@@ -469,12 +484,15 @@ public class WinFlashTool
         final String srecInputFileName = cmdLineParser_.getString("srec-input-file")
                    , srecOutputFileName = cmdLineParser_.getString("srec-output-file")
                    , newPrivKeyFileName = cmdLineParser_.getString("generate-key-pair")
-                   , privateKeyFileName = cmdLineParser_.getString("key-file");
+                   , privateKeyFileName = cmdLineParser_.getString("key-file")
+                   , resetEcu = cmdLineParser_.getString("reset-target-ECU");
         final boolean eraseAll = cmdLineParser_.getBoolean("erase-all")
                     , verifyOnly = cmdLineParser_.getBoolean("verify-only")
                     , noVerify = cmdLineParser_.getBoolean("no-verify")
                     , ignoreCanErrsDuringConnect =
                                         cmdLineParser_.getBoolean("ignore-ack-err-for-connect")
+                    , doReset = resetEcu != null
+                    , doResetToApp = doReset && resetEcu.equalsIgnoreCase("APP")
                     , dryRun = cmdLineParser_.getBoolean("dry-run")
                     , taskUploadVersion = cmdLineParser_.getBoolean("upload-version-fbl")
                     , taskEnumCanDevices = cmdLineParser_.getBoolean("enumerate-CAN-devices")
@@ -491,6 +509,10 @@ public class WinFlashTool
                     , isAnyTaskTaskSpecified = isNormalFlashTaskSpecified
                                                || taskEnumCanDevices
                                                || taskGenerateKeyPair;
+// See CCP.eraseAndProgram
+_logger.warn("Preliminary integration of ECU reset command: Is unconditionally done"
+             + " after programming. Related command line arguments are ignored."
+            );
 
         if (verifyOnly &&  srecInputFileName == null) {
             success = false;

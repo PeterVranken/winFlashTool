@@ -24,6 +24,7 @@
  *   upload
  *   diagServiceGetVersion
  *   diagServiceAuthenticate
+ *   diagServiceResetTarget
  */
 
 package winFlashTool.ccp;
@@ -58,8 +59,13 @@ class CcpCmdSequence extends ArrayList<CcpCommandBase> {
     /** The diagnostic service number for uploading the FBL's version information. */
     private final static byte DIAG_SN_UPLOAD_VERSION_FBL = 0x01;
 
-    /** The diagnostic service number for resetting the target ECU. */
-    private final static byte DIAG_SN_RESET_ECU = 0x02;
+    /** The diagnostic service number for resetting the target ECU. The FBL should be
+        launched after reset. */
+    private final static byte DIAG_SN_RESET_TARGET_TO_FBL = 0x02;
+
+    /** The diagnostic service number for resetting the target ECU. The flashed application
+        should be launched after reset. */
+    private final static byte DIAG_SN_RESET_TARGET_TO_APP = 0x08;
 
     /**
      * A new instance of CcpCmdSequence is created.
@@ -79,7 +85,7 @@ class CcpCmdSequence extends ArrayList<CcpCommandBase> {
     {
         super(10);
         ccpCmdFactory_ = ccpCmdFactory;
-        
+
         /* Add the authentication procedure as very first part of the CCP communication. */
         if (digitalSignature != null) {
             diagServiceAuthenticate(digitalSignature);
@@ -310,7 +316,7 @@ class CcpCmdSequence extends ArrayList<CcpCommandBase> {
             }
             return seed;
         };
-        
+
         /* We create a supplier object, which can later fetch the upload address for the
            key from the at that time uploaded response of the CCP command DIAG_SERVICE. */
         final LongSupplier supplierMta = () -> {
@@ -336,7 +342,7 @@ class CcpCmdSequence extends ArrayList<CcpCommandBase> {
             }
             return mta;
         };
-        
+
         /* Add a CCP upload command, which fetches the response of the diagnostic service.
            The MTA has already been set by the DIAG_SERVICE command. */
         final CcpCommandArgs.Upload argsUpload =
@@ -344,7 +350,7 @@ class CcpCmdSequence extends ArrayList<CcpCommandBase> {
                                                              , /*isVerify*/ false
                                                              );
         add(ccpCmdFactory_.create(argsUpload));
-        
+
         /* Add a CCP SET_MTA command to set the upload address for the key in the target. */
         final CcpCommandArgs.SetMta argsSetMta = new CcpCommandArgs.SetMta( supplierMta
                                                                           , /*addressExt*/ 0
@@ -353,12 +359,30 @@ class CcpCmdSequence extends ArrayList<CcpCommandBase> {
         add(ccpCmdFactory_.create(argsSetMta));
 
         /* Add a CCP DOWNLOAD command to transfer the key to the target. */
-        final CcpCommandArgs.CcpCommandDownloadKey argsDownload = 
+        final CcpCommandArgs.CcpCommandDownloadKey argsDownload =
                                   new CcpCommandArgs.CcpCommandDownloadKey( digitalSignature
                                                                           , supplierSeed
                                                                           );
         add(ccpCmdFactory_.create(argsDownload));
-        
+
     } /* diagServiceAuthenticate */
 
+    /**
+     * Add the CCP command sequence needed for resetting the traget ECU.
+     *   @param resetToApplication
+     * The ECU can be commanded to launch either a flashed application (pass true) or the
+     * flash boot loader (pass false) after reset.
+     */
+    void diagServiceResetTarget(boolean resetToApplication) {
+        final CcpCommandArgs.DiagService argsDiagService =
+                                new CcpCommandArgs.DiagService( /*serviceNum*/
+                                                                resetToApplication
+                                                                ? DIAG_SN_RESET_TARGET_TO_APP
+                                                                : DIAG_SN_RESET_TARGET_TO_FBL
+                                                              , /*argAry*/ null
+                                                              );
+        final CcpCommandDiagService ccpCmdDiagService = ccpCmdFactory_.create(argsDiagService);
+        add(ccpCmdDiagService);
+
+    } /* diagServiceResetTarget */
 } /* End of class CcpCmdSequence definition. */

@@ -282,6 +282,7 @@ public class CCP {
                                              , doVerify
                                              , program
                                              );
+ccpCmdSequence_.diagServiceResetTarget(/*resetToApplication*/ true);
         state_ = StateFlashProcess.START;
 
     } /* eraseAndProgram */
