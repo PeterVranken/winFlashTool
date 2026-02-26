@@ -33,29 +33,28 @@ import java.util.*;
 import java.io.*;
 import java.text.*;
 import java.util.function.Supplier;
-import winFlashTool.mcu.Flash;
-import winFlashTool.mcu.Mpc5775BE_C55FMC;
-import winFlashTool.mcu.Mpc5748G_C55FMC;
-import winFlashTool.digitalSignature.DigitalSignature;
-
 import org.apache.logging.log4j.*;
+
+import peak.can.basic.TPCANBaudrate;
+import peak.can.basic.TPCANHandle;
+import winFlashTool.applicationInterface.AddressRangeSequence;
 import winFlashTool.applicationInterface.cmdLineParser.CmdLineParser;
 import winFlashTool.applicationInterface.loggerConfiguration.Log4j2Configurator;
+import winFlashTool.basics.Basics;
+import winFlashTool.basics.ErrorCounter;
+import winFlashTool.can.CanDevice;
+import winFlashTool.can.CanId;
 import winFlashTool.can.PCANBasicEx;
 import winFlashTool.ccp.CCP;
-//import winFlashTool.ccp.CcpCroTransmitter;
-import winFlashTool.basics.ErrorCounter;
+import winFlashTool.digitalSignature.DigitalSignature;
+import winFlashTool.mcu.Flash;
+import winFlashTool.mcu.Mpc5748G_C55FMC;
+import winFlashTool.mcu.Mpc5775BE_C55FMC;
+import winFlashTool.srecParser.EraseSectorSequence;
 import winFlashTool.srecParser.MemoryMap;
 import winFlashTool.srecParser.SRecord;
 import winFlashTool.srecParser.SRecordSequence;
-import winFlashTool.can.CanDevice;
-import winFlashTool.can.CanId;
-import peak.can.basic.TPCANHandle;
-import peak.can.basic.TPCANBaudrate;
-import winFlashTool.applicationInterface.AddressRangeSequence;
 import winFlashTool.srecParser.SrecWriter;
-import winFlashTool.srecParser.EraseSectorSequence;
-import winFlashTool.basics.Basics;
 
 /**
  * This class has a main function, which implements the excel exporter application.
@@ -341,7 +340,7 @@ public class WinFlashTool
               + " The argument commands the FBL to either launch the flashed application"
               + " or itself again after reset."
               + "\nThis command depends on the FBL in the target ECU. The flash tool just"
-              + " subimits the CCP command DIAG_SERVICE with service number 8 (APP) or 2"
+              + " submits the CCP command DIAG_SERVICE with service number 8 (APP) or 2"
               + " (FBL). It depends on the FBL implementation, how it reacts on these"
               + " commands."
               + "\nOptional, default is not to reset at the end of operation of the flash"
@@ -470,7 +469,9 @@ public class WinFlashTool
      * <b>true</b>, if method succeeded, else <b>false</b>.
      */
     public boolean run() {
-        boolean success = true;
+
+        TaskMgr taskMgr = new TaskMgr(errCnt_);
+        boolean success = taskMgr.evaluateCmdLine(cmdLineParser_);
 
         if (success) {
             success = PCANBasicEx.initClass(errCnt_)
@@ -480,162 +481,40 @@ public class WinFlashTool
 
         final String canDeviceName = cmdLineParser_.getString("CAN-device");
 
-        class TaskMgr {
-            public final boolean enumCanDevices;
-            public final boolean generateKeyPair;
-                   
-            public final boolean uploadVersion;
-            public final boolean upload;
-            public final boolean program;
-            public final boolean verify;
-            public final boolean eraseOnly;
-            
-            private final boolean doReset_;
-            
-            TaskMgr(CmdLineParser cmdLine) {
-                /* Check command line to find out, which tasks are commanded. */
-                final String srecInputFileName = cmdLine.getString("srec-input-file")
-                           , srecOutputFileName = cmdLine.getString("srec-output-file")
-                           , newPrivKeyFileName = cmdLine.getString("generate-key-pair")
-                           , resetEcu = cmdLine.getString("reset-target-ECU");
-                final boolean eraseAll = cmdLine.getBoolean("erase-all")
-                            , verifyOnly = cmdLine.getBoolean("verify-only");
-                        
-                doReset_ = resetEcu != null;
-                uploadVersion = cmdLine.getBoolean("upload-version-fbl");
-                enumCanDevices = cmdLine.getBoolean("enumerate-CAN-devices");
-                generateKeyPair = newPrivKeyFileName != null;
-                upload = srecOutputFileName != null;
-                program = srecInputFileName != null  && !verifyOnly;
-                verify = srecInputFileName != null  && verifyOnly;
-                eraseOnly = eraseAll &&  srecInputFileName == null;
-            }
-            boolean isNormalFlashTaskSpecified() {
-                return uploadVersion
-                       || upload
-                       || program
-                       || verify
-                       || eraseOnly;
-            }
-            boolean isAnyTaskTaskSpecified() {
-                return isNormalFlashTaskSpecified()
-                       || enumCanDevices
-                       || generateKeyPair;
-            }
-            boolean resetAfterUploadVersion() {
-                return doReset_
-                       && (uploadVersion
-                           && !upload 
-                           && !program
-                           && !verify 
-                           && !eraseOnly
-                          );
-            }
-            boolean resetAfterUpload() {
-                return doReset_
-                       && (upload 
-                           && !program
-                           && !verify 
-                           && !eraseOnly
-                          );
-            }
-            boolean resetAfterProgram() {
-                return doReset_;
-            }
-            boolean resetAfterVerify() {
-                return doReset_;
-            }
-            boolean resetAfterEraseOnly() {
-                return doReset_;
-            }
-        };
-        TaskMgr taskX = new TaskMgr(cmdLineParser_);
-
         /* Check command line to find out, which tasks are commanded. */
         final String srecInputFileName = cmdLineParser_.getString("srec-input-file")
                    , srecOutputFileName = cmdLineParser_.getString("srec-output-file")
                    , newPrivKeyFileName = cmdLineParser_.getString("generate-key-pair")
-                   , privateKeyFileName = cmdLineParser_.getString("key-file")
-                   , resetEcu = cmdLineParser_.getString("reset-target-ECU");
+                   , privateKeyFileName = cmdLineParser_.getString("key-file");
         final boolean eraseAll = cmdLineParser_.getBoolean("erase-all")
-                    , verifyOnly = cmdLineParser_.getBoolean("verify-only")
                     , noVerify = cmdLineParser_.getBoolean("no-verify")
                     , ignoreCanErrsDuringConnect =
                                         cmdLineParser_.getBoolean("ignore-ack-err-for-connect")
-                    , doReset = resetEcu != null
-                    , resetToApp = doReset && resetEcu.equalsIgnoreCase("APP")
-                    , dryRun = cmdLineParser_.getBoolean("dry-run")
-                    , taskUploadVersion = cmdLineParser_.getBoolean("upload-version-fbl")
-                    , taskEnumCanDevices = cmdLineParser_.getBoolean("enumerate-CAN-devices")
-                    , taskGenerateKeyPair = newPrivKeyFileName != null
-                    , taskUpload = srecOutputFileName != null
-                    , taskProgram = srecInputFileName != null  && !verifyOnly
-                    , taskVerify = srecInputFileName != null  && verifyOnly
-                    , taskEraseOnly = eraseAll &&  srecInputFileName == null
-                    , isNormalFlashTaskSpecified = taskUploadVersion
-                                                   || taskUpload
-                                                   || taskProgram
-                                                   || taskVerify
-                                                   || taskEraseOnly
-                    , isAnyTaskTaskSpecified = isNormalFlashTaskSpecified
-                                               || taskEnumCanDevices
-                                               || taskGenerateKeyPair;
-// See CCP.eraseAndProgram
-_logger.warn("Preliminary integration of ECU reset command: Is unconditionally done"
-             + " after programming. Related command line arguments are ignored."
-            );
+                    , dryRun = cmdLineParser_.getBoolean("dry-run");
 
-        if (verifyOnly &&  srecInputFileName == null) {
-            success = false;
-            errCnt_.error();
-            _logger.error("Specifying --verify-only without giving an input srec file"
-                          + " is pointless. Nothing to do."
-                         );
-        }
-        if (verifyOnly && noVerify) {
-            success = false;
-            errCnt_.error();
-            _logger.error("Specifying both, --verify-only and --no-verify, is pointless."
-                          + " Nothing is done."
-                         );
-        }
-        if (!taskUpload &&  cmdLineParser_.getNoValues("address-range") > 0) {
-            success = false;
-            errCnt_.error();
-            _logger.error("Specifying an address range for upload without specifying an"
-                          + " input srec file is pointless. Upload is not performed."
-                         );
-        }
+        if (success && taskMgr.taskEnumCanDevices) {
         
-        if (success && taskEnumCanDevices) {
-            if (taskUpload || taskProgram) {
-                errCnt_.warning();
-                _logger.warn( "Please note, if command line argument --enumerate-CAN-devices"
-                              + " is used then no up- or download is performed. Arguments"
-                              + " --srec-output-file and --srec-input-file are ignored."
-                            );
-            }
-
             /* Print all connected devices. */
             PCANBasicEx.printAttachedChannels();
             if (!canDeviceName.isEmpty()) {
                 success = PCANBasicEx.identifyChannel(canDeviceName);
             }
         }
-        if (success && taskGenerateKeyPair) {
-        
+        if (success && taskMgr.taskGenerateKeyPair) {
+
             DigitalSignature digSig = new DigitalSignature(errCnt_);
             digSig.generateKeyPair(newPrivKeyFileName);
-
         }
-        if ((taskEnumCanDevices || taskGenerateKeyPair) && isNormalFlashTaskSpecified) {
+        if ((taskMgr.taskEnumCanDevices || taskMgr.taskGenerateKeyPair)
+             && taskMgr.isNormalFlashTaskSpecified()
+           ) {
             errCnt_.warning();
             _logger.warn("Please note, if --enumerate-CAN-devices or --generate-key-pair"
                          + " is given on the command line then no normal flash task is"
                          + " executed. Application terminates."
                         );
         }
-        if (success && !(taskEnumCanDevices || taskGenerateKeyPair)) {
+        if (success && !(taskMgr.taskEnumCanDevices || taskMgr.taskGenerateKeyPair)) {
 
             /* Set the CN IDs to use for CCP communication. */
             final CanId canIdCro = new CanId( cmdLineParser_.getInteger("CAN-ID-CRO") & 0x7FF
@@ -681,10 +560,10 @@ _logger.warn("Preliminary integration of ECU reset command: Is unconditionally d
             } else {
                 digSignature = null;
             }
-            
+
             /* Setup the CCP communication. */
             final CCP ccp;
-            if (success) {            
+            if (success) {
                 ccp = new CCP( canDev
                              , canIdCro
                              , canIdDto
@@ -698,14 +577,14 @@ _logger.warn("Preliminary integration of ECU reset command: Is unconditionally d
                 ccp = null;
             }
 
-            if (success && taskUploadVersion) {
+            if (success && taskMgr.taskUploadVersion) {
                 /* Prepare a CCP communication thread for uploading memory contents. */
                 _logger.debug("Now uploading the version designation from target.");
                 final Supplier<String> supplierVersionInfo = ccp.uploadVersionFbl(dryRun);
-                if (taskX.resetAfterUploadVersion()) {
-                    ccp.resetTarget(resetToApp, dryRun);
+                if (taskMgr.resetAfterUploadVersion()) {
+                    ccp.resetTarget(taskMgr.resetToApp, dryRun);
                 }
-                
+
                 /* Clock the state machine, which runs the CCP communication. */
                 success = ccp.run();
 
@@ -721,7 +600,7 @@ _logger.warn("Preliminary integration of ECU reset command: Is unconditionally d
                 }
             } /* taskUploadVersion */
 
-            if (success && taskUpload) {
+            if (success && taskMgr.taskUpload) {
                 /* Prepare a CCP communication thread for uploading memory contents. */
                 _logger.info("Now uploading memory contents from target.");
 
@@ -751,8 +630,8 @@ _logger.warn("Preliminary integration of ECU reset command: Is unconditionally d
                 if (success) {
                     srecSeq.logSections();
                     ccp.upload(srecSeq, dryRun);
-                    if (taskX.resetAfterUpload()) {
-                        ccp.resetTarget(resetToApp, dryRun);
+                    if (taskMgr.resetAfterUpload()) {
+                        ccp.resetTarget(taskMgr.resetToApp, dryRun);
                     }
 
                     /* Clock the state machine, which runs the CCP communication. */
@@ -774,7 +653,7 @@ _logger.warn("Preliminary integration of ECU reset command: Is unconditionally d
                 }
             } /* if(Is an upload commanded?) */
 
-            if (success && (taskProgram || taskEraseOnly || taskVerify)) {
+            if (success && (taskMgr.taskProgram || taskMgr.taskEraseOnly || taskMgr.taskVerify)) {
 
                 final String targetMcuName = cmdLineParser_.getString("mcu-target");
                 if (targetMcuName == null) {
@@ -812,14 +691,23 @@ _logger.warn("Preliminary integration of ECU reset command: Is unconditionally d
                 }
 
                 String task = "";
-                if (taskProgram || taskVerify) {
+                if (taskMgr.taskProgram || taskMgr.taskVerify) {
+                    if(taskMgr.taskProgram) {
+                        task = "Flash ROM programming";
+                        if(!noVerify) {
+                            task += " and verify";
+                        }
+                    } else {
+                        task = "Verifying flash ROM contents";
+                    }
+                
                     final MemoryMap memMap;
                     if (success) {
                         memMap = new MemoryMap(flashROM, errCnt_);
                         if (!memMap.readSrecFile(srecInputFileName)) {
                             success = false;
                             errCnt_.error();
-                            _logger.error("Can't read srec input file. Application"
+                            _logger.error("Reading s-record input file failed. Application"
                                           + " terminates."
                                          );
                         }
@@ -828,35 +716,29 @@ _logger.warn("Preliminary integration of ECU reset command: Is unconditionally d
                     }
 
                     if (success) {
-                        if(taskProgram) {
-                            task = "Flash ROM programming";
-                            if(!noVerify) {
-                                task += " and verify";
-                            }
-
+                        if(taskMgr.taskProgram) {
                             _logger.info("Now downloading data to target for flash"
                                          + " programming."
                                         );
 
                             /* Prepare a CCP communication thread for erase and program. */
                             ccp.eraseAndProgram(memMap, eraseAll, !noVerify, dryRun);
-                            if (taskX.resetAfterProgram()) {
-                                ccp.resetTarget(resetToApp, dryRun);
+                            if (taskMgr.resetAfterProgram()) {
+                                ccp.resetTarget(taskMgr.resetToApp, dryRun);
                             }
                         } else {
-                            task = "Verifying flash ROM contents";
-                            assert taskVerify;
+                            assert taskMgr.taskVerify;
                             _logger.info("Now verifying data in target flash ROM.");
 
                             /* Prepare a CCP communication thread for erase and program. */
                             ccp.verify(memMap, dryRun);
-                            if (taskX.resetAfterVerify()) {
-                                ccp.resetTarget(resetToApp, dryRun);
+                            if (taskMgr.resetAfterVerify()) {
+                                ccp.resetTarget(taskMgr.resetToApp, dryRun);
                             }
                         }
                     }
                 } else {
-                    assert taskEraseOnly;
+                    assert taskMgr.taskEraseOnly;
                     task = "Flash ROM erasure";
                     final EraseSectorSequence eraseSectorSequence =
                                                     new EraseSectorSequence(flashROM, errCnt_);
@@ -864,8 +746,8 @@ _logger.warn("Preliminary integration of ECU reset command: Is unconditionally d
 
                     /* Prepare a CCP communication thread for erasure. */
                     ccp.erase(eraseSectorSequence, dryRun);
-                    if (taskX.resetAfterEraseOnly()) {
-                        ccp.resetTarget(resetToApp, dryRun);
+                    if (taskMgr.resetAfterEraseOnly()) {
+                        ccp.resetTarget(taskMgr.resetToApp, dryRun);
                     }
                     _logger.info("Now erasing all flash ROM on the target.");
                 }
@@ -883,22 +765,27 @@ _logger.warn("Preliminary integration of ECU reset command: Is unconditionally d
                 }
             } /* if(Is an erase all or download and program commanded?) */
 
+            if (success && taskMgr.taskReset) {
+                /* Prepare a CCP communication thread only for resetting the target. */
+                _logger.info("Now resetting the target.");
+                ccp.resetTarget(taskMgr.resetToApp, dryRun);
+
+                /* Clock the state machine, which runs the CCP communication. */
+                success = ccp.run();
+
+                if (success) {
+                    _logger.info("Reset successfully completed.");
+                } else {
+                    errCnt_.error();
+                    _logger.error("Reset command failed.");
+                }
+            } /* if(Is a "stand-alone" reset commanded?) */
+
             /* Close CAN device; release the PCAN-USB CAN device for other applications. */
             if (canDev != null) {
                 canDev.close();
             }
         } /* if (Normal flash task specified?) */
-
-        if (!isAnyTaskTaskSpecified) {
-            success = false;
-            errCnt_.error();
-            _logger.error( "No srec file is specified on the command line. You normally"
-                           + " need to use argument --srec-output-file and/or"
-                           + " --srec-input-file to command an up- or download,"
-                           + " respectively. Another option is --erase-all to erase all"
-                           + " flash ROM. Please use -h for help."
-                         );
-        } /* if/else if(Which task to complete?) */
 
         final String logMsg = _applicationName + " terminating with {} errors and {}"
                               + " warnings.";
