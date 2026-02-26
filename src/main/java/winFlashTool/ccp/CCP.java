@@ -26,6 +26,7 @@
  *   verify
  *   uploadVersionFbl
  *   upload
+ *   resetTarget
  *   stateConnectToTarget
  *   stateDisconnectFromTarget
  *   stateProcessCcpCmdSequence
@@ -237,8 +238,8 @@ public class CCP {
      * A list of flash blocks to erase.
      *   @param isDryRun
      * If true, then most CCP commands are not really executed; the CRO is not sent out and
-     * we don't wait for a DTO. The success of the suppressed CCP is assumed true. However,
-     * the complete state machine is stepped through.
+     * we don't wait for a DTO. The success of the suppressed CCP command is assumed true.
+     * However, the complete state machine is stepped through.
      */
     public void erase(EraseSectorSequence eraseSectorSequence, boolean isDryRun) {
         assert ccpCmdSequence_ == null  &&  state_ == StateFlashProcess.COMPLETED
@@ -264,8 +265,8 @@ public class CCP {
      * programmed data. The execution time of the CCP protocol sequence is roughly doubled.
      *   @param isDryRun
      * If true, then most CCP commands are not really executed; the CRO is not sent out and
-     * we don't wait for a DTO. The success of the suppressed CCP is assumed true. However,
-     * the complete state machine is stepped through.
+     * we don't wait for a DTO. The success of the suppressed CCP command is assumed true.
+     * However, the complete state machine is stepped through.
      */
     public void eraseAndProgram( MemoryMap program
                                , boolean eraseAll
@@ -282,7 +283,6 @@ public class CCP {
                                              , doVerify
                                              , program
                                              );
-ccpCmdSequence_.diagServiceResetTarget(/*resetToApplication*/ true);
         state_ = StateFlashProcess.START;
 
     } /* eraseAndProgram */
@@ -295,8 +295,8 @@ ccpCmdSequence_.diagServiceResetTarget(/*resetToApplication*/ true);
      * target.
      *   @param isDryRun
      * If true, then most CCP commands are not really executed; the CRO is not sent out and
-     * we don't wait for a DTO. The success of the suppressed CCP is assumed true. However,
-     * the complete state machine is stepped through.
+     * we don't wait for a DTO. The success of the suppressed CCP command is assumed true.
+     * However, the complete state machine is stepped through.
      */
     public void verify(MemoryMap program, boolean isDryRun) {
         assert ccpCmdSequence_ == null  &&  state_ == StateFlashProcess.COMPLETED
@@ -327,8 +327,8 @@ ccpCmdSequence_.diagServiceResetTarget(/*resetToApplication*/ true);
      * the result is undefined.
      *   @param isDryRun
      * If true, then most CCP commands are not really executed; the CRO is not sent out and
-     * we don't wait for a DTO. The success of the suppressed CCP is assumed true. However,
-     * the complete state machine is stepped through.
+     * we don't wait for a DTO. The success of the suppressed CCP command is assumed true.
+     * However, the complete state machine is stepped through.
      */
     public Supplier<String> uploadVersionFbl(boolean isDryRun) {
         assert ccpCmdSequence_ == null  &&  state_ == StateFlashProcess.COMPLETED
@@ -347,8 +347,8 @@ ccpCmdSequence_.diagServiceResetTarget(/*resetToApplication*/ true);
      * The representation of the memory area(s) to upload.
      *   @param isDryRun
      * If true, then most CCP commands are not really executed; the CRO is not sent out and
-     * we don't wait for a DTO. The success of the suppressed CCP is assumed true. However,
-     * the complete state machine is stepped through.
+     * we don't wait for a DTO. The success of the suppressed CCP command is assumed true.
+     * However, the complete state machine is stepped through.
      */
     public void upload(Iterable<SRecord> memAreas, boolean isDryRun) {
         assert ccpCmdSequence_ == null  &&  state_ == StateFlashProcess.COMPLETED
@@ -360,6 +360,38 @@ ccpCmdSequence_.diagServiceResetTarget(/*resetToApplication*/ true);
 
     } /* upload */
 
+    /** 
+     * Append the target ECU reset command to the CCO command sequence. If no command
+     * sequence has been chosen before then the reset is the ony action of a new command
+     * sequence.
+     *   @param resetToApplication
+     * After reset, the ECU can launch either the flashed application (if any) or the FBL.
+     * Pass true for launching the application (normal use-case).
+     *   @param isDryRun
+     * If true, then most CCP commands are not really executed; the CRO is not sent out and
+     * we don't wait for a DTO. The success of the suppressed CCP command is assumed true.
+     * However, the complete state machine is stepped through.<p>
+     *   Caution, if the reset command is appended to an existing non-empty CCP command
+     * sequence, then isDryRun needs to match the setting, which had been specified before
+     * for the sequence.
+     */ 
+    public void resetTarget(boolean resetToApplication, boolean isDryRun) {
+        if (ccpCmdSequence_ == null) {
+            isDryRun_ = isDryRun;
+            assert state_ == StateFlashProcess.COMPLETED
+                 : "Can't start a new CCP communication if there is still one running";
+            ccpCmdSequence_ = new CcpCmdSequence(ccpCmdFactory_, digitalSignature_);
+            state_ = StateFlashProcess.START;
+        } else {    
+            assert isDryRun_ == isDryRun
+                 : "Inconsistent specification of 'isDryRun'";
+            assert state_ == StateFlashProcess.START
+                 : "Can't compose a new CCP communication if there is still one running";
+        }
+        ccpCmdSequence_.diagServiceResetTarget(resetToApplication);
+
+    } /* resetTarget */
+    
     /**
      * This function implements the activities while we are in state CONNECTING.<p>
      *   The CCP CONNECT command is sent once or repeatedly, until we get a valid response
