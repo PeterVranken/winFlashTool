@@ -97,10 +97,10 @@ public class CCP {
     private final int stationAddr_;
 
     /** The maximum number of retries for CCP CONNECT. */
-    private static final int MAX_NO_RETRIES_CONNECT = 10;
+    private static final int MAX_NO_RETRIES_CONNECT = 1000;
 
     /** The time between two CCP CONNECT attempty in Milliseconds. */
-    private static final int TIME_BETWEEN_CONNECT_IN_MS = 1000;
+    private static final int TIME_BETWEEN_CONNECT_IN_MS = 3;
 
     /* If true, then most CCP commands are not really executed; the CRO is not sent out and
        we don't wait for a DTO. */
@@ -185,7 +185,7 @@ public class CCP {
            Now, it's more to the point to have a single attempt with very long timeout. We
            (ab)use the command line option to set the number of attempts for controlling
            the length of the timeout. */
-        timeoutCroToDtoWhenIgnoreCanErrs_ = (noRetriesConnect+1) * 5000;
+        timeoutCroToDtoWhenIgnoreCanErrs_ = (noRetriesConnect+1) * 1000;
         ignoreCanErrsDuringConnect_ = ignoreCanErrsDuringConnect;
         if (ignoreCanErrsDuringConnect) {
             noRetriesConnect = 0;
@@ -421,14 +421,14 @@ public class CCP {
         }
 
         if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS) {
-            currentCcpCmd_.setIgnoreCanRxErrors(false, timeoutCroToDtoWhenIgnoreCanErrs_);
+            currentCcpCmd_.setIgnoreCanRxErrors(false, 0 /*doesn't care*/);
             currentCcpCmd_ = null;
             state_ = StateFlashProcess.COMMUNICATING_WITH_TARGET;
 
         } else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING) {
             /* The connect CRO/DTO exchange failed. The reason has been logged. We can
                retry after a while. */
-            currentCcpCmd_.setIgnoreCanRxErrors(false, timeoutCroToDtoWhenIgnoreCanErrs_);
+            currentCcpCmd_.setIgnoreCanRxErrors(false, 0 /*doesn't care*/);
             currentCcpCmd_ = null;
             if (cntAttemptsToConnect_ > 0) {
                 timerState_ = new TimeoutTimer(TIME_BETWEEN_CONNECT_IN_MS);

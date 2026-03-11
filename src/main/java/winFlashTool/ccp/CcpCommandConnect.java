@@ -78,11 +78,14 @@ public class CcpCommandConnect extends CcpCommandBase
     int getRequiredTimeoutCroTillDto() {
 
         /* Connect should not have a long timeout. In the quite normal situation, that
-           there is not MCU waiting for a CCP CONNECT, the blocking states resulting from a
+           there is no MCU waiting for a CCP CONNECT, the blocking states resulting from a
            long timeout are annoying. Delayed powering of the target board is better
            handled by repeated connect attempts than by a single one with very long
-           blocking timeout. */
-        return 250;
+           blocking timeout.
+             Moreover, for an FBL, which out of reset doesn't wait long for a potential CCP
+           CONNECT, it is advantageous to retry fast - but a retry is possible only after
+           timeout. Therefore, we chosen an even very short timeout. */
+        return 5;
 
     } /* CcpCroTransmitter.CcpCroTransmitter */
 

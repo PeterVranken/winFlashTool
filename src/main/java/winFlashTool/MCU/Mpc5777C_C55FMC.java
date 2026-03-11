@@ -1,5 +1,5 @@
 /**
- * @file Mpc5775BE_C55FMC.java
+ * @file Mpc5777C_C55FMC.java
  * The flash ROM description for MPC5775B/E.
  *
  * Copyright (C) 2025-2026 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
@@ -17,8 +17,8 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-/* Interface of class Mpc5775BE_C55FMC
- *   Mpc5775BE_C55FMC
+/* Interface of class Mpc5777C_C55FMC
+ *   Mpc5777C_C55FMC
  */
 
 package winFlashTool.mcu;
@@ -30,17 +30,17 @@ import winFlashTool.basics.Range;
 /**
  * The flash ROM description for MPC5775B/E.
  */
-public class Mpc5775BE_C55FMC extends Flash {
+public class Mpc5777C_C55FMC extends Flash {
     /** The global logger object for all progress and error reporting. */
-    private static final Logger _logger = LogManager.getLogger(Mpc5775BE_C55FMC.class);
+    private static final Logger _logger = LogManager.getLogger(Mpc5777C_C55FMC.class);
 
-    /** The one and only instance of Mpc5775BE_C55FMC. */
-    private static final Mpc5775BE_C55FMC _theOnlyInstance;
+    /** The one and only instance of Mpc5777C_C55FMC. */
+    private static final Mpc5777C_C55FMC _theOnlyInstance;
     
     /** A static initialization block is applied to create the one and only instance of
-        Mpc5775BE_C55FMC. */
+        Mpc5777C_C55FMC. */
     static {
-        _theOnlyInstance = new Mpc5775BE_C55FMC();
+        _theOnlyInstance = new Mpc5777C_C55FMC();
     }
     
     /** 
@@ -49,16 +49,16 @@ public class Mpc5775BE_C55FMC extends Flash {
      *   @return
      * Get the flash ROM description with lists of sectors and partitions.
      */
-    public static Mpc5775BE_C55FMC getFlashRomDescription() {
+    public static Mpc5777C_C55FMC getFlashRomDescription() {
         return _theOnlyInstance;
     }
     
     /**
-     * An instance of Mpc5775BE_C55FMC is created.<p>
+     * An instance of Mpc5777C_C55FMC is created.<p>
      *   The constructor is not accessible. Instead, use getFlashRomDescription() to get an
      * immutable instance of the flash ROM description.
      */
-    private Mpc5775BE_C55FMC()
+    private Mpc5777C_C55FMC()
     {
         /* We only allow to erase and program the 4 MB at 0x0080000, which are intended for
            the normal application code.
@@ -90,6 +90,22 @@ public class Mpc5775BE_C55FMC extends Flash {
              , new Range(0x00B40000, 0x00B80000), Integer.valueOf(7), Boolean.valueOf(true)  /* Block type Large, Application code */
              , new Range(0x00B80000, 0x00BC0000), Integer.valueOf(7), Boolean.valueOf(true)  /* Block type Large, Application code */
              , new Range(0x00BC0000, 0x00C00000), Integer.valueOf(7), Boolean.valueOf(true)  /* Block type Large, Application code */
+             , new Range(0x00C00000, 0x00C40000), Integer.valueOf(8), Boolean.valueOf(true)  /* Block type Large, Boot */
+             , new Range(0x00C40000, 0x00C80000), Integer.valueOf(8), Boolean.valueOf(true)  /* Block type Large, Application code */
+             , new Range(0x00C80000, 0x00CC0000), Integer.valueOf(8), Boolean.valueOf(true)  /* Block type Large, Application code */
+             , new Range(0x00CC0000, 0x00D00000), Integer.valueOf(8), Boolean.valueOf(true)  /* Block type Large, Application code */
+             , new Range(0x00D00000, 0x00D40000), Integer.valueOf(8), Boolean.valueOf(true)  /* Block type Large, Application code */
+             , new Range(0x00D40000, 0x00D80000), Integer.valueOf(8), Boolean.valueOf(true)  /* Block type Large, Application code */
+             , new Range(0x00D80000, 0x00DC0000), Integer.valueOf(8), Boolean.valueOf(true)  /* Block type Large, Application code */
+             , new Range(0x00DC0000, 0x00E00000), Integer.valueOf(8), Boolean.valueOf(true)  /* Block type Large, Application code */
+             , new Range(0x00E00000, 0x00E40000), Integer.valueOf(9), Boolean.valueOf(true)  /* Block type Large, Application code */
+             , new Range(0x00E40000, 0x00E80000), Integer.valueOf(9), Boolean.valueOf(true)  /* Block type Large, Application code */
+             , new Range(0x00E80000, 0x00EC0000), Integer.valueOf(9), Boolean.valueOf(true)  /* Block type Large, Application code */
+             , new Range(0x00EC0000, 0x00E00000), Integer.valueOf(9), Boolean.valueOf(true)  /* Block type Large, Application code */
+             , new Range(0x00F00000, 0x00E40000), Integer.valueOf(9), Boolean.valueOf(true)  /* Block type Large, Application code */
+             , new Range(0x00F40000, 0x00E80000), Integer.valueOf(9), Boolean.valueOf(true)  /* Block type Large, Application code */
+             , new Range(0x00F80000, 0x00EC0000), Integer.valueOf(9), Boolean.valueOf(true)  /* Block type Large, Application code */
+             , new Range(0x00FC0000, 0x01000000), Integer.valueOf(9), Boolean.valueOf(true)  /* Block type Large, Application code */
              );
              
         /* Note, section UTEST doesn't belong to a normal partition. It contains some
@@ -97,10 +113,10 @@ public class Mpc5775BE_C55FMC extends Flash {
          * other sections.
          *   new Range(0x00400000, 0x00404000), Integer.valueOf(???), Boolean.valueOf(false) // Block type UTEST
          */
-    } /* Mpc5775BE_C55FMC.Mpc5775BE_C55FMC */
+    } /* Mpc5777C_C55FMC.Mpc5777C_C55FMC */
 
 
-} /* End of class Mpc5775BE_C55FMC definition. */
+} /* End of class Mpc5777C_C55FMC definition. */
 
 
 

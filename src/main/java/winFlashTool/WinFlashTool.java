@@ -50,6 +50,7 @@ import winFlashTool.digitalSignature.DigitalSignature;
 import winFlashTool.mcu.Flash;
 import winFlashTool.mcu.Mpc5748G_C55FMC;
 import winFlashTool.mcu.Mpc5775BE_C55FMC;
+import winFlashTool.mcu.Mpc5777C_C55FMC;
 import winFlashTool.srecParser.EraseSectorSequence;
 import winFlashTool.srecParser.MemoryMap;
 import winFlashTool.srecParser.SRecord;
@@ -186,6 +187,7 @@ public class WinFlashTool
               + "\n  MPC5748G"
               + "\n  MPC5775B"
               + "\n  MPC5775E"
+              + "\n  MPC5777C"
               + "\nThis argument is mandatory for normal operation but it is not required"
               + " if --enumerate-CAN-devices is used to check the hardware setup."
             );
@@ -234,17 +236,17 @@ public class WinFlashTool
               + "\nIf this argument is used then repeated attempts to connect are counter"
               + "-productive. Instead, a large timeout is required for the CCP CONNECT"
               + " command. Therefore, the other argument --no-retries-ccp-connect is"
-              + " (ab)used to specify the new timeout; it is 5s times the"
+              + " (ab)used to specify the new timeout; it is 1s times the"
               + " specified number of a retries plus one."
               + "\nOptional, default is aborting the connection attempt in case of CAN errors."
             );
         clp.defineArgument
             ( "nr", "no-retries-ccp-connect"
             , /*cntMin, cntMax*/ 0, 1
-            , /*defaultValue*/ 2
+            , /*defaultValue*/ 20
             , "The number of re-tries (after short delay) if the initial CCP connect fails."
-              + " The supported range is [0, 10]"
-              + "\nOptional, default is 2."
+              + " The supported range is [0, 1000]"
+              + "\nOptional, default is 20."
             );
         clp.defineArgument
             ( "a", "station-address"
@@ -653,8 +655,11 @@ public class WinFlashTool
                 }
             } /* if(Is an upload commanded?) */
 
-            if (success && (taskMgr.taskProgram || taskMgr.taskEraseOnly || taskMgr.taskVerify)) {
-
+            if (success && (taskMgr.taskProgram
+                            || taskMgr.taskEraseOnly
+                            || taskMgr.taskVerify
+                           )
+               ) {
                 final String targetMcuName = cmdLineParser_.getString("mcu-target");
                 if (targetMcuName == null) {
                     success = false;
@@ -674,6 +679,10 @@ public class WinFlashTool
                     case "MPC5775B":
                     case "MPC5775E":
                         flashROM = Mpc5775BE_C55FMC.getFlashRomDescription();
+                        break;
+
+                    case "MPC5777C":
+                        flashROM = Mpc5777C_C55FMC.getFlashRomDescription();
                         break;
 
                     default:
