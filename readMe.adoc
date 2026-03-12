@@ -1,4 +1,2 @@
-* Parameter PCAN_BUSOFF_AUTORESET in PCAN-USB setzen?
-  PCAN-Parameter_Documentation.pdf, S.45.
 * Support Tracing. PCANBasic can log all Rx and Tx messages.
   PCAN-Parameter_Documentation.pdf, pp.79ff and pp.97ff.

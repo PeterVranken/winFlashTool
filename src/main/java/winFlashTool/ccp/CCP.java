@@ -100,7 +100,7 @@ public class CCP {
     private static final int MAX_NO_RETRIES_CONNECT = 1000;
 
     /** The time between two CCP CONNECT attempty in Milliseconds. */
-    private static final int TIME_BETWEEN_CONNECT_IN_MS = 3;
+    private static final int TIME_BETWEEN_CONNECT_IN_MS = 5;
 
     /* If true, then most CCP commands are not really executed; the CRO is not sent out and
        we don't wait for a DTO. */

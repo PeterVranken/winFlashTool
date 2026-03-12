@@ -478,6 +478,7 @@ class CcpCroTransmitter
                 /* It took too long to receive the DTO. Report error and return to IDLE for
                    a repeated attempt. */
                 final int cmdCntrExpected = (Basics.b2i(cmdCntr_) - 1) & 0xFF;
+                errCnt_.error();
                 _logger.error( "No DTO message received for CRO no {}. Timeout elapsed."
                              , cmdCntrExpected
                              );
