@@ -39,7 +39,7 @@ $env:PATH = `
     + ";$env:PATH"
 
 # Prepare the Java classpath for the run of the application.
-$cp = [System.IO.Path]::GetFullPath("$PSScriptRoot\build\libs\winFlashTool-0.1.jar") `
+$cp = [System.IO.Path]::GetFullPath("$PSScriptRoot\build\libs\winFlashTool-0.9.jar") `
       + ";" + [System.IO.Path]::GetFullPath("$PSScriptRoot\lib\jna\jna-5.14.0.jar") `
       + ";" + [System.IO.Path]::GetFullPath("$PSScriptRoot\lib\jna\jna-platform-5.14.0.jar") `
       + ";" + [System.IO.Path]::GetFullPath("$PSScriptRoot\lib\Apache\log4j\") + "*" `

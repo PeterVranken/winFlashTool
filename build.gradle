@@ -4,6 +4,7 @@ plugins {
     id 'eclipse' // optional (to generate Eclipse project files)
 }
 
+group = 'winFlashTool'
 
 // Working with expressions, providing feedback:
 //println "Hello ${name}!"
@@ -13,8 +14,10 @@ application {
     mainClass = 'winFlashTool.WinFlashTool'
     applicationDefaultJvmArgs = ['-ea']   // enable assertions
 }
-group = 'winFlashTool'
-version = '0.1'
+
+// The version needs to be maintained in sync with the greeting message in
+// WinFlashTool.java, l.72, and the Java launch script, winFlashTool.ps1, l.42.
+version = '0.9'
 
 repositories {
     mavenCentral()
@@ -74,21 +77,6 @@ test {
 run {
     environment 'PATH', "${System.getenv('PATH')};${projectDir}\\lib\\PEAK\\x86_64"
 }
-
-// Caution task sourceSets is bad configured and disables the build if uncommented.
-//sourceSets {
-//    main {
-//        java {
-//            srcDirs = ['src']
-//        }
-//    }
-//    test {
-//        java {
-//            srcDirs = ['test']
-//            exclude 'SrecParserDetailedTest.java'
-//        }
-//    }
-//}
 
 distributions {
     main {

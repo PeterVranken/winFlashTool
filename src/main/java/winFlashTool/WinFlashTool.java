@@ -68,7 +68,8 @@ public class WinFlashTool
     /** The name of this Java application. */
     public static final String _applicationName = "winFlashTool";
 
-    /** Version designation as four numeric parts. */
+    /** Version designation as four numeric parts. Note, any update of major or minor
+        requires an according update of variable "version" in build script build.gradle. */
     private static int[] _versionAry = {0, 9, 0, GitRevision.getProjectRevision()};
 
     /** The first three parts of the version of the tool, which relate to functional

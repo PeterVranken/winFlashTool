@@ -118,7 +118,7 @@ public class CanId
     }
 
     /**
-     * Get the first CAN IDfrom the range of those.
+     * Get the first CAN ID from the range of those.
      *   @return
      * Get the ID.
      */
@@ -128,9 +128,10 @@ public class CanId
     }
 
     /**
-     * Get the first CAN IDfrom the range of those.
+     * Get the last CAN ID from the range of those.
      *   @return
-     * Get the ID.
+     * Get the ID. The result is identical to getCanIdFirst() for single CAN IDs created
+     * with CanId(int canId, boolean isExtId).
      */
     public int getCanIdLast()
     {
