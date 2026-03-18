@@ -46,6 +46,10 @@ public class TimeoutTimer {
         return System.nanoTime() - startTime >= timeoutNs;
     }
 
+    public long getTimeout() {
+        return timeoutNs / 1_000_000;
+    }
+
     public long getElapsedMillis() {
         return (System.nanoTime() - startTime) / 1_000_000;
     }

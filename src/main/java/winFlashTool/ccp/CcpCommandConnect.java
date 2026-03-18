@@ -2,7 +2,7 @@
  * @file CcpCommandConnect.java
  * CCP command CONNECT.
  *
- * Copyright (C) 2025 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
+ * Copyright (C) 2025-2026 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by the
@@ -28,11 +28,9 @@
 
 package winFlashTool.ccp;
 
-import java.util.*;
+//import java.util.*;
 import org.apache.logging.log4j.*;
 import winFlashTool.basics.ErrorCounter;
-import java.util.Set;
-import java.util.HashSet;
 
 
 /**
@@ -77,15 +75,7 @@ public class CcpCommandConnect extends CcpCommandBase
     @Override
     int getRequiredTimeoutCroTillDto() {
 
-        /* Connect should not have a long timeout. In the quite normal situation, that
-           there is no MCU waiting for a CCP CONNECT, the blocking states resulting from a
-           long timeout are annoying. Delayed powering of the target board is better
-           handled by repeated connect attempts than by a single one with very long
-           blocking timeout.
-             Moreover, for an FBL, which out of reset doesn't wait long for a potential CCP
-           CONNECT, it is advantageous to retry fast - but a retry is possible only after
-           timeout. Therefore, we chosen an even very short timeout. */
-        return 5;
+        return Math.max(args_.tiCroToDtoInMs(), 1);
 
     } /* CcpCroTransmitter.CcpCroTransmitter */
 
@@ -131,12 +121,10 @@ public class CcpCommandConnect extends CcpCommandBase
         if (resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS) {
             _logger.info("ECU is connected.");
         } else if (resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING) {
-            /* The connect CRO/DTO exchange failed. The reason has been logged. Nothing
-               else to do. */
-            errCnt().error();
-            _logger.error("Can't connect to the ECU. See previous error messages for"
-                          + " details."
-                         );
+            /* The connect CRO/DTO exchange failed. No error is immediately reported for
+               the CONNECT command: Most typical, the attempt to connect i srepeated
+               several times and an error is reported only if all attempty have failed.
+               Nothing else to do. */
         } else {
             /* DTO has not been received yet. We continue polling. */
         }

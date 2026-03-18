@@ -131,7 +131,7 @@ class CanRxNotificationDispatcher implements peak.can.basic.IRcvEventProcessor {
      * PCAN Basic API.
      */
     public void processRcvEvent(TPCANHandle pcanChnHandle) {
-        _logger.trace( "CAN device {} received a message at {}."
+        _logger.trace( "CAN device {} received a message at {} ns."
                      , pcanChnHandle
                      , System.nanoTime()
                      );

@@ -39,14 +39,11 @@
 
 package winFlashTool.ccp;
 
-import java.util.*;
-import java.util.Set;
-import java.util.HashSet;
+//import java.util.*;
 import org.apache.logging.log4j.*;
+import peak.can.basic.TPCANMsg;
 import winFlashTool.basics.ErrorCounter;
 import winFlashTool.can.CanDevice;
-import peak.can.basic.TPCANMsg;
-import java.util.HashSet;
 
 /**
  * All actual, derived CCP commands need to share some data, in particular the CAN device
@@ -130,17 +127,12 @@ abstract class CcpCommandBase
         created by the same factory object. */
     private CcpCommandToolbox toolbox_;
 
-    /** The minimum timeout from CRO till DTO in case a CONNECT is sent and acknowledge
-        errors should be ignored. Unit is Millisecond. */
-    private int timeoutCroToDtoWhenIgnoreAckErr_;
-    
     /**
      * A new instance of CcpCommandBase is created.
      */
     protected CcpCommandBase()
     {
         toolbox_ = null;
-        timeoutCroToDtoWhenIgnoreAckErr_ = 0;
 
     } /* CcpCommandBase.CcpCommandBase */
 
@@ -241,20 +233,24 @@ abstract class CcpCommandBase
      * Get the state on entry into the method.
      *   @param ignoreCanRxErrs
      * Pass true to enable the mode and false to disable it again. (It's initially off.)
-     *   @param timeoutCroToDtoWhenIgnoreAckErrInMs
-     * The mode ignoring-CAN-Rx-errors makes barely sense with the usual short timeouts.
-     * Therefore, a new minimal timeout from CRO till DTO can be set, which overrides any
-     * normal, shorter timeout, as long as this mode is enabled.
      */
-    boolean setIgnoreCanRxErrors( boolean ignoreCanRxErrs
-                                , int timeoutCroToDtoWhenIgnoreAckErrInMs
-                                ) {
-        if (ignoreCanRxErrs) {
-            timeoutCroToDtoWhenIgnoreAckErr_ = timeoutCroToDtoWhenIgnoreAckErrInMs;
-        } else {
-            timeoutCroToDtoWhenIgnoreAckErr_ = 0;
-        }
+    boolean setIgnoreCanRxErrors(boolean ignoreCanRxErrs) {
         return toolbox_.croTransmitter_.setIgnoreCanRxErrors(ignoreCanRxErrs);
+    }
+
+    /**
+     * Enable or disable reporting of DTO Rx errors. Useful for the connect phase, when the
+     * upper SW layers implement a retry logic with repeated attempty to connect. In this
+     * mode, an error should of course not be emitted after every early failing attempt.
+     * Setting this flag impacts only the error reporting but not the SW behavior.
+     *   @return
+     * Get the state on entry into the method.
+     *   @param enableErrReporting
+     * Pass false to disable error reporting and true to enable it again. (It's initially
+     * enabled.)
+     */
+    boolean setReportCanRxErrors(boolean enableErrReporting) {
+        return toolbox_.croTransmitter_.setReportCanRxErrors(enableErrReporting);
     }
 
     /**
@@ -332,13 +328,8 @@ abstract class CcpCommandBase
              If the ignore-error mode is used to benefit from automatic CAN re-transmit
            then it doesn't make sense to have a short timeout at the same time. We use a
            lower boundary for the time we wait for the DTO of a CRO CONNECT. */
-        int timeoutTillRxDtoInMs = getRequiredTimeoutCroTillDto();
-        if (toolbox_.croTransmitter_.getIgnoreCanRxErrors()) {
-            timeoutTillRxDtoInMs = Math.max( timeoutTillRxDtoInMs
-                                           , timeoutCroToDtoWhenIgnoreAckErr_
-                                           );
-        }
-        _logger.debug("Setting timeout CRO to DTO to {} ms.", timeoutTillRxDtoInMs);
+        final int timeoutTillRxDtoInMs = getRequiredTimeoutCroTillDto();
+        _logger.debug( "Setting timeout CRO to DTO to {} ms.", timeoutTillRxDtoInMs);
         toolbox_.croTransmitter_.setTimeoutCroTillDto(timeoutTillRxDtoInMs);
 
         /* Call the initialization routine of the actual, derived CCP command. */

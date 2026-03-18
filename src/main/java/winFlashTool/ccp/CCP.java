@@ -99,8 +99,12 @@ public class CCP {
     /** The maximum number of retries for CCP CONNECT. */
     private static final int MAX_NO_RETRIES_CONNECT = 1000;
 
-    /** The time between two CCP CONNECT attempty in Milliseconds. */
+    /** The time between two CCP CONNECT attempts in Milliseconds. */
     private static final int TIME_BETWEEN_CONNECT_IN_MS = 5;
+
+    /** The timeout from the CCP CONNECT CRO message till the responding DTO message in
+        Milliseconds. */
+    private static final int TIMEOUT_CONNECT_CRO_TO_DTO_IN_MS = 5;
 
     /* If true, then most CCP commands are not really executed; the CRO is not sent out and
        we don't wait for a DTO. */
@@ -408,11 +412,20 @@ public class CCP {
             assert cntAttemptsToConnect_ > 0;
             -- cntAttemptsToConnect_;
 
-            final CcpCommandArgs.Connect args = new CcpCommandArgs.Connect(stationAddr_);
+            /* Connect should not have a long timeout. In the quite normal situation, that
+               there is no MCU waiting for a CCP CONNECT, the blocking states resulting
+               from a long timeout are annoying. Delayed powering of the target board is
+               better handled by repeated connect attempts than by a single one with very
+               long blocking timeout. */
+            final int tiMaxCroTillDto = ignoreCanErrsDuringConnect_
+                                        ? timeoutCroToDtoWhenIgnoreCanErrs_
+                                        : TIMEOUT_CONNECT_CRO_TO_DTO_IN_MS;
+            final CcpCommandArgs.Connect args = new CcpCommandArgs.Connect( stationAddr_
+                                                                          , tiMaxCroTillDto
+                                                                          );
             currentCcpCmd_ = ccpCmdFactory_.create(args);
-            currentCcpCmd_.setIgnoreCanRxErrors( ignoreCanErrsDuringConnect_
-                                               , timeoutCroToDtoWhenIgnoreCanErrs_
-                                               );
+            currentCcpCmd_.setIgnoreCanRxErrors(ignoreCanErrsDuringConnect_);
+            currentCcpCmd_.setReportCanRxErrors(false);
             assert executeCcpCmd(): "CONNECT is assumed to be always executed";
             _logger.debug("Next executed CCP command: {}", currentCcpCmd_);
             resultTxRx = currentCcpCmd_.start();
@@ -421,24 +434,27 @@ public class CCP {
         }
 
         if(resultTxRx == CcpCroTransmitter.ResultTransmission.SUCCESS) {
-            currentCcpCmd_.setIgnoreCanRxErrors(false, 0 /*doesn't care*/);
+            currentCcpCmd_.setIgnoreCanRxErrors(false);
+            currentCcpCmd_.setReportCanRxErrors(true);
             currentCcpCmd_ = null;
             state_ = StateFlashProcess.COMMUNICATING_WITH_TARGET;
 
         } else if(resultTxRx != CcpCroTransmitter.ResultTransmission.PENDING) {
-            /* The connect CRO/DTO exchange failed. The reason has been logged. We can
-               retry after a while. */
-            currentCcpCmd_.setIgnoreCanRxErrors(false, 0 /*doesn't care*/);
+            /* The connect CRO/DTO exchange failed. We can retry after a while. */
+            currentCcpCmd_.setIgnoreCanRxErrors(false);
+            currentCcpCmd_.setReportCanRxErrors(true);
             currentCcpCmd_ = null;
             if (cntAttemptsToConnect_ > 0) {
                 timerState_ = new TimeoutTimer(TIME_BETWEEN_CONNECT_IN_MS);
-                _logger.info( "CCP CONNECT failed. Waiting {} ms until next attempt to"
-                              + " connect."
-                            , TIME_BETWEEN_CONNECT_IN_MS
-                            );
+                _logger.debug( "CCP CONNECT failed. Waiting {} ms until next attempt to"
+                               + " connect."
+                             , TIME_BETWEEN_CONNECT_IN_MS
+                             );
                 state_ = StateFlashProcess.WAITING_FOR_RECONNECT;
             } else {
                 /* All retries are exhausted. Nothing else to do. */
+                errCnt_.error();
+                _logger.error("Can't connect to the ECU. Got no response on CCP CONNECT.");
                 state_ = StateFlashProcess.COMPLETED_WITH_ERRORS;
             }
         } else {

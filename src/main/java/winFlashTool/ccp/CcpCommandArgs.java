@@ -61,8 +61,13 @@ sealed interface CcpCommandArgs {
      * The arguments of CCP command Disconnect.
      *   @param stationAddr
      * The 16 Bit station address of the CCP device, which we want to disconnect from.
+     *   @param tiCroToDtoInMs
+     * The timeout from the CONNECT Tx CRO message till the responding DTO message in
+     * Milliseconds. If <= 0 then a short default value is used.
      */
-    record Connect(int stationAddr) implements CcpCommandArgs {
+    record Connect( int stationAddr
+                  , int tiCroToDtoInMs
+                  ) implements CcpCommandArgs {
     }
     
     /**
