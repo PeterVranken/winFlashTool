@@ -321,7 +321,7 @@ public class Log4j2Configurator
                           , /* cntMin, cntMax */ 0, 1
                           , /* defaultValue */ "INFO"
                           , "Verbosity of all logging. Specify one out of OFF,"
-                            + " FATAL, ERROR, WARN, or INFO."
+                            + " FATAL, ERROR, WARN, INFO or DEBUG."
                             + "\nOptional, default is INFO."
                           );
         clp.defineArgument( "l"

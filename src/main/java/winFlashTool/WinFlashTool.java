@@ -169,7 +169,7 @@ public class WinFlashTool
         assert cmdLineParser_ == null: "Don't parse the command line twice";
         final CmdLineParser clp = new CmdLineParser();
 
-        /* Define all expected arguments ... */
+        /* Define all expected arguments. */
         clp.defineArgument( "h"
                           , "help"
                           , /* cntMax */ 1
@@ -231,8 +231,8 @@ public class WinFlashTool
             ( "ie", "ignore-ack-err-for-connect"
             , /*cntMax*/ 1
             , "Ignoring CAN Rx errors when sending the CCP CONNECT command and waiting"
-              + " for the response can simplify connecting to a target with a flash boot"
-              + " loader (FBL), which checks for a connection request only shortly out"
+              + " for the response can simplify connecting to a target with a flash"
+              + " bootloader (FBL), which checks for a connection request only shortly out"
               + " of reset."
               + "\nIf this argument is used then repeated attempts to connect are counter"
               + "-productive. Instead, a large timeout is required for the CCP CONNECT"
@@ -246,7 +246,7 @@ public class WinFlashTool
             , /*cntMin, cntMax*/ 0, 1
             , /*defaultValue*/ 20
             , "The number of re-tries (after short delay) if the initial CCP connect fails."
-              + " The supported range is [0, 1000]"
+              + " The supported range is [0, 1000]."
               + "\nOptional, default is 20."
             );
         clp.defineArgument
@@ -593,7 +593,7 @@ public class WinFlashTool
 
                 if (success) {
                     final String version = supplierVersionInfo.get();
-                    _logger.info( "Version flash boot loader:{}{}"
+                    _logger.info( "Version flash bootloader:{}{}"
                                 , version.contains("\n")? '\n': ' '
                                 , version
                                 );
