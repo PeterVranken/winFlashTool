@@ -1,6 +1,6 @@
 = Windows Flash Tool
 :Author:            Peter Vranken
-:Email:             mailto:Peter_Vranken@Yahoo.de
+:Email:             mailto:Peter_Vranken@Yahoo.de[P. Vranken]
 //:doctype:           book
 :title-page:
 //:table-caption:     Tabelle // TODO Extract all german label settings into new template
@@ -34,7 +34,7 @@ runs out of the box with this flash tool. Other FBLs will most likely
 require an adaptation of either the FBL or this flash tool to make them
 both compatible.
 
-== Connection test with DEVKIT-MPC45748G
+== Connection test with DEVKIT-MPC5748G
 
 A basic connection test to get started with the flash tool can be
 conducted with the NXP board DEVKIT-MPC5748G. A compatible
@@ -46,7 +46,7 @@ Connect a PEAK PCAN-USB dongle to a USB port of the Windows PC. Connect
 the CAN plug of the PCAN-USB device to the CAN plug P5 of the
 DEVKIT-MPC5748G (considering the termination resistor).
 
-Open a Powershell window. Java JDK is available:
+Open a PowerShell window. Java JDK is available:
 
     java -version
     javac -version
@@ -62,8 +62,8 @@ Build the flash tool:
 Let the flash tool print its help text, then let it check for connected
 PEAK hardware:
 
-    .\winflashtool.ps1 --help
-    .\winflashtool.ps1 --enumerate-CAN-devices
+    .\winFlashTool.ps1 --help
+    .\winFlashTool.ps1 --enumerate-CAN-devices
 
 The next steps will communicate with the FBL. The proposed command lines
 will succeed only if the FBL has been built with the default settings (as
@@ -75,16 +75,16 @@ it is uploaded in GitHub):
 - Moreover, DEVKIT-MPC5748G and PCAN-USB device are the only connected CAN
   nodes. 
 
-The DEVDIT-MPC5748G is either turned off or kept in reset. (Press and hold
+The DEVKIT-MPC5748G is either turned off or kept in reset. (Press and hold
 push button `RESET`.) Now start the flash tool such that it waits for the
 FBL to awake with delay:
 
-    .\winflashtool.ps1 --station-address 4660 --ignore-ack-err-for-connect --key-file .\privateKey.sk --upload-version-fbl
+    .\winFlashTool.ps1 --station-address 4660 --ignore-ack-err-for-connect --key-file .\privateKey.sk --upload-version-fbl
 
 Note, the same command can be abbreviated by using the short form of the
 command line switches:
 
-    .\winflashtool.ps1 -a 4660 -ie -sk .\privateKey.sk -uv
+    .\winFlashTool.ps1 -a 4660 -ie -sk .\privateKey.sk -uv
     
 Shortly after submitting one of the two forms of this command, start the
 DEVKIT-MPC5748G. Release the push button or plug-in the USB wire. (You
@@ -122,18 +122,21 @@ If you don't, then you have two options for first debugging:
    for details how to do.) This will inform you about the reaction of the
    FBL.
 
-INFO: If you have just flashed the FBL onto the DEVKIT-MPC5748G but didn't
+[NOTE]
+======
+If you had just flashed the FBL onto the DEVKIT-MPC5748G but didn't
 flash an application yet, then the procedure with the push button or
 delayed board powering is not required; the FBL will start out of reset
 and remain active (and listening for a CAN CCP connect) all the time.
+======
 
 If this connection test succeeds then download of an application, upload
 of memory contents or just erasing the memories shouldn't be an issue
 neither.
 
 As a last example: Download and flash the sample application from the FBL
-repository, upload again for verification and eventually reset the board
-in order to start the flashed application:
+repository, upload it again for verification and eventually reset the
+board in order to start the flashed application:
 
     $fblDir = "<cloneDirOfFblRepository>"
     $app = "$fblDir\applications\startup\bin\ppc\PRODUCTION\DEVKIT-MPC5748G-startup.s28"
@@ -262,7 +265,7 @@ DIAG_SERVICE with service number 0.
 Optional, default is not uploading the version information.
 
 | --srec-output-file| -o|
-The srec file with the uploaded memory contents.
+The s-record file with the uploaded memory contents.
 
 If this argument is used then an upload of memory contents from the target
 device is commanded.
@@ -276,25 +279,25 @@ Address range for upload. A colon-separated pair of two hexadecimal
 addresses, from:to, e.g., 00800000:008E0000. This argument can be used any
 number of times.
 
-This argument is mandatory if the other argument srec-output-file is used
-to command an upload.
+This argument is mandatory if the other argument `--srec-output-file` is
+used to command an upload.
 
 | --srec-input-file| -i|
-The srec file with the memory contents to either flash or verify.
+The s-record file with the memory contents to either flash or verify.
 
 If this argument is used and `--verify-only` is not given then a download
 of the file to the target device is commanded.
 
 | --verify-only| -vo|
-The srec input file is loaded and compared to the memory contents of the
-target. The memories of the target are not at all modified.
+The s-record input file is loaded and compared to the memory contents of
+the target. The memories of the target are not at all modified.
 
-Optional, default is programming the srec file.
+Optional, default is programming the s-record file.
 
 | --no-verify| -nv|
 Flash programming is normally followed by an upload of the programmed
 memory contents to see if all bytes have the value specified in the input
-srec file. However, this roughly doubles the duration of the complete
+s-record file. However, this roughly doubles the duration of the complete
 programming procedure. Using option `--no-verify` means to skip the upload
 and data comparison to save the additional time.
 
@@ -310,7 +313,7 @@ be used with or without download and programming.
 
 If not given, although `--srec-input-file` is used to command the
 download, then only those flash blocks will be erased, which are required
-to house the contents of the srec file.
+to house the contents of the s-record file.
 
 | --reset-target-ECU| -r|
 If given, then communication with the ECU ends with a request for reset.
@@ -318,9 +321,9 @@ The reset request has an argument, which is either "APP" or "FBL". The
 argument commands the FBL to either launch the flashed application or
 itself again after reset.
 
-This command depends on the FBL in the target ECU. The flash tool just
-submits the CCP command DIAG_SERVICE with service number 8 (APP) or 2
-(FBL). It depends on the FBL implementation, how it reacts on these
+Please note, this command depends on the FBL in the target ECU. The flash
+tool just submits the CCP command DIAG_SERVICE with service number 8 (APP)
+or 2 (FBL). It depends on the FBL implementation, how it reacts on these
 commands.
 
 Optional, default is not to reset at the end of operation of the flash
@@ -339,9 +342,9 @@ Optional, default is normal operation.
 If given, then the application will only search for connected, available
 CAN devices. It stops after listing available devices.
 
-If `--CAN-device` is given, too, then the identification mode is enabled:
-The LED on the selected device will blink in orange for a short while
-before the application terminates.
+If `--CAN-device` is given, too, then the _identification mode_ is
+enabled: The LED on the selected device will blink in orange for a short
+while before the application terminates.
 
 Useful for a check of the setup.
 
@@ -365,6 +368,47 @@ Optional, default is not to generate a key pair.
 The flash tool has been successfully built and tested with OpenSDK Java
 23.0.1 and 18.0.1.1. 
 
+== Typical modifications of the flash tool
+
+There is little chance that you can use the flash tool out of the box. The
+tool is applicable without modification only if:
+
+- You have a board with the MPC5748G and use the FBL from the related
+  repository.
+- You migrate the FBL from the related repository to one of the similar
+  MCUs MPC5775B/E or MPC5777C and use it.
+- You build your own FBL, and it uses CCP as protocol and it makes use of
+  the same CCP commands and in the same way.
+
+In all other cases, you will need to modify the flash tool according to
+your own needs. The minimal required modification is the support of
+another MCU.
+
+=== Add another MCU's memory map
+
+The flash tool is aware of the MCU in the target ECU only insofar as it
+optimizes the CCP erase commands according to the structure of flash
+blocks in the target ECU. The s-records in the input file are related to
+flash blocks and only those flash blocks are erased, which contain at
+least one Byte of data to program. Moreover, the knowledge of flash blocks
+is exploited to check the input data. S-records specifying data outside
+the managed flash ROM address space lead to early error messages, even
+before communication with the ECU takes place.
+
+To support another MCU, you'd create a new memory map class, derived from
+class `winFlashTool.mcu.Flash`. Use file `Mpc5748G_C55FMC.java` as a
+template for doing so; it's no more than filling a table with the
+addresses of the flash blocks, which can be managed by your FBL.
+
+To make your new MCU is selectable, you need to extend the command line
+evaluation. Look into file `WinFlashTool.java`:
+
+1. In method `defineArguments`, update the help text of command line
+   argument `--mcu-target`. Your new MCU should be listed as supported
+   device. 
+2. In method `run`, ll.675ff, there is a switch/case statement, which
+   creates the suitable `Flash` object for the selected MCU. Add a case
+   statement for your MCU and make use of your new class.
 
 // Local Variables:
 // coding: utf-8

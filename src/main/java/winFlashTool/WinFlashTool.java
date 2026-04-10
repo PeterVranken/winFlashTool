@@ -293,8 +293,8 @@ public class WinFlashTool
             , "Address range for upload. A colon-separated pair of two hexadecimal"
               + " addresses, from:to, e.g., 00800000:008E0000. This argument can be used"
               + " any number of times."
-              + "\nThis argument is mandatory if the other argument srec-output-file is used"
-              + " to command an upload."
+              + "\nThis argument is mandatory if the other argument --srec-output-file is"
+              + " used to command an upload."
             );
         clp.defineArgument
             ( "i", "srec-input-file"

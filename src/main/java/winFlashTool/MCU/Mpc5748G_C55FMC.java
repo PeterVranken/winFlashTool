@@ -60,10 +60,10 @@ public class Mpc5748G_C55FMC extends Flash {
      */
     private Mpc5748G_C55FMC()
     {
-        /* We only allow to erase and program the Flash code blocks after 0xF90000, intended for
-           the normal application code, if they don't belong to read-while-write (RWW)
-           partitions 2 and 3. RWW 2 and 3, 192 KB in total, are reserved for the FBL
-           itself. */
+        /* We only allow to erase and program the Flash code blocks after 0xF90000,
+           intended for the normal application code, if they don't belong to
+           read-while-write (RWW) partitions 2 and 3. RWW 2 and 3, 192 KB in total, are
+           reserved for the FBL itself. */
         super( /*isIdxPartitionZeroBased*/ true
                          /*from*/    /*till*/     /*Partition*/       /*isProgrammable*/
              , new Range(0x00400000, 0x00404000), Integer.valueOf(0), Boolean.valueOf(false) /* UTEST */
@@ -116,7 +116,3 @@ public class Mpc5748G_C55FMC extends Flash {
 
 
 } /* End of class Mpc5748G_C55FMC definition. */
-
-
-
-
