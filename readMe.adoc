@@ -1,16 +1,12 @@
 = Windows Flash Tool
 :Author:            Peter Vranken
 :Email:             mailto:Peter_Vranken@Yahoo.de[P. Vranken]
-//:doctype:           book
 :title-page:
-//:table-caption:     Tabelle // TODO Extract all german label settings into new template
 :toc:               left
-//:toc-title:         Inhaltsverzeichnis
-//:toc:
 :toclevels:         3
 :numbered:
 :xrefstyle:         short
-:sectanchors:       // Have URLs for chapters (http://.../#section-name
+:sectanchors:       // Have URLs for chapters (http://.../#section-name)
 :icons:             font
 :hyphens:
 // Caution, stem's math support works well only with HTML output.
@@ -18,66 +14,67 @@
 // https://asciidoctor.org/docs/user-manual/
 // https://isis.apache.org/guides/dg/resources/asciidoc-writers-guide.pdf
 
-This repository provides a CAN based flash tool for embedded devices. The
-tool uses CCP as protocol for communication with a flash bootloader (FBL)
-on an embedded device. CCP commands are used to erase the flash ROM and
-download the new firmware.
+This repository provides a CAN-based flash tool for embedded devices. The
+tool uses CCP as the communication protocol with a flash bootloader (FBL)
+running on the embedded target. CCP commands are used to erase the flash
+ROM and to download new firmware.
 
-The tool has been made and tested for Windows. The supported CAN hardware
-is the inexpensive PEAK PCAN-USB dongle. Implementation language is Java
-and the PEAK drivers and JNI libraries can be downloaded for Linux, so
-that using the flash tool should work under Linux, too, but this has not
-been tested yet.
+The tool has been developed and tested on Windows. It supports the
+inexpensive PEAK PCAN-USB adapter as CAN hardware. The implementation is
+written in Java, and since PEAK drivers and JNI libraries are available
+for Linux, the flash tool should in principle work there as well, although
+this has not yet been tested.
 
-In a related repository, a FBL is provided for the NXP MCU MPC5748G, which
-runs out of the box with this flash tool. Other FBLs will most likely
-require an adaptation of either the FBL or this flash tool to make them
-both compatible.
+A related repository contains an FBL for the NXP MPC5748G MCU, which works
+with this flash tool out of the box. Other FBL implementations will likely
+require adjustments either in the FBL or in this tool to ensure mutual
+compatibility.
 
 == Connection test with DEVKIT-MPC5748G
 
-A basic connection test to get started with the flash tool can be
-conducted with the NXP board DEVKIT-MPC5748G. A compatible
+A basic connection test can be performed using the NXP DEVKIT-MPC5748G
+board. A compatible
 https://github.com/PeterVranken/DEVKIT-MPC5748G-flashBootLoader/tree/main[flash
-bootloader^] is available for this board. As a prerequisite, the FBL
-needs to be flashed on the board.
+bootloader^] is available. Make sure the FBL has been flashed onto the
+board beforehand.
 
-Connect a PEAK PCAN-USB dongle to a USB port of the Windows PC. Connect
-the CAN plug of the PCAN-USB device to the CAN plug P5 of the
-DEVKIT-MPC5748G (considering the termination resistor).
+Connect a PEAK PCAN-USB adapter to a USB port of your Windows PC. Then
+connect the CAN plug of the PCAN-USB to plug P5 on the DEVKIT-MPC5748G
+(taking termination into account).
 
-Open a PowerShell window. Java JDK is available:
+Open a PowerShell window and verify that Java JDK is available:
 
     java -version
     javac -version
 
-should return a Java version of 18 or higher. (Build may be possible with
-elder versions, too, but this has not been tested.)
+The version should be Java 18 or newer. Older versions may work but have
+not been tested.
 
 Build the flash tool:
 
     cd <repoCloneDirectory>
     .\gradlew jar
 
-Let the flash tool print its help text, then let it check for connected
-PEAK hardware:
+Display the flash tool's help text and then enumerate the available,
+connected PEAK PCAN-USB adapters:
 
     .\winFlashTool.ps1 --help
     .\winFlashTool.ps1 --enumerate-CAN-devices
 
-The next steps will communicate with the FBL. The proposed command lines
-will succeed only if the FBL has been built with the default settings (as
-it is uploaded in GitHub):
+The following steps require communication with the FBL. They will work
+only if the FBL was built with its default configuration (as provided in
+the GitHub repository):
 
-- CAN classic with 500 kBd.
-- The default authentication key pair is in use.
+- CAN Classic with 500 kBd.
+- The default authentication key pair is used.
+- The CAN IDs for CCP CRO and DTO messages are 0x600 and 0x650, respectively.
 - The CCP station address is 0x1234, or 4660.
-- Moreover, DEVKIT-MPC5748G and PCAN-USB device are the only connected CAN
-  nodes. 
+- DEVKIT-MPC5748G and the PCAN-USB adapter are the only connected CAN
+  nodes.
 
-The DEVKIT-MPC5748G is either turned off or kept in reset. (Press and hold
-push button `RESET`.) Now start the flash tool such that it waits for the
-FBL to awake with delay:
+Ensure that the DEVKIT-MPC5748G is powered off or held in reset (press and
+hold the push button `RESET`). Now start the flash tool so it waits for the FBL
+to start after a delay:
 
     .\winFlashTool.ps1 --station-address 4660 --ignore-ack-err-for-connect --key-file .\privateKey.sk --upload-version-fbl
 
@@ -85,71 +82,77 @@ Note, the same command can be abbreviated by using the short form of the
 command line switches:
 
     .\winFlashTool.ps1 -a 4660 -ie -sk .\privateKey.sk -uv
-    
-Shortly after submitting one of the two forms of this command, start the
-DEVKIT-MPC5748G. Release the push button or plug-in the USB wire. (You
-have about 20s to start the FBL.)
 
-The flash tool should report the version of the FBL in its console output.
-You should get something like:
+Shortly after running one of these commands, start the DEVKIT-MPC5748G.
+Release the reset button or connect the USB cable. You have about 20
+seconds to start the FBL.
 
-    winFlashTool 0.9.0.77 Copyright (C) 2025-2026, Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
-        439 INFO  winFlashTool.can.CanDevice: PEAK PCAN-USB device PCAN_USBBUS2 has been automatically chosen for operation.
-        512 INFO  winFlashTool.digitalSignature.DigitalSignature: Authentication key successfully read from <somePath>\privateKey.sk.
-       5342 INFO  winFlashTool.ccp.CcpCommandConnect: ECU is connected.
-       5350 INFO  winFlashTool.ccp.CcpCommandDiagService: Diagnostic service 0x00 responds with 8 Byte of data.
-       5350 INFO  winFlashTool.ccp.CcpCommandUpload: Upload 0x8 Byte from target.
-       5355 INFO  winFlashTool.ccp.CcpCommandUpload: 0x000008 Byte uploaded (100%).
-       5395 INFO  winFlashTool.ccp.CcpCommandsDownloadProgram: Download 0x40 Byte to memory address 0x40001048.
-       6082 INFO  winFlashTool.ccp.CcpCommandsDownloadProgram: 0x000040 Byte downloaded (100%).
-       6085 INFO  winFlashTool.ccp.CcpCommandDiagService: Diagnostic service 0x01 responds with 125 Byte of data.
-       6085 INFO  winFlashTool.ccp.CcpCommandUpload: Upload 0x7D Byte from target.
-       6127 INFO  winFlashTool.ccp.CcpCommandUpload: 0x00007D Byte uploaded (100%).
-       6130 INFO  winFlashTool.ccp.CcpCommandDisconnect: ECU is disconnected.
-       6130 INFO  winFlashTool.WinFlashTool: Version flash bootloader:
-    DEVKIT-MPC5748G - Flash Bootloader
-    Copyright (C) 2017-2026  Peter Vranken
-    Version 0.7.0 (Configuration: DEBUG in flash ROM)
-       6275 INFO  winFlashTool.WinFlashTool: winFlashTool terminating with 0 errors and 0 warnings.
+The flash tool should then print the FBL version information in its
+console output. You should get something like:
 
-If you don't, then you have two options for first debugging:
+[source]
+---------------------------
+winFlashTool 0.9.0.77 Copyright (C) 2025-2026, Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
+    439 INFO  winFlashTool.can.CanDevice: PEAK PCAN-USB device PCAN_USBBUS2 has been automatically chosen for operation.
+    512 INFO  winFlashTool.digitalSignature.DigitalSignature: Authentication key successfully read from <somePath>\privateKey.sk.
+   5342 INFO  winFlashTool.ccp.CcpCommandConnect: ECU is connected.
+   5350 INFO  winFlashTool.ccp.CcpCommandDiagService: Diagnostic service 0x00 responds with 8 Byte of data.
+   5350 INFO  winFlashTool.ccp.CcpCommandUpload: Upload 0x8 Byte from target.
+   5355 INFO  winFlashTool.ccp.CcpCommandUpload: 0x000008 Byte uploaded (100%).
+   5395 INFO  winFlashTool.ccp.CcpCommandsDownloadProgram: Download 0x40 Byte to memory address 0x40001048.
+   6082 INFO  winFlashTool.ccp.CcpCommandsDownloadProgram: 0x000040 Byte downloaded (100%).
+   6085 INFO  winFlashTool.ccp.CcpCommandDiagService: Diagnostic service 0x01 responds with 125 Byte of data.
+   6085 INFO  winFlashTool.ccp.CcpCommandUpload: Upload 0x7D Byte from target.
+   6127 INFO  winFlashTool.ccp.CcpCommandUpload: 0x00007D Byte uploaded (100%).
+   6130 INFO  winFlashTool.ccp.CcpCommandDisconnect: ECU is disconnected.
+   6130 INFO  winFlashTool.WinFlashTool: Version flash bootloader:
+DEVKIT-MPC5748G - Flash Bootloader
+Copyright (C) 2017-2026  Peter Vranken
+Version 0.7.0 (Configuration: DEBUG in flash ROM)
+   6275 INFO  winFlashTool.WinFlashTool: winFlashTool terminating with 0 errors and 0 warnings.
+---------------------------
 
-1. Add `--log-level DEBUG` or even `--log-level TRACE` to the flash tool's
-   command line and repeat. This will provide more error information.
-2. Open a terminal application and connect to the COM port of the
-   DEVKIT-MPC5748G and repeat. (See its
+If the expected output does not appear, you have two initial debugging
+options:
+
+1. Add `--log-level DEBUG` or `--log-level TRACE` to the flash tool
+   command line and repeat the procedure. This provides more detailed
+   diagnostics.
+2. Open a terminal application, connect to the COM port of the
+   DEVKIT-MPC5748G, and repeat the procedure. See its
    https://github.com/PeterVranken/DEVKIT-MPC5748G-flashBootLoader/tree/main/FBL#console-io[readme^]
-   for details how to do.) This will inform you about the reaction of the
-   FBL.
+   for instructions. This reveals how the FBL reacts and responds.
 
 [NOTE]
 ======
-If you had just flashed the FBL onto the DEVKIT-MPC5748G but didn't
-flash an application yet, then the procedure with the push button or
-delayed board powering is not required; the FBL will start out of reset
-and remain active (and listening for a CAN CCP connect) all the time.
+If you have just flashed the FBL onto the DEVKIT-MPC5748G but have not yet
+flashed an application, then neither the reset button nor delayed board
+power-up is required. The FBL starts immediately after reset and remains
+active, listening for a CAN CCP connection at all times.
 ======
 
-If this connection test succeeds then download of an application, upload
-of memory contents or just erasing the memories shouldn't be an issue
-neither.
+If this connection test succeeds, then downloading an application,
+uploading memory, or erasing flash should work without difficulty.
 
 As a last example: Download and flash the sample application from the FBL
 repository, upload it again for verification and eventually reset the
 board in order to start the flashed application:
 
-    $fblDir = "<cloneDirOfFblRepository>"
-    $app = "$fblDir\applications\startup\bin\ppc\PRODUCTION\DEVKIT-MPC5748G-startup.s28"
-    .\winFlashTool.ps1 -m MPC5748G -a 4660 -sk privateKey.sk -ie -i $app -r APP
+[source]
+---------------------------
+$fblDir = "<cloneDirOfFblRepository>"
+$app = "$fblDir\applications\startup\bin\ppc\PRODUCTION\DEVKIT-MPC5748G-startup.s28"
+.\winFlashTool.ps1 -m MPC5748G -a 4660 -sk privateKey.sk -ie -i $app -r APP
+---------------------------
 
 == Command line switches of the flash tool
 
 Common syntax rules:
 
-- A command line switch and its value or argument are always blank
-  separated. A construct like `--log-level=OFF` is not recognized.
-- Switches, which don't require a value or argument must not be
-  concatenated. A construct like `-de` is not recognized as `-d -e`.
+- A command line switch and its value or argument must always be separated
+  by a blank. A form such as `--log-level=OFF` is not recognized.
+- Switches that do not require a value or argument must not be combined.
+  A construct like `-de` is not interpreted as `-d -e`.
 
 [[tabUsage]]
 .Command line switches of flash tool
@@ -160,144 +163,139 @@ Common syntax rules:
 | --help| -h| Demand this help.
 
 | --use-standard-log4j2-configuration| -V|
-Use the standard configuration
-sequence of log4j2. See http://logging.apache.org/log4j/2.x/manual/configuration.html
-for details. If given then no programmatic configuration of logging
-is done and the other arguments log-level, log-file and log4j2-pattern
-are ignored.
+Use the standard Log4j2 configuration sequence. See
+http://logging.apache.org/log4j/2.x/manual/configuration.html for details.
+If this option is used, the programmatic configuration is disabled, and
+the other logging-related switches (`--log-level`, `--log-file`,
+`--log4j2-pattern`) are ignored.
 
-Optional. By default the programmatic configuration takes place.
+Optional; by default, programmatic logging configuration is used.
 
 | --log-level| -v|
-Verbosity of all logging. Specify one out of OFF, FATAL, ERROR, WARN, or
-INFO. Optional, default is INFO.
+Sets the verbosity of all logging. Allowed values are OFF, FATAL, ERROR,
+WARN, INFO, and DEBUG.
+
+Optional; default is INFO.
 
 | --log-file| -l|
-If given, a log file is written containing general program flow messages.
+If specified, a log file will be written containing general program flow
+messages.
 
-Optional. By default logging output only goes to the console.
+Optional; by default, logging output is written only to the console.
 
 | --log4j2-pattern| -p|
-A pattern for the log file entries may be specified, e.g., "%d %C %p:
-%m%n". See
+Specifies the pattern used for log file entries, for example,
+"%d %C %p: %m%n". See
 http://logging.apache.org/log4j/2.x/manual/layouts.html#PatternLayout for
 details.
 
-Optional; the default will be most often sufficient.
+Optional; the default pattern is usually sufficient.
 
 Please note, the console output is not affected.
 
 | --mcu-target| -m|
-The MCU target to program. Supported targets are: `MPC5748G`, `MPC5775B`,
-`MPC5775E` and `MPC5777C`.
+The MCU to be programmed. Supported targets are: `MPC5748G`, `MPC5775B`,
+`MPC5775E`, and `MPC5777C`.
 
-This argument is mandatory for normal operation but it is not required if
-`--enumerate-CAN-devices` is used to check the hardware setup.
+This argument is mandatory for regular operation but is not required when
+using `--enumerate-CAN-devices` or `--generate-key-pair`.
 
 | --CAN-device| -d|
-The CAN device to operate with. Consider using `--enumerate-CAN-devices`
-to get a list of connected and available devices.
+Selects the CAN device to use. Consider running `--enumerate-CAN-devices`
+to list connected and available devices.
 
-Optional, default is using the first found available device,
-which ever that is.
+Optional; by default the first available device is used.
 
 | --CAN-configuration| -cfg|
-The CAN device configuration. If classic CAN is used then this argument is
-a simple integral number specifying the CAN Baud rate in kBd. If CAN FD is
-used then this is the configuration string as defined by the PCAN Basic
-API. Please see PCAN documentation for details.
+CAN device configuration. For classic CAN, this is a single integer
+specifying the Baud rate in kBd. For CAN FD, this is the configuration
+string defined by the PCAN Basic API. See the PCAN documentation for
+details.
 
-Optional, default is using classic CAN with 500 kBd.
+Optional; default is classic CAN at 500 kBd.
 
 | --CAN-ID-CRO| -tx|
-The CAN ID for all CCP CRO Tx messages. Please note, extended CAN IDs are
-not supported yet.
+The CAN ID used for all CCP CRO Tx messages. Extended CAN IDs are not yet
+supported.
 
-Optional, default is the 11 Bit ID 0x600.
+Optional; default is the 11-bit ID 0x600.
 
 | --CAN-ID-DTO| -rx|
-The CAN ID for all CCP DTO Rx messages. Please note, extended CAN IDs are
-not supported yet.
+The CAN ID used for all CCP DTO Rx messages. Extended CAN IDs are not yet
+supported.
 
-Optional, default is the 11 Bit ID 0x650.
+Optional; default is the 11-bit ID 0x650.
 
 | --ignore-ack-err-for-connect| -ie|
-Ignoring CAN Rx errors when sending the CCP CONNECT command and waiting
-for the response can simplify connecting to a target with a flash
-bootloader (FBL), which checks for a connection request only shortly out
-of reset.
+Ignores CAN Rx errors when sending the CCP CONNECT command and waiting
+for its response, which can simplify connecting to an FBL that checks
+for connection requests only shortly after reset.
 
-If this argument is used then repeated attempts to connect are
-counter-productive. Instead, a large timeout is required for the CCP
-CONNECT command. Therefore, the other argument `--no-retries-ccp-connect`
-is (ab)used to specify the new timeout; it is 1s times the specified
-number of a retries plus one.
+When this option is used, retrying the CONNECT command becomes
+counter-productive. Instead, a larger timeout is required. For this
+purpose, the switch `--no-retries-ccp-connect` is repurposed to specify
+the timeout: it becomes (retries + 1) seconds.
 
-Optional, default is aborting the connection attempt in case of CAN
-errors.
+Optional; by default, CAN errors abort the connection attempt.
 
 | --no-retries-ccp-connect| -nr|
-The number of re-tries (after short delay) if the initial CCP connect
-fails. The supported range is [0, 1000].
+Number of retries (after short delay) if the initial CCP connect fails.
+Permitted range is [0, 1000].
 
-Optional, default is 20.
+Optional; default is 20.
 
 | --station-address| -a|
-The 16 Bit station address of the CCP target.
+The 16-bit station address of the CCP target.
 
-Optional, default is station address 0.
+Optional; default is station address 0.
 
 | --key-file| -sk|
-The name of a file with the private key of the Ed25519 authentication
-procedure with the FBL in the target ECU.
+File containing the private key for the Ed25519 authentication procedure
+with the FBL.
 
-Optional, default is to not run through the authentication procedure with
-the FBL.
+Optional; default is to skip authentication.
 
 | --upload-version-fbl| -uv|
-The version designation of the FBL in the target ECU is uploaded and
-printed in the log.
+Uploads the version information of the FBL in the target ECU and prints
+it in the log.
 
-This option is target specific. It is based on the assumption, that the
-target provides the FBL version information as result of CCP command
-DIAG_SERVICE with service number 0.
+This option is target-specific and assumes the target provides the FBL
+version information as result of CCP command DIAG_SERVICE with service
+number 0.
 
-Optional, default is not uploading the version information.
+Optional; disabled by default.
 
 | --srec-output-file| -o|
-The s-record file with the uploaded memory contents.
-
-If this argument is used then an upload of memory contents from the target
-device is commanded.
-
-If this argument is combined with a command to erase and/or program the
-flash ROM, then the upload is done first, prior to modifying the flash ROM
+Specifies the S-record file to write uploaded memory contents to. If used,
+an upload from the target is performed. If combined with erase or program
+commands, the upload happens first, prior to modifying the flash ROM
 contents.
 
-| --address-range| -u|
-Address range for upload. A colon-separated pair of two hexadecimal
-addresses, from:to, e.g., 00800000:008E0000. This argument can be used any
-number of times.
+Optional.
 
-This argument is mandatory if the other argument `--srec-output-file` is
-used to command an upload.
+| --address-range| -u|
+Address range for upload, given as two hexadecimal addresses separated by
+a colon, e.g., 00800000:008E0000. May be used multiple times.
+
+This option is mandatory when using `--srec-output-file`.
 
 | --srec-input-file| -i|
-The s-record file with the memory contents to either flash or verify.
+S-record file with memory contents to be programmed or verified. If used
+without `--verify-only`, the file is downloaded to the target and
+programmed.
 
-If this argument is used and `--verify-only` is not given then a download
-of the file to the target device is commanded.
+Optional.
 
 | --verify-only| -vo|
-The s-record input file is loaded and compared to the memory contents of
-the target. The memories of the target are not at all modified.
+Modifier for `--srec-input-file`. Loads the S-record file and compares it
+to the memory contents on the target without modifying any memory.
 
-Optional, default is programming the s-record file.
+Optional; default is to program the file.
 
 | --no-verify| -nv|
-Flash programming is normally followed by an upload of the programmed
-memory contents to see if all bytes have the value specified in the input
-s-record file. However, this roughly doubles the duration of the complete
+Modifier for `--srec-input-file`. Flash programming is normally followed
+by an upload and comparison of the programmed memory contents with the
+input file. However, this roughly doubles the duration of the complete
 programming procedure. Using option `--no-verify` means to skip the upload
 and data comparison to save the additional time.
 
@@ -308,57 +306,51 @@ programming step is always performed. However, this validates only the
 physical flash programming but not potential data transmission errors.
 
 | --erase-all| -e|
-If given, then all flash ROM under control of the FBL is erased. This can
-be used with or without download and programming.
+Erases all flash ROM controlled by the FBL. May be used with or without
+download and programming.
 
-If not given, although `--srec-input-file` is used to command the
-download, then only those flash blocks will be erased, which are required
-to house the contents of the s-record file.
+If not used while `--srec-input-file` is used to command the download,
+then only the flash blocks needed for the S-record contents are erased.
 
 | --reset-target-ECU| -r|
-If given, then communication with the ECU ends with a request for reset.
-The reset request has an argument, which is either "APP" or "FBL". The
-argument commands the FBL to either launch the flashed application or
-itself again after reset.
+Requests a reset of the ECU at the end of communication. The argument must
+be either "APP" or "FBL", telling the FBL whether to start the flashed
+application or restart itself after reset.
 
 Please note, this command depends on the FBL in the target ECU. The flash
 tool just submits the CCP command DIAG_SERVICE with service number 8 (APP)
 or 2 (FBL). It depends on the FBL implementation, how it reacts on these
 commands.
 
-Optional, default is not to reset at the end of operation of the flash
-tool.
+Optional; default is no reset. The FBL remains alive in the target and the
+flash tool could re-connect.
 
 | --dry-run| -n|
-The dry-run is a means to check the hardware and flash tool setup without
-impacting the target ECU. The flash tool executes as usual but all CCP
-commands that could impact the flash of the target are skipped. CONNECT
-and DISCONNECT are still executed. Using the dry-run, many sources of
-problems can be detected without any risk for the target.
+Runs the flash tool without modifying flash contents. All potentially
+harmful CCP commands are skipped, but CONNECT and DISCONNECT are still
+executed. Useful for validating the setup without risk.
 
-Optional, default is normal operation.
+Optional; default is normal operation.
 
 | --enumerate-CAN-devices| -dev|
-If given, then the application will only search for connected, available
-CAN devices. It stops after listing available devices.
-
-If `--CAN-device` is given, too, then the _identification mode_ is
-enabled: The LED on the selected device will blink in orange for a short
-while before the application terminates.
+Lists connected PEAK PCAN-USB devices and exits. If `--CAN-device` is also
+given, _identification mode_ is enabled: the selected device blinks its
+LED in orange for a short period.
 
 Useful for a check of the setup.
 
-Optional, default is false.
+Optional, default is not to list devices.
 
 | --generate-key-pair| -kp|
-If given, then the application will generate an ED25519 key pair, which
-can be used for the authentication procedure with the FBL. The public key
-is printed in the application log and would be integrated in the FBL. This
-switch has a file designation as argument. The private key is written into
-that file and would be used with switch `--key-file`, when later using
-this application to communicate with the FBL.
+If given, then the flash tool will generate an ED25519 key pair, which can
+be used for the authentication procedure with the FBL. The public key is
+printed to the log and would be integrated in the FBL. 
 
-The application stops after generating the key pair.
+This switch has a file designation as argument. The private key is written
+into that file and would be used with `--key-file`, when later using the
+flash tool to communicate with the FBL.
+
+The tool exits after generating the key pair.
 
 Optional, default is not to generate a key pair.
 |=======
@@ -366,49 +358,49 @@ Optional, default is not to generate a key pair.
 == Compatible Java revisions
 
 The flash tool has been successfully built and tested with OpenSDK Java
-23.0.1 and 18.0.1.1. 
+23.0.1 and 18.0.1.1.
 
 == Typical modifications of the flash tool
 
-There is little chance that you can use the flash tool out of the box. The
-tool is applicable without modification only if:
+It is unlikely that you can use the flash tool without any modification.
+The tool works out of the box only if:
 
-- You have a board with the MPC5748G and use the FBL from the related
+- You use an MPC5748G board together with the FBL from the related
   repository.
 - You migrate the FBL from the related repository to one of the similar
   MCUs MPC5775B/E or MPC5777C and use it.
-- You build your own FBL, and it uses CCP as protocol and it makes use of
-  the same CCP commands and in the same way.
+- You have your own FBL implementation that uses CCP and supports the
+  same CCP commands in the same manner.
 
-In all other cases, you will need to modify the flash tool according to
-your own needs. The minimal required modification is the support of
-another MCU.
+In all other situations, some level of adaptation will be required. The
+smallest necessary modification is typically adding support for another
+MCU type.
 
 === Add another MCU's memory map
 
-The flash tool is aware of the MCU in the target ECU only insofar as it
-optimizes the CCP erase commands according to the structure of flash
-blocks in the target ECU. The s-records in the input file are related to
-flash blocks and only those flash blocks are erased, which contain at
-least one Byte of data to program. Moreover, the knowledge of flash blocks
-is exploited to check the input data. S-records specifying data outside
-the managed flash ROM address space lead to early error messages, even
-before communication with the ECU takes place.
+The flash tool is aware of the target MCU only to the extent needed to
+optimize CCP erase operations. Erase commands are derived from the flash
+block layout of the MCU. S-records in the input file refer to specific
+flash regions, and only those regions containing at least one byte to be
+programmed are erased. Knowledge of the flash block structure is also used
+to validate the S-record input: any S-record referencing an address
+outside the supported flash range results in an early error, even before
+any communication with the ECU begins.
 
-To support another MCU, you'd create a new memory map class, derived from
-class `winFlashTool.mcu.Flash`. Use file `Mpc5748G_C55FMC.java` as a
-template for doing so; it's no more than filling a table with the
-addresses of the flash blocks, which can be managed by your FBL.
+To add support for a new MCU, create a memory map class derived from
+`winFlashTool.mcu.Flash`. Use `Mpc5748G_C55FMC.java` as a template; you
+mainly need to fill in a table describing the addresses of the flash
+blocks managed by your FBL.
 
-To make your new MCU is selectable, you need to extend the command line
-evaluation. Look into file `WinFlashTool.java`:
+To make the new MCU selectable, extend the command-line handling in
+`WinFlashTool.java`:
 
-1. In method `defineArguments`, update the help text of command line
-   argument `--mcu-target`. Your new MCU should be listed as supported
-   device. 
-2. In method `run`, ll.675ff, there is a switch/case statement, which
-   creates the suitable `Flash` object for the selected MCU. Add a case
-   statement for your MCU and make use of your new class.
+1. In method `defineArguments`, update the help text for the
+   `--mcu-target` option so your new MCU appears in the list of supported
+   devices.
+2. In method `run` (around line 675), a switch/case statement creates the
+   appropriate `Flash` object based on the selected MCU. Add a case for
+   your new MCU and instantiate your new memory map class.
 
 // Local Variables:
 // coding: utf-8

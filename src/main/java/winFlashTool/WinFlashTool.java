@@ -189,8 +189,8 @@ public class WinFlashTool
               + "\n  MPC5775B"
               + "\n  MPC5775E"
               + "\n  MPC5777C"
-              + "\nThis argument is mandatory for normal operation but it is not required"
-              + " if --enumerate-CAN-devices is used to check the hardware setup."
+              + "\nThis argument is mandatory for regular operation but is not required"
+              + " when using `--enumerate-CAN-devices` or `--generate-key-pair`."
             );
         clp.defineArgument
             ( "d", "CAN-device"
