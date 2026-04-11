@@ -30,6 +30,8 @@ with this flash tool out of the box. Other FBL implementations will likely
 require adjustments either in the FBL or in this tool to ensure mutual
 compatibility.
 
+// TODOC Add table of abbreviations.
+
 == Connection test with DEVKIT-MPC5748G
 
 A basic connection test can be performed using the NXP DEVKIT-MPC5748G
@@ -355,10 +357,91 @@ The tool exits after generating the key pair.
 Optional, default is not to generate a key pair.
 |=======
 
-== Compatible Java revisions
+== Connecting to the FBL
 
-The flash tool has been successfully built and tested with OpenSDK Java
-23.0.1 and 18.0.1.1.
+There are several ways to establish the connection between the flash tool
+and the FBL. Some of these are application-specific; the flashed
+application has one or more trigger options to switch from the running
+application to the FBL, which is then available for CCP communication.
+These solutions are application-specific and will not be discussed further
+here.
+
+Furthermore, many FBLs share the characteristic that, regardless of these
+specific solutions, they allow contact with the flash tool immediately
+after each reset. The MCU reset starts the FBL, which then waits a short
+time for a possible connection via CAN and CCP. Only if this time has
+elapsed without a connection being established does the FBL start the
+flashed application. This procedure is a backdoor to allow reprogramming
+of the application even if the already flashed application has an error
+and the normally used, specific solution therefore fails.
+
+Unconditionally waiting for a possible connection means an undesirable
+increase in the application's startup time. This time is therefore kept to
+a minimum. This, in turn, makes it difficult to start the flash tool at
+precisely the right point. Our flash tool offers two options to simplify
+the process.
+
+=== Flash tool and Target Board are the only CAN nodes
+
+If the flash tool is connected to the board running the FBL via a direct
+point-to-point connection, meaning there are no other CAN communication
+participants besides these two, the `--ignore-ack-err-for-connect` option
+can be used.
+
+With this option, the flash tool is started while the board with the FBL
+is still inactive. (It may be helt in reset or still switched off.) The
+flash tool sends the CCP `CONNECT` message. This message remains unheard
+on the CAN bus because there is (yet) no other active node that would send
+the acknowledgment. In this situation, CAN transceivers (such as those
+used in the PEAK PCAN-USB) continuously resend the message until an
+acknowledgment is finally received. At the same time, the situation is
+reported back as a CAN protocol error. The flash tool sees the error
+but ignores it due to the `--ignore-ack-err-for-connect` option. Normally,
+such an error would abort the flashing process, but now the tool simply
+continues waiting for a response from the FBL.
+
+The board is switched on with a slight delay. The FBL starts, initializes
+the CAN hardware, and then receives the next repetition of the CCP
+`CONNECT` message. Simultaneously, the CAN hardware sends the
+acknowledgement. The FBL evaluates the message and sends the response --
+the connection is established.
+
+The maximum time the flash tool waits for the `CONNECT` response is
+configurable; the default value is 20 seconds. The board with the FBL must
+be powered on within this timeframe after the flash tool starts.
+
+=== Flash tool and Target Board are connected to a CAN bus
+
+If the flash tool and board are connected to a CAN bus that also contains
+other CAN devices, `--ignore-ack-err-for-connect` will not help. Again,
+the idea is to start the flash tool first and then, after a short delay,
+the board with the FBL. The situation is now significantly different; the
+other CAN nodes would send the acknowledgement as soon as the CCP
+`CONNECT` message is sent for the first time. The flash tool would assume
+that the `CONNECT` was understood and would be answered shortly
+afterward -- which doesn't happen because the board with the FBL is still
+powered off. The flash tool would then abort the flashing process with an
+error message.
+
+In this situation, the other option `--no-retries-ccp-connect` helps. If a
+CCP `CONNECT` is not answered promptly, the flash tool sends a repeated
+`CONNECT` after a short wait, as many times as the option specifies. If
+the board with the FBL is powered on after a short delay, the next of
+these repeated send attempts should fall within the small time window that
+the FBL maintains for establishing contact. The FBL responds normally, and
+the connection is established.
+
+The flash tool repeats sending the CCP `CONNECT` messages approximately
+every 30 ms. Therefore, the time window in the FBL should be configured to
+approximately 50 ms (or more) to guarantee that at least one flash tool
+send repetition is seen.
+
+Please note that the flash tool's 30 ms repetition time is a compile-time
+constant and cannot be changed via command-line arguments.
+
+The default value for `--no-retries-ccp-connect` is 20. If you can
+reliably start flash tool and board within half a second, this option is
+not needed.
 
 == Typical modifications of the flash tool
 
@@ -401,6 +484,11 @@ To make the new MCU selectable, extend the command-line handling in
 2. In method `run` (around line 675), a switch/case statement creates the
    appropriate `Flash` object based on the selected MCU. Add a case for
    your new MCU and instantiate your new memory map class.
+
+== Compatible Java revisions
+
+The flash tool has been successfully built and tested with OpenSDK Java
+23.0.1 and 18.0.1.1.
 
 // Local Variables:
 // coding: utf-8
