@@ -19,6 +19,7 @@
  */
 /* Interface of class Mpc5748G_C55FMC
  *   Mpc5748G_C55FMC
+ *   getFlashRomDescription
  */
 
 package winFlashTool.mcu;

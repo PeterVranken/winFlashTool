@@ -26,7 +26,9 @@ function setEnvVar ([string]$varName, [string]$value) {
     }
 }
 
-# The build requires a JAVA runtime 8.
+# A JAVA runtime is required. The revision needs to be the same or higher as the one used
+# for building the flash tool. Building the flash tool has been tested wit Java 18 and Java
+# 23.
 #   TODO Check or set this path. The proposed path is the FEV standard installation path
 # and it might work out of the box.
 setEnvVar JAVA_HOME "C:\ProgramFiles\Java\jdk-23.0.1"
@@ -34,7 +36,6 @@ setEnvVar JAVA_HOME "C:\ProgramFiles\Java\jdk-23.0.1"
 # Prepare the Windows search path for the run of the application.
 $env:PATH = `
     "$env:JAVA_HOME\bin" `
-    + ";" + [System.IO.Path]::GetFullPath("$PSScriptRoot\lib\PEAK\x86_64") `
     + ";" + [System.IO.Path]::GetFullPath("$PSScriptRoot\lib\PEAK\x86_64") `
     + ";$env:PATH"
 
