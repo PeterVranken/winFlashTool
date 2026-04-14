@@ -1,3 +1,7 @@
+// Hint: Set environment variable GRADLE_USER_HOME to a directory of
+// choice to collect the needed downloads made by Gradle at a dedicated,
+// specific location.
+
 plugins {
     id 'java'
     id 'application'
