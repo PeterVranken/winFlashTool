@@ -91,6 +91,9 @@ distributions {
                 include 'PCANBasic.dll'
                 into 'bin'   // place DLLs next to the launch script
             }
+            from('LICENSE')
+            from('readMe.html')
+            from('readMe.pdf')
         }
     }
 }

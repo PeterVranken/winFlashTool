@@ -492,8 +492,9 @@ To make the new MCU selectable, extend the command-line handling in
 
 The build of the Java application is under control of Gradle. After
 cloning the repository, you'd open a shell window (e.g. PowerShell) and
-`cd` into the root of the chosen clone directory. Now type:
+`cd` into the root of the chosen clone directory:
 
+    cd <cloneDirOfFlashToolRepository>
     gradlew installDist
     
 The very first build may take several minutes. Gradle will download all if
