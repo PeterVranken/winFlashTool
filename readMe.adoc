@@ -45,7 +45,7 @@ Connect a PEAK PCAN-USB adapter to a USB port of your Windows PC. Then
 connect the CAN plug of the PCAN-USB to plug P5 on the DEVKIT-MPC5748G
 (taking termination into account).
 
-Open a PowerShell window and verify that Java JDK is available:
+Open a PowerShell window and verify that a suitable Java JDK is available:
 
     java -version
     javac -version
@@ -111,7 +111,7 @@ winFlashTool 0.9.0.77 Copyright (C) 2025-2026, Peter Vranken (mailto:Peter_Vrank
    6130 INFO  winFlashTool.WinFlashTool: Version flash bootloader:
 DEVKIT-MPC5748G - Flash Bootloader
 Copyright (C) 2017-2026  Peter Vranken
-Version 0.7.0 (Configuration: DEBUG in flash ROM)
+Version 0.9.1 (Configuration: DEBUG in flash ROM)
    6275 INFO  winFlashTool.WinFlashTool: winFlashTool terminating with 0 errors and 0 warnings.
 ---------------------------
 

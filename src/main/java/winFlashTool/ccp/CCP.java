@@ -150,6 +150,20 @@ public class CCP {
     /** The CCP command object factory used by this CCP object. */
     final CcpCommandFactory ccpCmdFactory_;
 
+    /** Global flag, which is set when Ctrl-C is pressed. Evaluated during CCP
+        communication. Leads to immediate abort of all CCP communication. */
+    private static volatile boolean _shutdownRequested = false;
+    
+    static {
+        _logger.trace("Installing Ctrl-C handler for CCP protocol state machine.");
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                                                            _logger.debug("Ctrl-C detected.");
+                                                            _shutdownRequested = true;
+                                                        }
+                                                       )
+                                            );
+    }
+    
     /**
      * A new instance of CCP is created. It represents a CCP connection with a ECU.
      *   @param canDev
@@ -561,7 +575,8 @@ public class CCP {
      *   Once a CCP protocol sequence has been initiated (see, e.g., eraseAndProgram()),
      * this function needs to be called regularly until it reports completion of the CCP
      * protocol sequence.<p>
-     *   Must be called only after eraseAndProgram() has been successfully called.
+     *   Must be called only after a command sequence has been successfully created, e.g.,
+     * by calling eraseAndProgram().
      *   @return
      * Get true if the process has completed, i.e., if the state machine has reached
      * COMPLETED (either after successful completion of the configured CCP protocol
@@ -634,7 +649,33 @@ public class CCP {
     public boolean run() {
     
         /* Clock the state machine, which runs the CCP communication. */
-        while(!step()) {
+        while (!step()) {
+            /* Check for Ctrl-C. */
+            if (_shutdownRequested) {
+                errCnt_.error();
+                _logger.fatal("Ctrl-C detected. All CCP communication is immediately"
+                              + " terminated. No statement can be made about the status"
+                              + " of the connected control unit."
+                             );
+                
+                /* Ctrl+C is a brutal way to stop the process. We overwrite the state
+                   variable and shortcut all normal decisions of the state machine. We
+                   can't easily terminate gracefully. Here, we have no inside in the
+                   sub-ordinated states, e.g., if we are still waiting for a pending DTO or
+                   prior to sending the next CRO. Therefore, it is not possible to force a
+                   transition into state DISCONNECTING. All we can do is stopping all
+                   further activities, i.e., ignoring pending inbound CAN messages and not
+                   sending any outbound CAN message any more. A smoother system reaction,
+                   e.g., properly disconnecting, would require delegation of the request to
+                   abort to the lower levels of the CCP implementation.
+                     Unfortunately, the JVM kills this thread quite soon after receiving
+                   the Ctrl-C. By experience, the remaining execution time is not even long
+                   enough to reach the end of main(). Any more elaborated solution would
+                   anway fail due to this restriction. Giving a bit of user feedback is
+                   effectively the only benefit of Ctrl-C handling. */
+                state_ = StateFlashProcess.COMPLETED_WITH_ERRORS;
+            }
+            
             /* Here, we could do other, non-blocking things, e.g., print some
                progress information. */
         }
