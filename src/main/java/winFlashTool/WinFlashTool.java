@@ -474,8 +474,6 @@ public class WinFlashTool
      * <b>true</b>, if method succeeded, else <b>false</b>.
      */
     public boolean run() {
-try{Class.forName("winFlashTool.ccp.CCP");} catch(ClassNotFoundException e){}
-
         TaskMgr taskMgr = new TaskMgr(errCnt_);
         boolean success = taskMgr.evaluateCmdLine(cmdLineParser_);
 
