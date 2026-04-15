@@ -173,6 +173,13 @@ class TaskMgr {
                           + " --srec-output-file and --srec-input-file are ignored."
                         );
         }
+        if (taskVerify && eraseAll) {
+            success = false;
+            errCnt_.error();
+            _logger.error("Verifying the memory contents before deleting them seems"
+                          + " suspicious and not by intention. The operation is denied."
+                         );
+        }
 
         return success;
 
