@@ -12,5 +12,7 @@ function endWithError { write-host $usage; exit; }
 # Limit the allowed number of parameters.
 #if($args[0] -match '.') {endWithError}
 
-$appLaunchScript = [System.IO.Path]::GetFullPath("$PSScriptRoot\build\install\winFlashTool\bin\winFlashTool.bat")
+$appDir = [System.IO.Path]::GetFullPath("$PSScriptRoot\build\install\winFlashTool")
+$appLaunchScript = $appDir + "\bin\winFlashTool.bat"
+$env:PATH = "$appDir\bin;$env:PATH"
 .$appLaunchScript @args
