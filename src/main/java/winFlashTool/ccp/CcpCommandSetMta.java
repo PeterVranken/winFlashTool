@@ -71,12 +71,12 @@ public class CcpCommandSetMta extends CcpCommandBase
     } /* CcpCommandSetMta.CcpCommandSetMta */
 
     /**
-     * The CCP SET_MTA command can be safely done even in dry-run.
+     * Most of the time, the CCP SET_MTA command can't be safely done in dry-run.
      * {@inheritDoc}
      */
     @Override
     protected boolean isSkippedInDryRun() {
-        return false;
+        return true;
     }
 
     /**
@@ -160,13 +160,11 @@ public class CcpCommandSetMta extends CcpCommandBase
      */
     @Override
     public String toString() {
-        final String addr = isValidMta0() 
-                            ? "0x" + Long.toHexString(mta0()).toUpperCase()
-                            : "?";
-        return "SET_MTA(mta" + idxMta_ + "=" + addr + ")";
+        final String arg = "mta" + idxMta_ 
+                           + (isValidMta0()
+                              ? "=" + "0x" + Long.toHexString(mta0()).toUpperCase()
+                              : ""
+                             );
+        return "SET_MTA(" + arg + ")";
     }
 } /* End of class CcpCommandSetMta definition. */
-
-
-
-

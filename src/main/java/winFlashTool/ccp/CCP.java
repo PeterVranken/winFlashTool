@@ -243,7 +243,7 @@ public class CCP {
 
     /**
      * Test the application configuration and the current CCP command to see if the command
-     * should be executed or; if we are in "dry run" then it may be required to skipp the
+     * should be executed or if we are in "dry run" -- then it may be required to skip the
      * command.
      */
     private boolean executeCcpCmd() {

@@ -325,8 +325,10 @@ int getRequiredTimeoutCroTillDto() {
     @Override
     public String toString() {
         final String cmdName = isDownload_? "DOWNLOAD": "PROGRAM"
-                   , noBytes = dataToDownload_ != null? ""+dataToDownload_.length: "?";
-        return cmdName + "(noBytes=" + noBytes + ")";
+                   , noBytes = dataToDownload_ != null
+                               ? "(noBytes=" + dataToDownload_.length + ")"
+                               : "";
+        return cmdName + noBytes;
     }
 } /* End of class CcpCommandsDownloadProgram definition. */
 

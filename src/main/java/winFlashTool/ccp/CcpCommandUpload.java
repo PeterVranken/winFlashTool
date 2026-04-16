@@ -281,7 +281,7 @@ public class CcpCommandUpload extends CcpCommandBase
      */
     @Override
     public String toString() {
-        return "UPLOAD(noBytes=" + (dataUploaded_ == null? "?": ""+dataUploaded_.length) + ")";
+        return "UPLOAD" + (dataUploaded_ != null? "(noBytes="+dataUploaded_.length+")": "");
     }
 } /* End of class CcpCommandUpload definition. */
 

@@ -163,7 +163,7 @@ class TaskMgr {
             success = false;
             errCnt_.error();
             _logger.error("Specifying an address range for upload without specifying an"
-                          + " input srec file is pointless. Upload is not performed."
+                          + " output srec file is pointless. Upload is not performed."
                          );
         }
         if (taskEnumCanDevices && (taskUpload || taskProgram)) {
