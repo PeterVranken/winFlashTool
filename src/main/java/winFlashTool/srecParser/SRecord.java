@@ -39,7 +39,14 @@ public class SRecord extends Range {
     /** The global logger object for all progress and error reporting. */
     private static final Logger _logger = LogManager.getLogger(SRecord.class);
 
-    /** The data bytes filling the address range from..till in the base class. */
+    /** The currently allocated byte array can have more capacity as required from the
+        current range from..till in the base class. This avoids permanent reallocation of
+        the buffer for the typical operation of joining an adjacent other S-record. This
+        constant limits the "more" and allows a trade-off between speedup and memory usage. */
+    private final static int MAX_HEADROOM = 10000;
+    
+    /** The data bytes filling the address range from..till in the base class. The buffer
+        can be larger than till-from. */
     private byte[] data_;
 
     /**
@@ -71,13 +78,36 @@ public class SRecord extends Range {
 
     } /* SRecord.SRecord */
 
+    /** 
+     * Reallocate the byte array if it should have to less capacity for the next operation.
+     *   @param newCapa
+     * The new capacity of the data buffer - which must be not less than the current contents.
+     */
+    private void realloc(int newCapa) {
+        assert newCapa >= isize();
+        byte[] newData = new byte[newCapa];
+        
+        /* Safe the data by copying it into the new buffer. */
+        for(int i=0; i<size(); ++i) {
+            newData[i] = data_[i];
+        }
+        
+        /* Replace buffer. */
+        data_ = newData;
+    }
+    
     /**
      * Get the memory contents.
      *   @return
      * Get the memory contents as byte array.
      */
     public byte[] data() {
-        assert size() == data_.length;
+        if(isize() < data_.length)
+        {
+            /* Reallocation needed - the caller expects an exactely fitting byte array. */
+            data_ = ArrayUtils.subarray(data_, 0, isize());
+        }
+        assert data_.length == isize();
         return data_;
     }
 
@@ -94,19 +124,38 @@ public class SRecord extends Range {
      *   @param other     
      * The second SRecord, which needs to either begin immediately at the first address
      * behind this SRecord or end at the address, where this begins. There must neither be
-     * a gap between the two SREcords nor an overlap.
+     * a gap between the two SRecords nor an overlap.
      *   @warning
-     * We override the base class' mtehod, although the operation is not generally defines
-     * for SRecord. Two ranges can be joind if the y overlap but two SRecords can't: what
+     * We override the base class method, although the operation is not generally defines
+     * for SRecord. Two ranges can be joined if they overlap but two SRecords can't: what
      * to do with the overlapping data if not by chance identical in both operands?<p>
      *   This implementation fails if the two ranges don't properly connet to one another.
      */
     @Override
     public SRecord join(Range other) {
         assert other instanceof SRecord: "SRecord can only be joined with other SRecord";
-        /* Now join the data chunks, too. */
+        
+        /* First join the data chunks. */
+        final int newLength = isize() + other.isize();
+        if (data_.length < newLength) {
+            /* Capacity of current buffer doesn't suffices; buffer needs to be
+               reallocated. We allocate more as required to avoid permanet reallocation
+               in the important use case of joining many adjacent SRecords. */
+            final int headroom = Math.min(newLength, MAX_HEADROOM);
+            realloc(newLength + headroom);
+        }
+        
+        /* If we get here, then the data buffer sure has the capacity to hold the joined
+           ranges. */
+        assert data_.length >= newLength;
+        
         if (connectsBefore(other)) {
-            data_ = ArrayUtils.addAll(data_, ((SRecord)other).data_);
+            //data_ = ArrayUtils.addAll(data_, ((SRecord)other).data_);
+            /* Append the new data. */
+            int idxWr = isize();
+            for(int i=0; i<other.isize(); ++i, ++idxWr) {
+                data_[idxWr] = ((SRecord)other).data_[i];
+            }
         } else {
             if (!connectsBehind(other)) {
                 throw new IndexOutOfBoundsException( "SRecord.join is not fully"
@@ -114,17 +163,22 @@ public class SRecord extends Range {
                                                      + " not overlap"
                                                    );
             }
-            data_ = ArrayUtils.addAll(((SRecord)other).data_, data_);
+            //data_ = ArrayUtils.addAll(((SRecord)other).data_, data_);
+            /* Move already contained data towards the end. */
+            int idxWr = newLength - 1;
+            for(int i=isize()-1; i>=0; --i, --idxWr) {
+                data_[idxWr] = data_[i];
+            }
+            /* Insert the new data at the beginning. */
+            for(int i=0; i<other.isize(); ++i) {
+                data_[i] = ((SRecord)other).data_[i];
+            }
         }
 
-        /* Join the address ranges. super.join fails if ranges aren't adjacent. */
+        /* Now join the address ranges. super.join fails if ranges aren't adjacent. */
         super.join(other);
 
         return this;
     }
 
 } /* End of class SRecord definition. */
-
-
-
-

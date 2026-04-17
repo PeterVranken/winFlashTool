@@ -75,6 +75,12 @@ public class Range implements Comparable<Range>
         return till_ - from_;
     }
 
+    public int isize() {
+        assert size() <= (long)Integer.MAX_VALUE
+             : "Size of range exceeds implementation range of int";
+        return (int)size();
+    }
+
     public boolean isBefore(Range other) {
         return till_ <= other.from_;
     }
