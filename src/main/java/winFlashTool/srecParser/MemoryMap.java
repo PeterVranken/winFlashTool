@@ -3,7 +3,7 @@
  * The result of parsing the srec file: An image of the memories to erase and their new
  * contents.
  *
- * Copyright (C) 2025 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
+ * Copyright (C) 2025-2026 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by the
@@ -204,7 +204,7 @@ public class MemoryMap {
                             );
             }
             
-            /* Now knowing all s-records to program, we can calculate, which sector from the
+            /* Now knowing all S-records to program, we can calculate, which sector from the
                flash ROM need to be erased. */
             if (!eraseSectorSequence_.findSectorsToErase(srecSequence_)) {
                 success = false;
@@ -249,12 +249,12 @@ public class MemoryMap {
         final SrecListenerForMemMap srecListener = new SrecListenerForMemMap();
         parser.registerListener(srecListener);
 
-        _logger.info("Now reading s-record file {}", srecFileName);
+        _logger.info("Now reading S-record file {}", srecFileName);
         boolean success = parser.parse(srecFile);
 
         if (success) {
-            // TODO If we have !success but this is due to the mapping of the s-records
-            // onto the flash blocks, then we should still list the found s-records.
+            // TODO If we have !success but this is due to the mapping of the S-records
+            // onto the flash blocks, then we should still list the found S-records.
             // Particularly in this situation it is useful information for the user.
             // Boolean seems to be too weak to be able to take the right decision.
             eraseSectorSequence_.logSectors();

@@ -1,8 +1,8 @@
 /**
  * @file SrecWriter.java
- * Simple writer for s-record files.
+ * Simple writer for S-record files.
  *
- * Copyright (C) 2025 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
+ * Copyright (C) 2025-2026 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by the
@@ -39,7 +39,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 /**
- * Simple writer for s-record files.
+ * Simple writer for S-record files.
  */
 public class SrecWriter {
 
@@ -94,7 +94,7 @@ public class SrecWriter {
     /**
      * Format an S0 record with some text information inside.
      *   @return
-     * Get the s-record as string.
+     * Get the S-record as string.
      *   @param textInfo
      * Some text, which is written to the srec file.
      */
@@ -104,7 +104,7 @@ public class SrecWriter {
         int noBytes = data.length;
         if (noAddrBytes + noBytes + 1 > 255) {
             noBytes = 255 - noAddrBytes - 1;
-            _logger.warn( "Descriptive text \"{}\" in generated s-record file is too long and"
+            _logger.warn( "Descriptive text \"{}\" in generated S-record file is too long and"
                           + " needs to be truncated."
                         , textInfo
                         );
@@ -119,13 +119,13 @@ public class SrecWriter {
     
 
     /**
-     * Format an s-record.
+     * Format an S-record.
      *   @return
-     * Get the s-record as string.
+     * Get the S-record as string.
      *   @param kindOfRecord
-     * The type of the s-record, a number in the range 0..9.
+     * The type of the S-record, a number in the range 0..9.
      *   @param address
-     * The address of the first byte of the s-record.
+     * The address of the first byte of the S-record.
      *   @param noAddressBytes
      * The number of bytes for the representation of address. Range is 2..4.
      *   @param data
@@ -181,11 +181,11 @@ public class SrecWriter {
     } /* formatSRecord */
 
     /**
-     * Format an s-record.
+     * Format an S-record.
      *   @return
-     * Get the s-record as string.
+     * Get the S-record as string.
      *   @param address
-     * The address of the first byte of the s-record.
+     * The address of the first byte of the S-record.
      *   @param noAddressBytes
      * The number of bytes for the representation of address. Range is 2..4.
      *   @param data
@@ -216,7 +216,7 @@ public class SrecWriter {
      *   @param srecSequence
      * The binary data to be written into the file.
      *   @param noBytesPerLine
-     * The number of data bytes, which will be outermost written into an s-record.
+     * The number of data bytes, which will be outermost written into an S-record.
      */
     public static boolean write( String fileName
                                , SRecordSequence srecSequence
@@ -226,7 +226,7 @@ public class SrecWriter {
 
         try (BufferedWriter bw = new BufferedWriter(new FileWriter(fileName))) {
 
-            /* First s-record is an encoded descriptive text. */
+            /* First S-record is an encoded descriptive text. */
             // TODO Create text with address range and no bytes
             /* Get current date and time and format it as a readable string (e.g.,
                "2025-12-19 10:45:30"). */
@@ -244,7 +244,7 @@ public class SrecWriter {
                 long addr = section.from();
                 long noBytesToGo = section.size();
 
-                /* The first s-record doesn't have the full size; it is used to bring the
+                /* The first S-record doesn't have the full size; it is used to bring the
                    address of the record to a multiple of the full record length. This is
                    most useful for the common power-of-two lengths. */
                 int noBytesSrec = (int)((addr + (long)noBytesPerLine - 1)
@@ -297,7 +297,7 @@ public class SrecWriter {
 
             success = false;
             _errCnt.error();
-            _logger.error("Error writing s-record file with uploaded data. {}", msg);
+            _logger.error("Error writing S-record file with uploaded data. {}", msg);
         }
 
         if (success) {

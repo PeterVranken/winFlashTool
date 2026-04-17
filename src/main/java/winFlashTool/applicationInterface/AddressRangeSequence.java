@@ -2,7 +2,7 @@
  * @file AddressRangeSequence.java
  * Command line interface: The address range(s) to upload from the target device.
  *
- * Copyright (C) 2015-2025 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
+ * Copyright (C) 2015-2026 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by the
@@ -178,11 +178,11 @@ public class AddressRangeSequence extends ArrayList<Range> {
     } /* parseCmdLine */
 
     /**
-     * Convert the sequence of address ranges into a sequence of s-records. The s-records
+     * Convert the sequence of address ranges into a sequence of S-records. The S-records
      * in the new sequence have the same address ranges but, additionally, they provide
      * memory buffers for storage of the contents of the address ranges.
      *   @return
-     * Get the sequence of s-records. The memory buffers are allocated but still emtpy
+     * Get the sequence of S-records. The memory buffers are allocated but still emtpy
      * (undefined contents).<p>
      *   S-record sequences don't allow overlapping address ranges. The function can fail
      * if this contains such ranges. null is returned in this case.

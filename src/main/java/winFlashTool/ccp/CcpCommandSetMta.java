@@ -160,6 +160,7 @@ public class CcpCommandSetMta extends CcpCommandBase
      */
     @Override
     public String toString() {
+        // @todo This code is suspicious. It uses the MTA from the target (if known) but not the address it is willing to set. Would work correct only after successfully executing setup(). Bug or not understood use-case?
         final String arg = "mta" + idxMta_ 
                            + (isValidMta0()
                               ? "=" + "0x" + Long.toHexString(mta0()).toUpperCase()

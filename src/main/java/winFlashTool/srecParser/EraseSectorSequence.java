@@ -3,7 +3,7 @@
  * Collect all flash ROM sectors, which need to be erased in order to be
  * able to program a given SRecordSequence.
  *
- * Copyright (C) 2025 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
+ * Copyright (C) 2025-2026 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by the
@@ -105,7 +105,7 @@ public class EraseSectorSequence implements Iterable<Range> {
      * Get true if the program fits into the set of erasable flash ROM sectors. If the
      * method returns false, then the contents from the srec file can't be programmed.
      *   @param program
-     * The program as a list of s-records with data.
+     * The program as a list of S-records with data.
      */
     boolean findSectorsToErase(SRecordSequence program) {
         assert sectorList_.isEmpty(): "Erase sector list needs to be initially empty.";
@@ -130,7 +130,6 @@ public class EraseSectorSequence implements Iterable<Range> {
             Range rangeErase = null;
             Sector blk = itBlk.next();
             while (secPrg != null) {
-//_logger.info("New loop cycle: blk: {}, prg: {}, erase: {}", blk, secPrg, rangeErase);
                 if (blk.overlaps(secPrg)) {
                 
                     /* The current block belongs into the result list. However, we wait
@@ -217,7 +216,7 @@ public class EraseSectorSequence implements Iterable<Range> {
         } else {
             errCnt_.error();
             _logger.error( "Program doesn't fit into the available flash blocks. First"
-                           + " data out of programmable flash: {}."
+                           + " data outside programmable flash: {}."
                          , secPrg
                          );
             return false;

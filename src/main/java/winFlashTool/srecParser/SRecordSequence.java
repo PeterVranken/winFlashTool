@@ -2,7 +2,7 @@
  * @file SRecordSequence.java
  * Assemble a binary program from all S-Records read from an srec file.
  *
- * Copyright (C) 2025 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
+ * Copyright (C) 2025-2026 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by the
@@ -33,11 +33,11 @@ import winFlashTool.basics.ErrorCounter;
 import winFlashTool.basics.Range;
 
 /**
- * An object of this class has a list of SRecords. Small s-records read from an srec file
- * can be added and added will join them with already contained s-records so that
+ * An object of this class has a list of SRecords. Small S-records read from an srec file
+ * can be added and added will join them with already contained S-records so that
  * (normally) a few records in the list grow rather than that the list will contain many of
- * them. When all small s-records from the file have been added then the (probably large)
- * s-records in the list form the memory sections to program.
+ * them. When all small S-records from the file have been added then the (probably large)
+ * S-records in the list form the memory sections to program.
  */
 public class SRecordSequence implements Iterable<SRecord> {
 
@@ -57,7 +57,7 @@ public class SRecordSequence implements Iterable<SRecord> {
      * areas. If the new record r ovelaps with at least one of the already contained
      * records, then the function returns false and the process should be aborted.
      *   @param r
-     * The s-record to add to the memory map.
+     * The S-record to add to the memory map.
      */
     public boolean add(SRecord r) {
     
@@ -158,7 +158,7 @@ public class SRecordSequence implements Iterable<SRecord> {
                    the overlap can extend over one or more successors. */
                 success = false;
                 _errCnt.error();
-                _logger.error( "Overlapping s-records detected in input. Uploading or"
+                _logger.error( "Overlapping S-records detected in input. Uploading or"
                                + " reprogramming the same addresses is not supported."
                                + " First overlapping address is 0x{}. Number of"
                                + " overlapping bytes is at least {}."
@@ -167,13 +167,13 @@ public class SRecordSequence implements Iterable<SRecord> {
                              );
                 break;
             }
-        } /* while(Still another s-record in the list, to compare with the new one) */
+        } /* while(Still another S-record in the list, to compare with the new one) */
         
         return success;
     }
     
     /**
-     * Interface iterable: Get the iterator for visiting all s-records in this sequence.
+     * Interface iterable: Get the iterator for visiting all S-records in this sequence.
      *   @return
      * Get the iterator.
      */
@@ -183,7 +183,7 @@ public class SRecordSequence implements Iterable<SRecord> {
     }
     
     /**
-     * Get an advanced iterator for visiting all s-records in this sequence.
+     * Get an advanced iterator for visiting all S-records in this sequence.
      *   @return
      * Get the iterator of class ListIterator, which provides more options for iterations
      * than the one returned by iterator().

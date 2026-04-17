@@ -2,7 +2,7 @@
  * @file SrecParserError.java
  * Error codes, which are returned by the srec parser.
  *
- * Copyright (C) 2025 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
+ * Copyright (C) 2025-2026 Peter Vranken (mailto:Peter_Vranken@Yahoo.de)
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by the
@@ -32,14 +32,14 @@ enum SrecParserError
     /** The supported eror codes. */
     SUCCESS("S-Record successfully read"),
     WARN_EMPTY_LINE("The line in the srec input file is empty"),
-    ERR_UNKNOWN_TYPE("The second character of the s-record designates an unknown/unsupported"
-                     + " kind of s-record"
+    ERR_UNKNOWN_TYPE("The second character of the S-record designates an unknown/unsupported"
+                     + " kind of S-record"
                     ),
-    ERR_INVALID_CHECKSUM("The checksum for the s-record doesn't match the data contents"),
-    ERR_WRONG_DATA_LENGTH("The second byte of the s-record doesn't match the length of"
-                          + " the s-record"
+    ERR_INVALID_CHECKSUM("The checksum for the S-record doesn't match the data contents"),
+    ERR_WRONG_DATA_LENGTH("The second byte of the S-record doesn't match the length of"
+                          + " the S-record"
                          ),
-    ERR_REGEX_MISMATCH("Syntax error. The line in the srec input file is not an s-record");
+    ERR_REGEX_MISMATCH("Syntax error. The line in the srec input file is not an S-record");
     
     /** A comprehensible explanation of what went wrong, when this error is seen. */
     final String errMsg_;

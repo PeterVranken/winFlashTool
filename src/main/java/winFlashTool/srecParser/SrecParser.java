@@ -69,7 +69,7 @@ public class SrecParser
     private static ErrorCounter _errCnt = ErrorCounter.getGlobalErrorCounter();
 
     /** The interface some other entity needs to have, in order to be informed about all
-        s-records read from the input file. */
+        S-records read from the input file. */
     public interface ISrecListener {
         /* Set the name of the input file. Can be useful for error messages.<p>
              The implementation of this method is optional. */
@@ -80,7 +80,7 @@ public class SrecParser
            listener shall return true only if everything was fine for all seen records. */
         boolean getFinalSuccess();
         
-        /* Each s-record (be it valid or not), which is read from the input file, is passed
+        /* Each S-record (be it valid or not), which is read from the input file, is passed
            to this listener for further processing. Only if errorCode is
            SrecParserError.SUCCESS then the last three arguments are meaningful. */
         boolean onRecordParsed( SrecParserError errorCode
@@ -97,7 +97,7 @@ public class SrecParser
 
     /**
      * Prior to reading the input file using parse(), set the listener for parsed
-     * s-records.
+     * S-records.
      *   @param listener
      * The listening object.
      */
@@ -182,7 +182,7 @@ public class SrecParser
                     case 3: case 7: addressLength = 8; break; // 4 bytes
                     default:
                         /* Do to the syntax check with the regular expression, this can
-                           only be s-record 4, which is reserved for the futures ad not
+                           only be S-record 4, which is reserved for the futures ad not
                            specified, yet. We can't simply go ahead and parse the rest of
                            the line and leave the decision to the listener, as we wouldn't
                            know, how to split the remaining bytes into address and data. */

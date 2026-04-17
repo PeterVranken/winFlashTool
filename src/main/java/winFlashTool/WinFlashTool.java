@@ -72,7 +72,7 @@ public class WinFlashTool
 
     /** Version designation as four numeric parts. Note, any update of major or minor
         requires an according update of variable "version" in build script build.gradle. */
-    private static int[] _versionAry = {0, 9, 1, GitRevision.getProjectRevision()};
+    private static int[] _versionAry = {0, 10, 0, GitRevision.getProjectRevision()};
 
     /** The first three parts of the version of the tool, which relate to functional
         changes of the application.
@@ -718,7 +718,7 @@ public class WinFlashTool
                         if (!memMap.readSrecFile(srecInputFileName)) {
                             success = false;
                             errCnt_.error();
-                            _logger.error("Reading s-record input file failed. Application"
+                            _logger.error("Reading S-record input file failed. Application"
                                           + " terminates."
                                          );
                         }
