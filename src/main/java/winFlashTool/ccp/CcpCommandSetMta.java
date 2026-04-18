@@ -47,9 +47,14 @@ public class CcpCommandSetMta extends CcpCommandBase
         value will become the new MTA when the ECU acknowledges the command. */
     private final LongSupplier supplierMemoryAddr_;
 
+    /** Address, which is set by SET_MTA. It is provided by a supplier object when needed,
+        otherwise CcpCommandToolbox.MTA_INVALID_VALUE. */
+    private long memoryAddr_;
+    
     /** The index of the affected MTA, either 0 or 1. */
     private final int idxMta_;
 
+    
     /**
      * A new instance of CcpCommandSetMta is created and configured for the CCP SET_MTA
      * command.
@@ -61,7 +66,10 @@ public class CcpCommandSetMta extends CcpCommandBase
 
         idxMta_ = args.idxMta();
 
-        /* For now, we do not implement any CCP which would ever make use of MTA1. */
+        /* Aimed address is unknown until the supplier is asked (in setup()). */
+        memoryAddr_ = CcpCommandToolbox.MTA_INVALID_VALUE;
+        
+            /* For now, we do not implement any CCP which would ever make use of MTA1. */
         assert idxMta_ == 0: "MTA1 is not suppoted, yet";
 
         /* We do not support the address extension, which is just a relict from the ancient
@@ -103,19 +111,20 @@ public class CcpCommandSetMta extends CcpCommandBase
         payloadCroAry[2] = idxMta; /* The x in MTAx, x=0..1 */
         payloadCroAry[3] = (byte)0; /* Address extension not used in any modern CPU. */
 
-        final long memoryAddr = supplierMemoryAddr_.getAsLong();
-        if ((memoryAddr & 0xFFFFFFFF00000000l) == 0l) {
+        memoryAddr_ = supplierMemoryAddr_.getAsLong();
+        if ((memoryAddr_ & 0xFFFFFFFF00000000l) == 0l) {
             /* Memory address in MSB endianess. */
-            payloadCroAry[4] = (byte)((memoryAddr >> 24) & 0xFF);
-            payloadCroAry[5] = (byte)((memoryAddr >> 16) & 0xFF);
-            payloadCroAry[6] = (byte)((memoryAddr >>  8) & 0xFF);
-            payloadCroAry[7] = (byte)((memoryAddr >>  0) & 0xFF);
+            payloadCroAry[4] = (byte)((memoryAddr_ >> 24) & 0xFF);
+            payloadCroAry[5] = (byte)((memoryAddr_ >> 16) & 0xFF);
+            payloadCroAry[6] = (byte)((memoryAddr_ >>  8) & 0xFF);
+            payloadCroAry[7] = (byte)((memoryAddr_ >>  0) & 0xFF);
 
             /* Make new MTA available to other commands, e.g., DOWNLOAD and PROGRAM. */
-            setMta0(memoryAddr);
+            setMta0(memoryAddr_);
 
             sendCro(/*noContentBytes*/ 8);
-            _logger.printf(Level.DEBUG, "CRO message SET_MTA(0x%06X) sent to ECU.",memoryAddr);
+            _logger.debug("CRO message {} sent to ECU.", toString());
+
             return CcpCroTransmitter.ResultTransmission.PENDING;
         } else {
             errCnt().error();
@@ -160,9 +169,8 @@ public class CcpCommandSetMta extends CcpCommandBase
      */
     @Override
     public String toString() {
-        // @todo This code is suspicious. It uses the MTA from the target (if known) but not the address it is willing to set. Would work correct only after successfully executing setup(). Bug or not understood use-case?
         final String arg = "mta" + idxMta_ 
-                           + (isValidMta0()
+                           + (memoryAddr_ != CcpCommandToolbox.MTA_INVALID_VALUE
                               ? "=" + "0x" + Long.toHexString(mta0()).toUpperCase()
                               : ""
                              );

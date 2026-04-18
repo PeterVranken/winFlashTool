@@ -155,13 +155,12 @@ public class CCP {
     private static volatile boolean _shutdownRequested = false;
     
     static {
-        _logger.trace("Installing Ctrl-C handler for CCP protocol state machine.");
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                                                            _logger.debug("Ctrl-C detected.");
-                                                            _shutdownRequested = true;
-                                                        }
-                                                       )
-                                            );
+        _logger.trace("Installing shutdown handler for CCP protocol state machine.");
+        final Runnable shutdownRunnable = () -> {
+            _logger.trace("Shutdown requested.");
+            _shutdownRequested = true;
+        };
+        Runtime.getRuntime().addShutdownHook(new Thread(shutdownRunnable));
     }
     
     /**

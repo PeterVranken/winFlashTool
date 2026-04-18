@@ -138,14 +138,14 @@ public class SRecord extends Range {
         /* First join the data chunks. */
         final int newLength = isize() + other.isize();
         if (data_.length < newLength) {
-            /* Capacity of current buffer doesn't suffices; buffer needs to be
-               reallocated. We allocate more as required to avoid permanet reallocation
-               in the important use case of joining many adjacent SRecords. */
+            /* Capacity of current buffer doesn't suffice; buffer needs to be
+               reallocated. We allocate more as required to avoid permanent reallocation
+               in the important use case of joining many adjacent S-records. */
             final int headroom = Math.min(newLength, MAX_HEADROOM);
             realloc(newLength + headroom);
         }
         
-        /* If we get here, then the data buffer sure has the capacity to hold the joined
+        /* If we get here, then the data buffer surely has the capacity to hold the joined
            ranges. */
         assert data_.length >= newLength;
         
