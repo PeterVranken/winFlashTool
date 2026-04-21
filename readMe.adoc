@@ -373,10 +373,10 @@ If you use the flash tool with the FBL from the related repository, it may
 not even be very useful; this FBL implicitly verifies every program
 operation immediately after programming. A later upload and data
 comparison by the flash tool has the only added value of verifying the CAN
-data transmission -- on cost of duplicating the flash time. CAN errors are
-rare, so most of the time during application development, this time could
-be saved using `--no-verify`. (For end-of-line flashing in a productive
-process, verification is of course recommended.)
+data transmission -- but at the cost of doubling the flash time. CAN
+errors are rare, so most of the time during application development, this
+time could be saved using `--no-verify`. (For end-of-line flashing in a
+productive process, verification is of course recommended.)
 
 If doubts should arise later about the error-free flashing process, the
 omitted verification step can always be performed later. Switch

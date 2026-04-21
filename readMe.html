@@ -940,15 +940,15 @@ would be reported as verify errors. Switch <code>--no-verify</code> allows to om
 the second phase.</p>
 </div>
 <div class="paragraph">
-<p>The upload phase is ever a bit slower than the download and program phase.
+<p>The upload phase is even a bit slower than the download and program phase.
 If you use the flash tool with the FBL from the related repository, it may
 not even be very useful; this FBL implicitly verifies every program
 operation immediately after programming. A later upload and data
 comparison by the flash tool has the only added value of verifying the CAN
-data transmission&#8201;&#8212;&#8201;on cost of duplicating the flash time. CAN errors are
-rare, so most of the time during application development, this time could
-be saved using <code>--no-verify</code>. (For end-of-line flashing in a productive
-process verification is of course recommended.)</p>
+data transmission&#8201;&#8212;&#8201;but at the cost of doubling the flash time. CAN
+errors are rare, so most of the time during application development, this
+time could be saved using <code>--no-verify</code>. (For end-of-line flashing in a
+productive process, verification is of course recommended.)</p>
 </div>
 <div class="paragraph">
 <p>If doubts should arise later about the error-free flashing process, the
@@ -1296,7 +1296,7 @@ source available under the LGPL.</p>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2026-04-21 22:01:06 +0200
+Last updated 2026-04-21 22:07:09 +0200
 </div>
 </div>
 <script type="text/x-mathjax-config">
