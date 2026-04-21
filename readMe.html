@@ -448,29 +448,30 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <ul class="sectlevel1">
 <li><a href="#secConnectionTest">1. Connection test with DEVKIT-MPC5748G</a></li>
 <li><a href="#_command_line_switches_of_the_flash_tool">2. Command line switches of the flash tool</a></li>
-<li><a href="#_connecting_to_the_fbl">3. Connecting to the FBL</a>
+<li><a href="#_to_verify_or_not_to_verify">3. To verify or not to verify</a></li>
+<li><a href="#_connecting_to_the_fbl">4. Connecting to the FBL</a>
 <ul class="sectlevel2">
-<li><a href="#_flash_tool_and_target_board_are_the_only_can_nodes">3.1. Flash tool and target board are the only CAN nodes</a></li>
-<li><a href="#_flash_tool_and_target_board_are_connected_to_a_can_bus">3.2. Flash tool and target board are connected to a CAN bus</a></li>
+<li><a href="#_flash_tool_and_target_board_are_the_only_can_nodes">4.1. Flash tool and target board are the only CAN nodes</a></li>
+<li><a href="#_flash_tool_and_target_board_are_connected_to_a_can_bus">4.2. Flash tool and target board are connected to a CAN bus</a></li>
 </ul>
 </li>
-<li><a href="#_typical_modifications_of_the_flash_tool">4. Typical modifications of the flash tool</a>
+<li><a href="#_typical_modifications_of_the_flash_tool">5. Typical modifications of the flash tool</a>
 <ul class="sectlevel2">
-<li><a href="#_add_another_mcus_memory_map">4.1. Add another MCU&#8217;s memory map</a></li>
+<li><a href="#_add_another_mcus_memory_map">5.1. Add another MCU&#8217;s memory map</a></li>
 </ul>
 </li>
-<li><a href="#_building_and_deploying_the_flash_tool_as_standalone_application">5. Building and deploying the flash tool as standalone application</a>
+<li><a href="#_building_and_deploying_the_flash_tool_as_standalone_application">6. Building and deploying the flash tool as standalone application</a>
 <ul class="sectlevel2">
-<li><a href="#_building_the_flash_tool">5.1. Building the flash tool</a></li>
-<li><a href="#_deploying_the_flash_tool">5.2. Deploying the flash tool</a></li>
-<li><a href="#_compatible_java_revisions">5.3. Compatible Java revisions</a></li>
+<li><a href="#_building_the_flash_tool">6.1. Building the flash tool</a></li>
+<li><a href="#_deploying_the_flash_tool">6.2. Deploying the flash tool</a></li>
+<li><a href="#_compatible_java_revisions">6.3. Compatible Java revisions</a></li>
 </ul>
 </li>
-<li><a href="#_license">6. License</a>
+<li><a href="#_license">7. License</a>
 <ul class="sectlevel2">
-<li><a href="#_use_as_a_java_application_or_library">6.1. Use as a Java application or library</a></li>
-<li><a href="#_jni_and_native_components">6.2. JNI and native components</a></li>
-<li><a href="#_no_license_on_firmware_or_hardware">6.3. No license on firmware or hardware</a></li>
+<li><a href="#_use_as_a_java_application_or_library">7.1. Use as a Java application or library</a></li>
+<li><a href="#_jni_and_native_components">7.2. JNI and native components</a></li>
+<li><a href="#_no_license_on_firmware_or_hardware">7.3. No license on firmware or hardware</a></li>
 </ul>
 </li>
 </ul>
@@ -516,7 +517,7 @@ connect the CAN plug of the PCAN-USB to plug P5 on the DEVKIT-MPC5748G
 (taking termination into account).</p>
 </div>
 <div class="paragraph">
-<p>Open a PowerShell window and verify that Java JDK is available:</p>
+<p>Open a PowerShell window and verify that a suitable Java JDK is available:</p>
 </div>
 <div class="literalblock">
 <div class="content">
@@ -618,7 +619,7 @@ console output. You should get something like:</p>
    6130 INFO  winFlashTool.WinFlashTool: Version flash bootloader:
 DEVKIT-MPC5748G - Flash Bootloader
 Copyright (C) 2017-2026  Peter Vranken
-Version 0.7.0 (Configuration: DEBUG in flash ROM)
+Version 0.9.1 (Configuration: DEBUG in flash ROM)
    6275 INFO  winFlashTool.WinFlashTool: winFlashTool terminating with 0 errors and 0 warnings.</code></pre>
 </div>
 </div>
@@ -927,7 +928,39 @@ flash tool to communicate with the FBL.</em></p>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_connecting_to_the_fbl"><a class="anchor" href="#_connecting_to_the_fbl"></a>3. Connecting to the FBL</h2>
+<h2 id="_to_verify_or_not_to_verify"><a class="anchor" href="#_to_verify_or_not_to_verify"></a>3. To verify or not to verify</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The flash tool has the command line switch <code>--no-verify</code>. Normally, when
+downloading data to the ECU for programming, the procedure has two phases.
+In phase one, all data from the srec input file is downloaded and
+programmed and in phase two, the programmed address space is uploaded from
+the ECU and compared to the contents of the same srec file. Mismatches
+would be reported as verify errors. Switch <code>--no-verify</code> allows to omit
+the second phase.</p>
+</div>
+<div class="paragraph">
+<p>The upload phase is ever a bit slower than the download and program phase.
+If you use the flash tool with the FBL from the related repository, it may
+not even be very useful; this FBL implicitly verifies every program
+operation immediately after programming. A later upload and data
+comparison by the flash tool has the only added value of verifying the CAN
+data transmission&#8201;&#8212;&#8201;on cost of duplicating the flash time. CAN errors are
+rare, so most of the time during application development, this time could
+be saved using <code>--no-verify</code>. (For end-of-line flashing in a productive
+process verification is of course recommended.)</p>
+</div>
+<div class="paragraph">
+<p>If doubts should arise later about the error-free flashing process, the
+omitted verification step can always be performed later. Switch
+<code>--srec-input-file</code> in combination with <code>--verify-only</code> starts the
+procedure to only do the data update and comparison. The verify result is
+finally printed in the log.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_connecting_to_the_fbl"><a class="anchor" href="#_connecting_to_the_fbl"></a>4. Connecting to the FBL</h2>
 <div class="sectionbody">
 <div class="paragraph">
 <p>There are several ways to establish the connection between the flash tool
@@ -955,7 +988,7 @@ precisely the right point. Our flash tool offers two options to simplify
 the process.</p>
 </div>
 <div class="sect2">
-<h3 id="_flash_tool_and_target_board_are_the_only_can_nodes"><a class="anchor" href="#_flash_tool_and_target_board_are_the_only_can_nodes"></a>3.1. Flash tool and target board are the only CAN nodes</h3>
+<h3 id="_flash_tool_and_target_board_are_the_only_can_nodes"><a class="anchor" href="#_flash_tool_and_target_board_are_the_only_can_nodes"></a>4.1. Flash tool and target board are the only CAN nodes</h3>
 <div class="paragraph">
 <p>If the flash tool is connected to the board running the FBL via a direct
 point-to-point connection, meaning there are no other CAN communication
@@ -988,7 +1021,7 @@ be powered on within this timeframe after the flash tool starts.</p>
 </div>
 </div>
 <div class="sect2">
-<h3 id="_flash_tool_and_target_board_are_connected_to_a_can_bus"><a class="anchor" href="#_flash_tool_and_target_board_are_connected_to_a_can_bus"></a>3.2. Flash tool and target board are connected to a CAN bus</h3>
+<h3 id="_flash_tool_and_target_board_are_connected_to_a_can_bus"><a class="anchor" href="#_flash_tool_and_target_board_are_connected_to_a_can_bus"></a>4.2. Flash tool and target board are connected to a CAN bus</h3>
 <div class="paragraph">
 <p>If the flash tool and board are connected to a CAN bus that also contains
 other CAN devices, <code>--ignore-ack-err-for-connect</code> will not help. Again,
@@ -1029,7 +1062,7 @@ not needed.</p>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_typical_modifications_of_the_flash_tool"><a class="anchor" href="#_typical_modifications_of_the_flash_tool"></a>4. Typical modifications of the flash tool</h2>
+<h2 id="_typical_modifications_of_the_flash_tool"><a class="anchor" href="#_typical_modifications_of_the_flash_tool"></a>5. Typical modifications of the flash tool</h2>
 <div class="sectionbody">
 <div class="paragraph">
 <p>It is unlikely that you can use the flash tool without any modification.
@@ -1057,7 +1090,7 @@ smallest necessary modification is typically adding support for another
 MCU type.</p>
 </div>
 <div class="sect2">
-<h3 id="_add_another_mcus_memory_map"><a class="anchor" href="#_add_another_mcus_memory_map"></a>4.1. Add another MCU&#8217;s memory map</h3>
+<h3 id="_add_another_mcus_memory_map"><a class="anchor" href="#_add_another_mcus_memory_map"></a>5.1. Add another MCU&#8217;s memory map</h3>
 <div class="paragraph">
 <p>The flash tool is aware of the target MCU only to the extent needed to
 optimize CCP erase operations. Erase commands are derived from the flash
@@ -1096,10 +1129,10 @@ your new MCU and instantiate your new memory map class.</p>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_building_and_deploying_the_flash_tool_as_standalone_application"><a class="anchor" href="#_building_and_deploying_the_flash_tool_as_standalone_application"></a>5. Building and deploying the flash tool as standalone application</h2>
+<h2 id="_building_and_deploying_the_flash_tool_as_standalone_application"><a class="anchor" href="#_building_and_deploying_the_flash_tool_as_standalone_application"></a>6. Building and deploying the flash tool as standalone application</h2>
 <div class="sectionbody">
 <div class="sect2">
-<h3 id="_building_the_flash_tool"><a class="anchor" href="#_building_the_flash_tool"></a>5.1. Building the flash tool</h3>
+<h3 id="_building_the_flash_tool"><a class="anchor" href="#_building_the_flash_tool"></a>6.1. Building the flash tool</h3>
 <div class="paragraph">
 <p>The build of the Java application is under control of Gradle. After
 cloning the repository, you&#8217;d open a shell window (e.g. PowerShell) and
@@ -1129,7 +1162,7 @@ is a one-liner for calling the script generated by Gradle.</p>
 </div>
 </div>
 <div class="sect2">
-<h3 id="_deploying_the_flash_tool"><a class="anchor" href="#_deploying_the_flash_tool"></a>5.2. Deploying the flash tool</h3>
+<h3 id="_deploying_the_flash_tool"><a class="anchor" href="#_deploying_the_flash_tool"></a>6.2. Deploying the flash tool</h3>
 <div class="paragraph">
 <p>The Gradle build has created the ready-to-use bundle of files, directly
 usable as folder <code>build\install\winFlashTool</code>. You can copy this folder
@@ -1172,7 +1205,7 @@ type:</p>
 </div>
 </div>
 <div class="sect2">
-<h3 id="_compatible_java_revisions"><a class="anchor" href="#_compatible_java_revisions"></a>5.3. Compatible Java revisions</h3>
+<h3 id="_compatible_java_revisions"><a class="anchor" href="#_compatible_java_revisions"></a>6.3. Compatible Java revisions</h3>
 <div class="paragraph">
 <p>The flash tool has been successfully built and tested with OpenSDK Java
 23.0.1 and 18.0.1.1.</p>
@@ -1181,14 +1214,14 @@ type:</p>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_license"><a class="anchor" href="#_license"></a>6. License</h2>
+<h2 id="_license"><a class="anchor" href="#_license"></a>7. License</h2>
 <div class="sectionbody">
 <div class="paragraph">
 <p>This project is licensed under the <strong>GNU Lesser General Public License v3.0 or later</strong>
 (<code>LGPL-3.0-or-later</code>).</p>
 </div>
 <div class="sect2">
-<h3 id="_use_as_a_java_application_or_library"><a class="anchor" href="#_use_as_a_java_application_or_library"></a>6.1. Use as a Java application or library</h3>
+<h3 id="_use_as_a_java_application_or_library"><a class="anchor" href="#_use_as_a_java_application_or_library"></a>7.1. Use as a Java application or library</h3>
 <div class="paragraph">
 <p>You may:</p>
 </div>
@@ -1219,7 +1252,7 @@ available under the same license.</p>
 </div>
 </div>
 <div class="sect2">
-<h3 id="_jni_and_native_components"><a class="anchor" href="#_jni_and_native_components"></a>6.2. JNI and native components</h3>
+<h3 id="_jni_and_native_components"><a class="anchor" href="#_jni_and_native_components"></a>7.2. JNI and native components</h3>
 <div class="paragraph">
 <p>This project contains native components accessed via <strong>JNI</strong>.</p>
 </div>
@@ -1240,7 +1273,7 @@ source available under the LGPL.</p>
 </div>
 </div>
 <div class="sect2">
-<h3 id="_no_license_on_firmware_or_hardware"><a class="anchor" href="#_no_license_on_firmware_or_hardware"></a>6.3. No license on firmware or hardware</h3>
+<h3 id="_no_license_on_firmware_or_hardware"><a class="anchor" href="#_no_license_on_firmware_or_hardware"></a>7.3. No license on firmware or hardware</h3>
 <div class="paragraph">
 <p>This license does <strong>not</strong> apply to:</p>
 </div>
@@ -1263,7 +1296,7 @@ source available under the LGPL.</p>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2026-04-14 21:46:21 +0200
+Last updated 2026-04-21 22:01:06 +0200
 </div>
 </div>
 <script type="text/x-mathjax-config">

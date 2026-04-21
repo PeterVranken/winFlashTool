@@ -358,6 +358,32 @@ The tool exits after generating the key pair.
 Optional, default is not to generate a key pair.
 |=======
 
+== To verify or not to verify
+
+The flash tool has the command line switch `--no-verify`. Normally, when
+downloading data to the ECU for programming, the procedure has two phases.
+In phase one, all data from the srec input file is downloaded and
+programmed and in phase two, the programmed address space is uploaded from
+the ECU and compared to the contents of the same srec file. Mismatches
+would be reported as verify errors. Switch `--no-verify` allows to omit
+the second phase.
+
+The upload phase is even a bit slower than the download and program phase.
+If you use the flash tool with the FBL from the related repository, it may
+not even be very useful; this FBL implicitly verifies every program
+operation immediately after programming. A later upload and data
+comparison by the flash tool has the only added value of verifying the CAN
+data transmission -- on cost of duplicating the flash time. CAN errors are
+rare, so most of the time during application development, this time could
+be saved using `--no-verify`. (For end-of-line flashing in a productive
+process, verification is of course recommended.)
+
+If doubts should arise later about the error-free flashing process, the
+omitted verification step can always be performed later. Switch
+`--srec-input-file` in combination with `--verify-only` starts the
+procedure to only do the data update and comparison. The verify result is
+finally printed in the log.
+
 == Connecting to the FBL
 
 There are several ways to establish the connection between the flash tool
